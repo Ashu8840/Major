@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* Custom utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Hide scrollbars but keep functionality where needed */
+.scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.scrollable::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+/* Allow natural page scrolling with hidden scrollbars */
+.page-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.page-scroll::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+/* Prevent only horizontal scrolling */
+.no-horizontal-scroll {
+  overflow-x: hidden;
+}
