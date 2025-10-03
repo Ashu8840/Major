@@ -28,7 +28,8 @@ import {
 export default function Navbar() {
   const { user, userProfile, token, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const displayName = userProfile?.displayName || user?.username || user?.name || "User";
+  const displayName =
+    userProfile?.displayName || user?.username || user?.name || "User";
   const profileImage = userProfile?.profileImage;
   const [notificationCount, setNotificationCount] = useState(0);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);

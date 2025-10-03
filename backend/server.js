@@ -15,6 +15,7 @@ const postRoutes = require("./routes/postRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const communityRoutes = require("./routes/communityRoutes");
 
 dotenv.config();
 
@@ -30,7 +31,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
+    origin: [
+      process.env.CLIENT_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -38,10 +43,16 @@ const io = new Server(server, {
 
 app.use(express.json());
 app.use(helmet());
-app.use(cors({ 
-  origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
-  credentials: true 
-}));
+app.use(
+  cors({
+    origin: [
+      process.env.CLIENT_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+    ],
+    credentials: true,
+  })
+);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -60,6 +71,7 @@ app.use("/api/posts", postRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/community", communityRoutes);
 
 app.use("/uploads", express.static("uploads"));
 

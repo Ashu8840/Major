@@ -43,6 +43,40 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    followers: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        followedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    following: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        followedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    socialLinks: {
+      website: String,
+      twitter: String,
+      instagram: String,
+      linkedin: String,
+    },
     themePreference: {
       type: String,
       default: "light",

@@ -6,6 +6,7 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
@@ -56,13 +57,11 @@ function AppContent() {
   };
 
   // Check if current page is authentication page
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+  const isAuthPage =
+    location.pathname === "/login" || location.pathname === "/signup";
 
   // Don't show chat button on login/signup pages or chat page itself
-  const showChatButton =
-    token &&
-    !isAuthPage &&
-    location.pathname !== "/chat";
+  const showChatButton = token && !isAuthPage && location.pathname !== "/chat";
 
   // Hide navbar and sidebar on auth pages
   const showSidebar = !isAuthPage && location.pathname !== "/chat";
@@ -101,11 +100,14 @@ function AppContent() {
         }}
       >
         <Routes>
-          <Route path="/" element={
-            <Private>
-              <Home />
-            </Private>
-          } />
+          <Route
+            path="/"
+            element={
+              <Private>
+                <Home />
+              </Private>
+            }
+          />
           <Route
             path="/diary"
             element={
@@ -224,6 +226,29 @@ function AppContent() {
           <IoChatbubbles className="w-7 h-7" />
         </button>
       )}
+
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "#1e40af",
+            color: "#fff",
+            fontWeight: "500",
+          },
+          success: {
+            style: {
+              background: "#059669",
+            },
+          },
+          error: {
+            style: {
+              background: "#dc2626",
+            },
+          },
+        }}
+      />
     </div>
   );
 }
@@ -232,11 +257,11 @@ export default function App() {
   return (
     // TODO: Re-enable ThemeProvider when theme system is implemented
     // <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </AuthProvider>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </AuthProvider>
     // </ThemeProvider>
   );
 }

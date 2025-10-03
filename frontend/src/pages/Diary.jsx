@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../utils/api";
 import { AuthContext } from "../context/AuthContext";
 import {
@@ -95,20 +96,51 @@ export default function Diary() {
   });
 
   const deleteEntry = async (entryId) => {
-    if (!window.confirm("Are you sure you want to delete this entry?")) return;
-
-    try {
-      await api.delete(`/entries/${entryId}`);
-      const updatedEntries = entries.filter((e) => e._id !== entryId);
-      setEntries(updatedEntries);
-
-      if (selectedEntry && selectedEntry._id === entryId) {
-        setSelectedEntry(updatedEntries.length > 0 ? updatedEntries[0] : null);
+    // Create a toast with custom action buttons for confirmation
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="font-medium text-gray-900">Delete this entry?</p>
+          <p className="text-sm text-gray-600">This action cannot be undone.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  await api.delete(`/entries/${entryId}`);
+                  const updatedEntries = entries.filter(
+                    (e) => e._id !== entryId
+                  );
+                  setEntries(updatedEntries);
+                  if (selectedEntry && selectedEntry._id === entryId) {
+                    setSelectedEntry(
+                      updatedEntries.length > 0 ? updatedEntries[0] : null
+                    );
+                  }
+                  toast.success("Entry deleted successfully");
+                } catch (error) {
+                  console.error("Failed to delete entry:", error);
+                  toast.error("Failed to delete entry. Please try again.");
+                }
+              }}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        duration: 10000,
+        position: "top-center",
       }
-    } catch (error) {
-      console.error("Error deleting entry:", error);
-      alert("Failed to delete entry");
-    }
+    );
   };
 
   const toggleFavorite = (entryId) => {
@@ -191,7 +223,7 @@ export default function Diary() {
 
   const updateEntry = async () => {
     if (!selectedEntry.title.trim() || !selectedEntry.content.trim()) {
-      alert("Please fill in both title and content");
+      toast.error("Please fill in both title and content");
       return;
     }
 
@@ -206,10 +238,11 @@ export default function Diary() {
       );
       setEntries(updatedEntries);
       setSelectedEntry(data);
+      toast.success("Entry updated successfully");
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating entry:", error);
-      alert("Failed to update entry");
+      toast.error("Failed to update entry. Please try again.");
     }
   };
 
@@ -441,11 +474,132 @@ export default function Diary() {
                     setSelectedEntry(entry);
                     setIsEditing(false);
                   }}
-                  className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-200 p-6 cursor-pointer hover:shadow-xl hover:shadow-blue-200/50 transition-all duration-300 hover:-translate-y-1 relative overflow-hidden"
+                  className="group bg-white/90 backdrop-blur-sm rounded-3xl border border-blue-200 overflow-hidden cursor-pointer hover:shadow-2xl hover:shadow-blue-200/30 transition-all duration-300 hover:-translate-y-2 relative h-96 flex flex-col"
                 >
-                  {/* Paper lines effect */}
+                  {/* Entry Image (if exists) */}
+                  {entry.media && entry.media.length > 0 && (
+                    <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                      <img
+                        src={entry.media[0].url}
+                        alt={entry.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          e.target.parentElement.style.height = "0px";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                    </div>
+                  )}
+
+                  {/* Card Header with Actions */}
+                  <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                    {pinnedEntries.has(entry._id) && (
+                      <div className="p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-lg">
+                        <IoPin className="w-4 h-4 text-blue-600" />
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(entry._id);
+                      }}
+                      className="p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-colors"
+                    >
+                      {favorites.has(entry._id) ? (
+                        <IoHeart className="w-4 h-4 text-red-500" />
+                      ) : (
+                        <IoHeartOutline className="w-4 h-4 text-blue-400" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(entry._id);
+                      }}
+                      className="p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-colors"
+                    >
+                      {pinnedEntries.has(entry._id) ? (
+                        <IoPin className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <IoPinOutline className="w-4 h-4 text-blue-400" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="flex-1 p-6 flex flex-col justify-between">
+                    {/* Title and Content */}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-blue-900 text-xl mb-3 line-clamp-2 group-hover:text-blue-700 transition-colors leading-tight">
+                        {entry.title}
+                      </h3>
+                      <p className="text-blue-700 text-sm line-clamp-3 leading-relaxed mb-4 overflow-hidden">
+                        {entry.content.length > 120
+                          ? `${entry.content.substring(0, 120)}...`
+                          : entry.content}
+                      </p>
+                    </div>
+
+                    {/* Mood and Date */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        {entry.mood && (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
+                            <span className="text-lg">
+                              {getMoodEmoji(entry.mood)}
+                            </span>
+                            <span className="text-xs text-blue-600 capitalize font-medium">
+                              {entry.mood}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 text-blue-400">
+                          <IoCalendar className="w-4 h-4" />
+                          <span className="text-xs font-medium">
+                            {new Date(entry.createdAt).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                              }
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Word Count */}
+                      <div className="text-xs text-blue-400 font-medium">
+                        {entry.content.split(" ").length} words
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    {entry.tags && entry.tags.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <IoTag className="w-3 h-3 text-blue-400" />
+                        <div className="flex flex-wrap gap-1">
+                          {entry.tags.slice(0, 3).map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full font-medium"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {entry.tags.length > 3 && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
+                              +{entry.tags.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Paper texture overlay */}
                   <div
-                    className="absolute inset-0 opacity-10"
+                    className="absolute inset-0 opacity-5 pointer-events-none"
                     style={{
                       backgroundImage: `repeating-linear-gradient(
                         0deg,
@@ -456,84 +610,6 @@ export default function Diary() {
                       )`,
                     }}
                   />
-
-                  {pinnedEntries.has(entry._id) && (
-                    <div className="absolute top-4 right-4 text-blue-600">
-                      <IoPin className="w-5 h-5" />
-                    </div>
-                  )}
-
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-bold text-blue-900 text-lg group-hover:text-blue-700 transition-colors line-clamp-2">
-                        {entry.title}
-                      </h3>
-                      <div className="flex items-center gap-1 ml-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(entry._id);
-                          }}
-                          className="p-1 rounded-full hover:bg-blue-100 transition-colors"
-                        >
-                          {favorites.has(entry._id) ? (
-                            <IoHeart className="w-4 h-4 text-red-500" />
-                          ) : (
-                            <IoHeartOutline className="w-4 h-4 text-blue-400" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePin(entry._id);
-                          }}
-                          className="p-1 rounded-full hover:bg-blue-100 transition-colors"
-                        >
-                          {pinnedEntries.has(entry._id) ? (
-                            <IoPin className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <IoPinOutline className="w-4 h-4 text-blue-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="text-blue-700 text-sm line-clamp-3 leading-relaxed mb-4">
-                      {entry.content}
-                    </p>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {entry.mood && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-lg">
-                              {getMoodEmoji(entry.mood)}
-                            </span>
-                            <span className="text-xs text-blue-500 capitalize">
-                              {entry.mood}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1 text-blue-400">
-                          <IoCalendar className="w-3 h-3" />
-                          <span className="text-xs">
-                            {new Date(entry.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {entry.tags && entry.tags.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <IoTag className="w-3 h-3 text-blue-400" />
-                          <span className="text-xs text-blue-500">
-                            {entry.tags.slice(0, 2).join(", ")}
-                            {entry.tags.length > 2 &&
-                              ` +${entry.tags.length - 2}`}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>

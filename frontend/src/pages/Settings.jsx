@@ -75,7 +75,7 @@ export default function Settings() {
   // Update settings when userProfile changes
   useEffect(() => {
     if (userProfile) {
-      setSettings(prev => ({
+      setSettings((prev) => ({
         ...prev,
         profile: {
           username: userProfile.username || "",
@@ -84,7 +84,7 @@ export default function Settings() {
           bio: userProfile.bio || "",
           profileImage: userProfile.profileImage || "",
           uid: userProfile.uid || "DA-2025-USR001",
-        }
+        },
       }));
     }
   }, [userProfile]);
@@ -100,13 +100,13 @@ export default function Settings() {
       }
 
       // Check file type
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         toast.error("Please select a valid image file");
         return;
       }
 
       setProfileImageFile(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -127,13 +127,13 @@ export default function Settings() {
       // For now, we'll create a local URL for the image
       // In production, you would upload to your server or cloud storage
       const imageUrl = URL.createObjectURL(profileImageFile);
-      
+
       // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       return imageUrl;
     } catch (error) {
-      console.error('Image upload error:', error);
+      console.error("Image upload error:", error);
       toast.error("Failed to upload image. Please try again.");
       return null;
     }
@@ -142,18 +142,20 @@ export default function Settings() {
   // Handle profile save
   const handleSaveProfile = async () => {
     const { displayName, bio } = settings.profile;
-    
+
     console.log("Saving profile with data:", { displayName, bio });
-    
+
     // Validate required fields
     if (!displayName.trim()) {
-      toast.error("Please complete your profile first! Display name is required.");
+      toast.error(
+        "Please complete your profile first! Display name is required."
+      );
       return;
     }
 
     try {
       let profileImageUrl = settings.profile.profileImage;
-      
+
       // Upload new image if selected
       if (profileImageFile) {
         console.log("Uploading new profile image...");
@@ -164,27 +166,27 @@ export default function Settings() {
         }
       }
 
-      const updateData = { 
-        displayName, 
-        bio, 
-        profileImage: profileImageUrl 
+      const updateData = {
+        displayName,
+        bio,
+        profileImage: profileImageUrl,
       };
-      
+
       console.log("Calling updateProfile with:", updateData);
 
       // Call API to update profile
       await updateProfile(updateData);
-      
+
       toast.success("Profile updated successfully!");
-      
+
       // Reset image states
       setProfileImageFile(null);
       setProfileImagePreview(null);
-      
+
       // If this is the first time completing profile, redirect to home
       if (!userProfile?.profileCompleted) {
         setTimeout(() => {
-          navigate('/');
+          navigate("/");
         }, 1500);
       }
     } catch (error) {
@@ -339,8 +341,8 @@ export default function Settings() {
                     <div className="flex items-center gap-6">
                       <img
                         src={
-                          profileImagePreview || 
-                          settings.profile.profileImage || 
+                          profileImagePreview ||
+                          settings.profile.profileImage ||
                           "/api/placeholder/80/80"
                         }
                         alt="Profile"
@@ -354,7 +356,7 @@ export default function Settings() {
                           accept="image/*"
                           className="hidden"
                         />
-                        <button 
+                        <button
                           onClick={handleChangePhoto}
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         >
@@ -388,7 +390,10 @@ export default function Settings() {
                     {/* Username */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Username <span className="text-gray-500 text-xs">(Cannot be changed)</span>
+                        Username{" "}
+                        <span className="text-gray-500 text-xs">
+                          (Cannot be changed)
+                        </span>
                       </label>
                       <input
                         type="text"
@@ -421,7 +426,10 @@ export default function Settings() {
                     {/* Email */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address <span className="text-gray-500 text-xs">(Cannot be changed)</span>
+                        Email Address{" "}
+                        <span className="text-gray-500 text-xs">
+                          (Cannot be changed)
+                        </span>
                       </label>
                       <input
                         type="email"
@@ -448,7 +456,7 @@ export default function Settings() {
                     </div>
 
                     <div className="flex justify-end">
-                      <button 
+                      <button
                         onClick={handleSaveProfile}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                       >
@@ -938,24 +946,24 @@ export default function Settings() {
           </div>
         )}
       </div>
-      
+
       {/* Toast notifications */}
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#363636',
-            color: '#fff',
+            background: "#363636",
+            color: "#fff",
           },
           success: {
             style: {
-              background: '#059669',
+              background: "#059669",
             },
           },
           error: {
             style: {
-              background: '#DC2626',
+              background: "#DC2626",
             },
           },
         }}

@@ -3,10 +3,12 @@
 ## Changes Made
 
 ### 1. App.jsx Routing Update
+
 - **Before**: Login and signup pages were displayed within the main app layout (with navbar, sidebar, margins)
 - **After**: Login and signup pages now render without any layout constraints - full screen experience
 
 ### 2. Authentication Flow
+
 - When user visits any protected route without authentication → redirected to `/login`
 - Login and signup pages take up the entire screen (no navbar, no sidebar)
 - After successful authentication → user enters the main web app with full layout
@@ -14,9 +16,11 @@
 ### 3. Technical Implementation
 
 #### App.jsx Changes:
+
 ```jsx
 // Check if current page is authentication page
-const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+const isAuthPage =
+  location.pathname === "/login" || location.pathname === "/signup";
 
 // Hide navbar and sidebar on auth pages
 const showSidebar = !isAuthPage && location.pathname !== "/chat";
@@ -36,6 +40,7 @@ if (isAuthPage) {
 ```
 
 #### Page Updates:
+
 - Login.jsx: Added `w-full` class for full-width coverage
 - Signup.jsx: Added `w-full` class for full-width coverage
 - Both pages use `min-h-screen` for full height
@@ -43,10 +48,12 @@ if (isAuthPage) {
 ### 4. User Experience Flow
 
 1. **Unauthenticated User**:
+
    - Visits any route → Redirected to full-screen login page
    - No distractions, focused authentication experience
 
 2. **Authentication Process**:
+
    - Login/Signup forms take entire screen
    - Beautiful gradient backgrounds with animations
    - Professional, immersive experience
@@ -75,7 +82,7 @@ if (isAuthPage) {
 .bg-gradient-to-br from-indigo-900 via-purple-800 to-blue-900 /* Signup */
 
 /* Animated elements */
-.animate-pulse /* For breathing effect on background elements */
+.animate-pulse; /* For breathing effect on background elements */
 ```
 
 ### 7. Authentication State Management

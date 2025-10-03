@@ -4,25 +4,51 @@ const cloudinary = require("../services/cloudinary");
 
 const createEntry = async (req, res) => {
   try {
-    const { title, content, tags, visibility, mood } = req.body;
+    console.log("Create entry request body:", req.body);
+    console.log(
+      "Create entry request file:",
+      req.file ? "File present" : "No file"
+    );
+
+    const { title, content, tags, visibility, mood, isDraft } = req.body;
+
+    // Convert isDraft to boolean properly
+    const isDraftBoolean = isDraft === true || isDraft === "true";
+    console.log("isDraft value:", isDraft, "converted to:", isDraftBoolean);
+
+    // Validate required fields for published entries
+    if (!isDraftBoolean && (!title?.trim() || !content?.trim())) {
+      console.log(
+        "Validation failed: missing title or content for published entry"
+      );
+      return res.status(400).json({
+        message: "Title and content are required for published entries",
+      });
+    }
 
     // Parse tags if they're sent as a string
     let parsedTags = [];
     if (tags) {
       parsedTags =
         typeof tags === "string"
-          ? tags.split(",").map((tag) => tag.trim())
+          ? tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter((tag) => tag.length > 0)
           : tags;
     }
 
     const entryData = {
       author: req.user._id,
-      title,
-      content,
+      title: title || "Untitled Entry",
+      content: content || "",
       tags: parsedTags,
       visibility: visibility || "private",
-      mood,
+      mood: mood || "",
+      isDraft: isDraftBoolean,
     };
+
+    console.log("Entry data to save:", entryData);
 
     // Handle image upload if provided
     if (req.file) {
@@ -34,12 +60,11 @@ const createEntry = async (req, res) => {
 
         // Create media record
         const media = new Media({
-          user: req.user._id,
+          owner: req.user._id, // Changed from 'user' to 'owner'
           url: result.secure_url,
           type: result.resource_type,
-          publicId: result.public_id,
+          public_id: result.public_id, // This was already correct
           size: req.file.size,
-          filename: req.file.originalname,
         });
 
         const savedMedia = await media.save();
@@ -164,10 +189,59 @@ const deleteEntry = async (req, res) => {
   }
 };
 
+const getDraftEntries = async (req, res) => {
+  try {
+    const draftEntries = await Entry.find({
+      author: req.user._id,
+      isDraft: true,
+    })
+      .populate("media")
+      .sort({ updatedAt: -1 });
+    res.json(draftEntries);
+  } catch (error) {
+    console.error("Get draft entries error:", error);
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const publishEntry = async (req, res) => {
+  try {
+    const entry = await Entry.findById(req.params.id);
+
+    if (!entry) {
+      return res.status(404).json({ message: "Entry not found" });
+    }
+
+    if (entry.author.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    // Validate required fields before publishing
+    if (!entry.title?.trim() || !entry.content?.trim()) {
+      return res.status(400).json({
+        message: "Title and content are required to publish entry",
+      });
+    }
+
+    entry.isDraft = false;
+    const publishedEntry = await entry.save();
+    const populatedEntry = await Entry.findById(publishedEntry._id).populate(
+      "media"
+    );
+
+    res.json(populatedEntry);
+  } catch (error) {
+    console.error("Publish entry error:", error);
+    res.status(400).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createEntry,
   getMyEntries,
   getPublicEntries,
+  getDraftEntries,
+  publishEntry,
   updateEntry,
   deleteEntry,
 };

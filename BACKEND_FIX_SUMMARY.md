@@ -3,28 +3,42 @@
 ## Issues Fixed
 
 ### 1. Missing CLIENT_URL in .env
+
 - **Problem**: Backend CORS was not configured for frontend origin
 - **Fix**: Added `CLIENT_URL=http://localhost:5173` to backend/.env
 
-### 2. Inadequate CORS Configuration  
+### 2. Inadequate CORS Configuration
+
 - **Problem**: Socket.IO and Express CORS only allowed single origin
 - **Fix**: Updated server.js to allow multiple frontend ports:
+
   ```javascript
   const io = new Server(server, {
     cors: {
-      origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
+      origin: [
+        process.env.CLIENT_URL,
+        "http://localhost:5173",
+        "http://localhost:5174",
+      ],
       methods: ["GET", "POST"],
       credentials: true,
     },
   });
-  
-  app.use(cors({ 
-    origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
-    credentials: true 
-  }));
+
+  app.use(
+    cors({
+      origin: [
+        process.env.CLIENT_URL,
+        "http://localhost:5173",
+        "http://localhost:5174",
+      ],
+      credentials: true,
+    })
+  );
   ```
 
 ### 3. Missing Username Check API
+
 - **Problem**: Frontend trying to call `/api/users/check-username/:username` but route didn't exist
 - **Fix**: Added checkUsername controller and route:
   - Added `checkUsername` function in userController.js
@@ -33,14 +47,17 @@
 ## Files Modified
 
 1. **backend/.env**
+
    - Added CLIENT_URL configuration
 
 2. **backend/server.js**
+
    - Enhanced CORS configuration for Socket.IO and Express
    - Added multiple allowed origins
    - Enabled credentials
 
 3. **backend/controllers/userController.js**
+
    - Added `checkUsername` function
    - Updated module exports
 
@@ -51,6 +68,7 @@
 ## How to Start Backend
 
 ### Option 1: Manual Start
+
 ```bash
 cd "c:\Users\Ayush Tripathi\Documents\GitHub\Major\backend"
 npm install
@@ -58,11 +76,13 @@ npm run server
 ```
 
 ### Option 2: Use Batch File
+
 ```bash
 # Double-click start-backend.bat file created in root directory
 ```
 
 ### Option 3: Test Server (for debugging)
+
 ```bash
 cd "c:\Users\Ayush Tripathi\Documents\GitHub\Major\backend"
 node test-server.js

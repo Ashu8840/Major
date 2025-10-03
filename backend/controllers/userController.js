@@ -62,7 +62,7 @@ const authUser = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-passwordHash');
+    const user = await User.findById(req.user.id).select("-passwordHash");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -76,9 +76,9 @@ const updateProfile = async (req, res) => {
   try {
     console.log("Update profile request received:", req.body);
     console.log("User ID from token:", req.user?.id);
-    
+
     const { displayName, bio, profileImage } = req.body;
-    
+
     const user = await User.findById(req.user.id);
     if (!user) {
       console.log("User not found for ID:", req.user.id);
@@ -90,7 +90,7 @@ const updateProfile = async (req, res) => {
       email: user.email,
       displayName: user.displayName,
       bio: user.bio,
-      profileCompleted: user.profileCompleted
+      profileCompleted: user.profileCompleted,
     });
 
     // Update fields if provided
@@ -108,12 +108,14 @@ const updateProfile = async (req, res) => {
       displayName: user.displayName,
       bio: user.bio,
       profileImage: user.profileImage,
-      profileCompleted: user.profileCompleted
+      profileCompleted: user.profileCompleted,
     });
 
     await user.save();
 
-    const updatedUser = await User.findById(req.user.id).select('-passwordHash');
+    const updatedUser = await User.findById(req.user.id).select(
+      "-passwordHash"
+    );
     console.log("Profile updated successfully");
     res.json(updatedUser);
   } catch (error) {
@@ -125,23 +127,33 @@ const updateProfile = async (req, res) => {
 const checkUsername = async (req, res) => {
   try {
     const { username } = req.params;
-    
+
     if (!username || username.length < 3) {
-      return res.status(400).json({ 
-        available: false, 
-        message: "Username must be at least 3 characters long" 
+      return res.status(400).json({
+        available: false,
+        message: "Username must be at least 3 characters long",
       });
     }
 
-    const existingUser = await User.findOne({ username: username.toLowerCase() });
-    
+    const existingUser = await User.findOne({
+      username: username.toLowerCase(),
+    });
+
     res.json({
       available: !existingUser,
-      message: existingUser ? "Username is already taken" : "Username is available"
+      message: existingUser
+        ? "Username is already taken"
+        : "Username is available",
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-module.exports = { registerUser, authUser, getProfile, updateProfile, checkUsername };
+module.exports = {
+  registerUser,
+  authUser,
+  getProfile,
+  updateProfile,
+  checkUsername,
+};

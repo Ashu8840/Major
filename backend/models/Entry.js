@@ -9,12 +9,12 @@ const entrySchema = new mongoose.Schema(
     },
     title: {
       type: String,
-      required: true,
       trim: true,
+      default: "Untitled Entry",
     },
     content: {
       type: String,
-      required: true,
+      default: "",
     },
     tags: [String],
     visibility: {
@@ -22,13 +22,39 @@ const entrySchema = new mongoose.Schema(
       enum: ["private", "public"],
       default: "private",
     },
+    isDraft: {
+      type: Boolean,
+      default: false,
+    },
     media: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Media",
       },
     ],
-    mood: String,
+    mood: {
+      type: String,
+      enum: [
+        "happy",
+        "sad",
+        "angry",
+        "anxious",
+        "excited",
+        "calm",
+        "grateful",
+        "love",
+        "neutral",
+        "disappointed",
+        "frustrated",
+        "content",
+        "tired",
+        "confused",
+        "confident",
+        "overwhelmed",
+        "",
+      ],
+      default: "",
+    },
     aiSummary: String,
     views: {
       type: Number,

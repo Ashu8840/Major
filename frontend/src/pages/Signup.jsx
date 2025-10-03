@@ -603,6 +603,7 @@ const Signup = () => {
       </div>
     </div>
   );
-z};
+  z;
+};
 
 export default Signup;

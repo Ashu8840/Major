@@ -3,6 +3,8 @@ const {
   createEntry,
   getMyEntries,
   getPublicEntries,
+  getDraftEntries,
+  publishEntry,
   updateEntry,
   deleteEntry,
 } = require("../controllers/entryController");
@@ -41,13 +43,24 @@ const upload = multer({
   },
 });
 
-router.route("/").post(protect, upload.single("image"), createEntry);
+router.route("/").post(
+  protect,
+  upload.single("image"),
+  (req, res, next) => {
+    console.log("Entry route hit - POST /entries");
+    console.log("Request body:", req.body);
+    console.log("File uploaded:", req.file ? "Yes" : "No");
+    next();
+  },
+  createEntry
+);
 router.route("/mine").get(protect, getMyEntries);
+router.route("/drafts").get(protect, getDraftEntries);
 router.route("/public").get(getPublicEntries);
+router.route("/:id/publish").patch(protect, publishEntry);
 router
   .route("/:id")
   .patch(protect, upload.single("image"), updateEntry)
-  .put(protect, upload.single("image"), updateEntry)
   .delete(protect, deleteEntry);
 
 module.exports = router;

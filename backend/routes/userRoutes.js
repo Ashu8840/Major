@@ -1,5 +1,11 @@
 const express = require("express");
-const { registerUser, authUser, updateProfile, getProfile, checkUsername } = require("../controllers/userController");
+const {
+  registerUser,
+  authUser,
+  updateProfile,
+  getProfile,
+  checkUsername,
+} = require("../controllers/userController");
 const { validateRequest } = require("../middlewares/validationMiddleware");
 const { protect } = require("../middlewares/authMiddleware");
 const { body } = require("express-validator");
