@@ -26,9 +26,10 @@ import {
 } from "react-icons/io5";
 
 export default function Navbar() {
-  const { user, token, logout } = useContext(AuthContext);
+  const { user, userProfile, token, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const userName = user?.username || user?.name || "User";
+  const displayName = userProfile?.displayName || user?.username || user?.name || "User";
+  const profileImage = userProfile?.profileImage;
   const [notificationCount, setNotificationCount] = useState(0);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -182,13 +183,21 @@ export default function Navbar() {
                     onClick={handleProfileClick}
                     className="flex items-center space-x-2 p-2 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {userName[0]?.toUpperCase() || "U"}
-                      </span>
-                    </div>
+                    {profileImage ? (
+                      <img
+                        src={profileImage}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                          {displayName[0]?.toUpperCase() || "U"}
+                        </span>
+                      </div>
+                    )}
                     <span className="font-medium text-blue-900 dark:text-white">
-                      {userName}
+                      {displayName}
                     </span>
                     <IoChevronDown
                       className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${

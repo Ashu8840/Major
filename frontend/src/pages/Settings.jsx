@@ -1,4 +1,6 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
 // import { ThemeContext } from "../context/ThemeContext"; // TODO: Implement theme system later
 import {
@@ -30,21 +32,25 @@ import {
 } from "react-icons/io5";
 
 export default function Settings() {
-  const { user, logout } = useContext(AuthContext);
+  const { user, userProfile, logout, updateProfile } = useContext(AuthContext);
+  const navigate = useNavigate();
   // const { currentTheme, setTheme } = useContext(ThemeContext); // TODO: Implement theme system later
   const [activeSection, setActiveSection] = useState("general");
-  const [showPassword, setShowPassword] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [previewTheme, setPreviewTheme] = useState("default");
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // Settings state
+  // Settings state - populated from real user data
   const [settings, setSettings] = useState({
     profile: {
-      username: "ayush_writer",
-      displayName: "Ayush Tripathi",
-      email: "ayush@example.com",
-      bio: "Passionate storyteller and digital diary enthusiast.",
-      uid: "DA-2025-AYU001", // Read-only
+      username: userProfile?.username || "",
+      displayName: userProfile?.displayName || "",
+      email: userProfile?.email || "",
+      bio: userProfile?.bio || "",
+      profileImage: userProfile?.profileImage || "",
+      uid: userProfile?.uid || "DA-2025-USR001", // Read-only
     },
     privacy: {
       diaryVisibility: "private",
@@ -65,6 +71,127 @@ export default function Settings() {
       dataDownload: false,
     },
   });
+
+  // Update settings when userProfile changes
+  useEffect(() => {
+    if (userProfile) {
+      setSettings(prev => ({
+        ...prev,
+        profile: {
+          username: userProfile.username || "",
+          displayName: userProfile.displayName || "",
+          email: userProfile.email || "",
+          bio: userProfile.bio || "",
+          profileImage: userProfile.profileImage || "",
+          uid: userProfile.uid || "DA-2025-USR001",
+        }
+      }));
+    }
+  }, [userProfile]);
+
+  // Handle profile image upload
+  const handleImageChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size must be less than 5MB");
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select a valid image file");
+        return;
+      }
+
+      setProfileImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setProfileImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleChangePhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const uploadProfileImage = async () => {
+    if (!profileImageFile) return null;
+
+    try {
+      // For now, we'll create a local URL for the image
+      // In production, you would upload to your server or cloud storage
+      const imageUrl = URL.createObjectURL(profileImageFile);
+      
+      // Simulate upload delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      return imageUrl;
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast.error("Failed to upload image. Please try again.");
+      return null;
+    }
+  };
+
+  // Handle profile save
+  const handleSaveProfile = async () => {
+    const { displayName, bio } = settings.profile;
+    
+    console.log("Saving profile with data:", { displayName, bio });
+    
+    // Validate required fields
+    if (!displayName.trim()) {
+      toast.error("Please complete your profile first! Display name is required.");
+      return;
+    }
+
+    try {
+      let profileImageUrl = settings.profile.profileImage;
+      
+      // Upload new image if selected
+      if (profileImageFile) {
+        console.log("Uploading new profile image...");
+        const uploadedImageUrl = await uploadProfileImage();
+        if (uploadedImageUrl) {
+          profileImageUrl = uploadedImageUrl;
+          console.log("Image uploaded, URL:", uploadedImageUrl);
+        }
+      }
+
+      const updateData = { 
+        displayName, 
+        bio, 
+        profileImage: profileImageUrl 
+      };
+      
+      console.log("Calling updateProfile with:", updateData);
+
+      // Call API to update profile
+      await updateProfile(updateData);
+      
+      toast.success("Profile updated successfully!");
+      
+      // Reset image states
+      setProfileImageFile(null);
+      setProfileImagePreview(null);
+      
+      // If this is the first time completing profile, redirect to home
+      if (!userProfile?.profileCompleted) {
+        setTimeout(() => {
+          navigate('/');
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Profile update error:", error);
+      toast.error("Failed to update profile. Please try again.");
+    }
+  };
 
   const themes = [
     {
@@ -211,12 +338,26 @@ export default function Settings() {
                     {/* Profile Picture */}
                     <div className="flex items-center gap-6">
                       <img
-                        src="/api/placeholder/80/80"
+                        src={
+                          profileImagePreview || 
+                          settings.profile.profileImage || 
+                          "/api/placeholder/80/80"
+                        }
                         alt="Profile"
                         className="w-20 h-20 rounded-full object-cover border-4 border-gray-200"
                       />
                       <div>
-                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleImageChange}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <button 
+                          onClick={handleChangePhoto}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
                           Change Photo
                         </button>
                         <p className="text-sm text-gray-500 mt-1">
@@ -247,19 +388,14 @@ export default function Settings() {
                     {/* Username */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Username
+                        Username <span className="text-gray-500 text-xs">(Cannot be changed)</span>
                       </label>
                       <input
                         type="text"
                         value={settings.profile.username}
-                        onChange={(e) =>
-                          handleSettingChange(
-                            "profile",
-                            "username",
-                            e.target.value
-                          )
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={true}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        placeholder="Username will appear here after registration"
                       />
                     </div>
 
@@ -285,19 +421,14 @@ export default function Settings() {
                     {/* Email */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address
+                        Email Address <span className="text-gray-500 text-xs">(Cannot be changed)</span>
                       </label>
                       <input
                         type="email"
                         value={settings.profile.email}
-                        onChange={(e) =>
-                          handleSettingChange(
-                            "profile",
-                            "email",
-                            e.target.value
-                          )
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={true}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        placeholder="Email will appear here after registration"
                       />
                     </div>
 
@@ -316,45 +447,11 @@ export default function Settings() {
                       />
                     </div>
 
-                    {/* Change Password */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Change Password
-                      </label>
-                      <div className="space-y-3">
-                        <input
-                          type="password"
-                          placeholder="Current Password"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <div className="relative">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="New Password"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-2 top-2 p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            {showPassword ? (
-                              <IoEyeOff className="w-5 h-5" />
-                            ) : (
-                              <IoEye className="w-5 h-5" />
-                            )}
-                          </button>
-                        </div>
-                        <input
-                          type="password"
-                          placeholder="Confirm New Password"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-
                     <div className="flex justify-end">
-                      <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                      <button 
+                        onClick={handleSaveProfile}
+                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
                         <IoSave className="w-4 h-4" />
                         Save Changes
                       </button>
@@ -841,6 +938,28 @@ export default function Settings() {
           </div>
         )}
       </div>
+      
+      {/* Toast notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            style: {
+              background: '#059669',
+            },
+          },
+          error: {
+            style: {
+              background: '#DC2626',
+            },
+          },
+        }}
+      />
     </div>
   );
 }

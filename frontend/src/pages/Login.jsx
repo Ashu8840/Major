@@ -56,13 +56,9 @@ const Login = () => {
       
       setMessage('Login successful! Redirecting...');
       
-      // Redirect based on profile completion status
+      // For existing users logging in, always redirect to home
       setTimeout(() => {
-        if (userData.firstLogin || !userData.profileCompleted) {
-          navigate('/settings');
-        } else {
-          navigate('/');
-        }
+        navigate('/');
       }, 1500);
       
     } catch (error) {
@@ -73,7 +69,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden">
+    <div className="min-h-screen w-full flex relative overflow-hidden">
       {/* Background with gradient animation */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
         <div className="absolute inset-0 bg-black/20"></div>

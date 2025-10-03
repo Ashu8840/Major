@@ -55,16 +55,18 @@ function AppContent() {
     setShowDashboardSplash(false);
   };
 
+  // Check if current page is authentication page
+  const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+
   // Don't show chat button on login/signup pages or chat page itself
   const showChatButton =
     token &&
-    location.pathname !== "/login" &&
-    location.pathname !== "/signup" &&
+    !isAuthPage &&
     location.pathname !== "/chat";
 
-  // Hide only sidebar on chat page, but keep navbar visible
-  const showSidebar = location.pathname !== "/chat";
-  const showNavbar = true; // Always show navbar
+  // Hide navbar and sidebar on auth pages
+  const showSidebar = !isAuthPage && location.pathname !== "/chat";
+  const showNavbar = !isAuthPage;
 
   const handleChat = () => {
     navigate("/chat");
@@ -73,6 +75,18 @@ function AppContent() {
   // Show splash screen only for dashboard
   if (showDashboardSplash && location.pathname === "/") {
     return <SplashScreen onComplete={handleDashboardSplashComplete} />;
+  }
+
+  // If it's an auth page, render without layout
+  if (isAuthPage) {
+    return (
+      <div className="min-h-screen">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+        </Routes>
+      </div>
+    );
   }
 
   return (
@@ -87,9 +101,11 @@ function AppContent() {
         }}
       >
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/" element={
+            <Private>
+              <Home />
+            </Private>
+          } />
           <Route
             path="/diary"
             element={

@@ -172,7 +172,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden">
+    <div className="min-h-screen w-full flex relative overflow-hidden">
       {/* Background with gradient animation */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-800 to-blue-900">
         <div className="absolute inset-0 bg-black/20"></div>

@@ -74,12 +74,24 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
+    console.log("Update profile request received:", req.body);
+    console.log("User ID from token:", req.user?.id);
+    
     const { displayName, bio, profileImage } = req.body;
     
     const user = await User.findById(req.user.id);
     if (!user) {
+      console.log("User not found for ID:", req.user.id);
       return res.status(404).json({ message: "User not found" });
     }
+
+    console.log("Current user data:", {
+      username: user.username,
+      email: user.email,
+      displayName: user.displayName,
+      bio: user.bio,
+      profileCompleted: user.profileCompleted
+    });
 
     // Update fields if provided
     if (displayName !== undefined) user.displayName = displayName;
@@ -92,13 +104,44 @@ const updateProfile = async (req, res) => {
       user.firstLogin = false;
     }
 
+    console.log("Saving user with updated data:", {
+      displayName: user.displayName,
+      bio: user.bio,
+      profileImage: user.profileImage,
+      profileCompleted: user.profileCompleted
+    });
+
     await user.save();
 
     const updatedUser = await User.findById(req.user.id).select('-passwordHash');
+    console.log("Profile updated successfully");
     res.json(updatedUser);
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+const checkUsername = async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    if (!username || username.length < 3) {
+      return res.status(400).json({ 
+        available: false, 
+        message: "Username must be at least 3 characters long" 
+      });
+    }
+
+    const existingUser = await User.findOne({ username: username.toLowerCase() });
+    
+    res.json({
+      available: !existingUser,
+      message: existingUser ? "Username is already taken" : "Username is available"
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-module.exports = { registerUser, authUser, getProfile, updateProfile };
+module.exports = { registerUser, authUser, getProfile, updateProfile, checkUsername };

@@ -17,20 +17,31 @@ const aiRoutes = require("./routes/aiRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 
 dotenv.config();
+
+// Debug: Check if JWT_SECRET is loaded
+console.log("Environment check:");
+console.log("- JWT_SECRET:", process.env.JWT_SECRET ? "✓ Loaded" : "✗ Missing");
+console.log("- MONGO_URI:", process.env.MONGO_URI ? "✓ Loaded" : "✗ Missing");
+console.log("- CLIENT_URL:", process.env.CLIENT_URL ? "✓ Loaded" : "✗ Missing");
+
 connectDB();
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL,
+    origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
 app.use(express.json());
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL }));
+app.use(cors({ 
+  origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://localhost:5174"],
+  credentials: true 
+}));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

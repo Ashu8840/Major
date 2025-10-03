@@ -1,5 +1,5 @@
 const express = require("express");
-const { registerUser, authUser, updateProfile, getProfile } = require("../controllers/userController");
+const { registerUser, authUser, updateProfile, getProfile, checkUsername } = require("../controllers/userController");
 const { validateRequest } = require("../middlewares/validationMiddleware");
 const { protect } = require("../middlewares/authMiddleware");
 const { body } = require("express-validator");
@@ -29,6 +29,9 @@ router.post(
   authUser
 );
 
+// Username availability check
+router.get("/check-username/:username", checkUsername);
+
 // Profile routes
 router.get("/profile", protect, getProfile);
 
@@ -38,7 +41,7 @@ router.put(
   [
     body("displayName").optional().trim().isLength({ min: 1, max: 100 }),
     body("bio").optional().isLength({ max: 500 }),
-    body("profileImage").optional().isURL(),
+    body("profileImage").optional().isString(), // Changed from isURL() to isString()
   ],
   validateRequest,
   updateProfile
