@@ -42,6 +42,7 @@ const Community = () => {
   const [activeTab, setActiveTab] = useState("posts");
   const [showPostComposer, setShowPostComposer] = useState(false);
   const [newPost, setNewPost] = useState({ content: "", media: [] });
+  const [mediaPreviews, setMediaPreviews] = useState([]); // Track blob URLs
   const [followedUsers, setFollowedUsers] = useState(new Set());
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -60,6 +61,18 @@ const Community = () => {
 
     return () => clearTimeout(timeoutId);
   }, [sortBy]);
+
+  // Cleanup blob URLs when component unmounts or media changes
+  useEffect(() => {
+    return () => {
+      // Cleanup all blob URLs when component unmounts
+      mediaPreviews.forEach((url) => {
+        if (url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [mediaPreviews]);
 
   const loadCommunityData = async () => {
     try {
@@ -231,6 +244,11 @@ const Community = () => {
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
+
+    // Create blob URLs for new files
+    const newPreviews = files.map((file) => URL.createObjectURL(file));
+    setMediaPreviews((prev) => [...prev, ...newPreviews]);
+
     setNewPost((prev) => ({
       ...prev,
       media: [...prev.media, ...files],
@@ -238,10 +256,18 @@ const Community = () => {
   };
 
   const removeFile = (index) => {
+    // Cleanup the specific blob URL
+    const urlToRevoke = mediaPreviews[index];
+    if (urlToRevoke && urlToRevoke.startsWith("blob:")) {
+      URL.revokeObjectURL(urlToRevoke);
+    }
+
+    // Update media and previews
     setNewPost((prev) => ({
       ...prev,
       media: prev.media.filter((_, i) => i !== index),
     }));
+    setMediaPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -529,9 +555,35 @@ const Community = () => {
                                   {newPost.media.map((file, index) => (
                                     <div key={index} className="relative group">
                                       <img
-                                        src={URL.createObjectURL(file)}
+                                        src={
+                                          mediaPreviews[index] ||
+                                          URL.createObjectURL(file)
+                                        }
                                         alt={`Preview ${index}`}
                                         className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                        onError={(e) => {
+                                          console.error(
+                                            "Image load error for preview:",
+                                            e
+                                          );
+                                          // Try to create a new blob URL as fallback
+                                          try {
+                                            e.target.src =
+                                              URL.createObjectURL(file);
+                                          } catch (fallbackError) {
+                                            console.error(
+                                              "Fallback URL creation failed:",
+                                              fallbackError
+                                            );
+                                            e.target.style.display = "none";
+                                          }
+                                        }}
+                                        onLoad={(e) => {
+                                          // Successfully loaded, no action needed
+                                          console.log(
+                                            "Image preview loaded successfully"
+                                          );
+                                        }}
                                       />
                                       <button
                                         onClick={() => removeFile(index)}
