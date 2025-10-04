@@ -1,4 +1,5 @@
 import { useState, useContext } from "react";
+import toast from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
 import {
   IoLibrary,
@@ -185,7 +186,7 @@ export default function ReadersLounge() {
 
   const tipAuthor = (author) => {
     // Mock tip functionality
-    alert(`Tip sent to ${author}!`);
+    toast.success(`Tip sent to ${author}!`);
   };
 
   if (!user) {

@@ -29,7 +29,7 @@ import {
 } from "react-icons/io5";
 
 const Community = () => {
-  const { user, userProfile } = useContext(AuthContext);
+  const { user, userProfile, fetchUserProfile } = useContext(AuthContext);
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [trendingHashtags, setTrendingHashtags] = useState([]);
@@ -188,6 +188,9 @@ const Community = () => {
         return newSet;
       });
       toast.success(response.data.message || "Follow status updated");
+      if (typeof fetchUserProfile === "function") {
+        await fetchUserProfile({ silent: true });
+      }
     } catch (error) {
       console.error("Error following user:", error);
       toast.error(
@@ -851,30 +854,38 @@ const Community = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-blue-600">Posts</span>
                       <span className="font-semibold text-blue-900">
-                        {posts.filter((p) => p.author?._id === user?.id).length}
+                        {userProfile?.stats?.totalPosts ??
+                          posts.filter((p) => p.author?._id === user?.id)
+                            .length}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-blue-600">Followers</span>
                       <span className="font-semibold text-blue-900">
-                        {user?.followersCount || 0}
+                        {userProfile?.followerCount ??
+                          userProfile?.followers?.length ??
+                          0}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-blue-600">Following</span>
                       <span className="font-semibold text-blue-900">
-                        {user?.followingCount || 0}
+                        {userProfile?.followingCount ??
+                          userProfile?.following?.length ??
+                          0}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-blue-600">Total Likes</span>
                       <span className="font-semibold text-blue-900">
-                        {posts
-                          .filter((p) => p.author?._id === user?.id)
-                          .reduce(
-                            (total, post) => total + (post.likes?.length || 0),
-                            0
-                          )}
+                        {userProfile?.stats?.totalLikes ??
+                          posts
+                            .filter((p) => p.author?._id === user?.id)
+                            .reduce(
+                              (total, post) =>
+                                total + (post.likes?.length || 0),
+                              0
+                            )}
                       </span>
                     </div>
                   </div>

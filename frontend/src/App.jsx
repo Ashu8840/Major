@@ -22,6 +22,7 @@ import Upgrade from "./pages/Upgrade";
 import Analytics from "./pages/Analytics";
 import Leaderboard from "./pages/Leaderboard";
 import Social from "./pages/Social";
+import CircleChat from "./pages/CircleChat";
 import CreatorStudio from "./pages/CreatorStudio";
 import Marketplace from "./pages/Marketplace";
 import ReadersLounge from "./pages/ReadersLounge";
@@ -44,7 +45,6 @@ function AppContent() {
   const location = useLocation();
   const { token } = useContext(AuthContext);
   const [showDashboardSplash, setShowDashboardSplash] = useState(false);
-
   // Show splash screen only when navigating to dashboard
   React.useEffect(() => {
     if (location.pathname === "/") {
@@ -146,6 +146,14 @@ function AppContent() {
             element={
               <Private>
                 <Social />
+              </Private>
+            }
+          />
+          <Route
+            path="/social/chat/:circleId"
+            element={
+              <Private>
+                <CircleChat />
               </Private>
             }
           />

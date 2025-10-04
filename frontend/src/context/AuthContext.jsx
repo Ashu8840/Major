@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(false);
-  
+
   const user = useMemo(() => (token ? parseJwt(token) : null), [token]);
 
   useEffect(() => {
@@ -50,71 +50,77 @@ export function AuthProvider({ children }) {
   }, [user?.exp]);
 
   // Fetch user profile on token change
-  useEffect(() => {
-    if (token && !userProfile) {
-      fetchUserProfile();
-    } else if (!token) {
-      setUserProfile(null);
-    }
-  }, [token]);
-
-  const fetchUserProfile = useCallback(async () => {
+  const fetchUserProfile = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
-      const { data } = await api.get("/users/profile");
+      if (!silent) setLoading(true);
+      const { data } = await api.get("/profile");
       setUserProfile(data);
       return data;
     } catch (error) {
       console.error("Failed to fetch user profile:", error);
       return null;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    try {
-      setLoading(true);
-      const { data } = await api.post("/users/login", { email, password });
-      setToken(data.token);
-      setUserProfile(data); // Set user profile from login response
-      return data;
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (token && !userProfile) {
+      fetchUserProfile({ silent: true });
+    } else if (!token) {
+      setUserProfile(null);
     }
-  }, []);
+  }, [token, userProfile, fetchUserProfile]);
 
-  const signup = useCallback(async (payload) => {
-    try {
-      setLoading(true);
-      const { data } = await api.post("/users/register", payload);
-      setToken(data.token);
-      setUserProfile(data); // Set user profile from signup response
-      return data;
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const login = useCallback(
+    async (email, password) => {
+      try {
+        setLoading(true);
+        const { data } = await api.post("/users/login", { email, password });
+        setToken(data.token);
+        const profile = await fetchUserProfile({ silent: true });
+        return profile || data;
+      } catch (error) {
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchUserProfile]
+  );
 
-  const updateProfile = useCallback(async (profileData) => {
-    try {
-      setLoading(true);
-      const { data } = await api.put("/users/profile", profileData);
-      setUserProfile(data);
-      return data;
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const signup = useCallback(
+    async (payload) => {
+      try {
+        setLoading(true);
+        const { data } = await api.post("/users/register", payload);
+        setToken(data.token);
+        const profile = await fetchUserProfile({ silent: true });
+        return profile || data;
+      } catch (error) {
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchUserProfile]
+  );
+
+  const updateProfile = useCallback(
+    async (profileData) => {
+      try {
+        setLoading(true);
+        const { data } = await api.put("/users/profile", profileData);
+        const profile = await fetchUserProfile({ silent: true });
+        return profile || data;
+      } catch (error) {
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchUserProfile]
+  );
 
   const logout = useCallback(() => {
     setToken("");
@@ -122,19 +128,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ 
-      user, 
-      userProfile, 
-      token, 
+    () => ({
+      user,
+      userProfile,
+      token,
       loading,
-      login, 
-      signup, 
-      logout, 
+      login,
+      signup,
+      logout,
       updateProfile,
       fetchUserProfile,
-      setToken 
+      setToken,
     }),
-    [user, userProfile, token, loading, login, signup, logout, updateProfile, fetchUserProfile]
+    [
+      user,
+      userProfile,
+      token,
+      loading,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      fetchUserProfile,
+    ]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

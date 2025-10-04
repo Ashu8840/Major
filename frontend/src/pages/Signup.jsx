@@ -1,6 +1,7 @@
 import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { API_BASE_URL } from "../utils/api";
 import {
   IoEye,
   IoEyeOff,
@@ -43,7 +44,7 @@ const Signup = () => {
   //   try {
   //     setUsernameChecking(true);
   //     const response = await fetch(
-  //       `http://localhost:5000/api/users/check-username/${username}`
+  //       `${API_BASE_URL}/users/check-username/${username}`
   //     );
   //     const data = await response.json();
   //     setUsernameAvailable(data.available);
@@ -65,7 +66,7 @@ const Signup = () => {
     setUsernameChecking(true);
     try {
       const response = await fetch(
-        `http://localhost:5000/api/users/check-username/${username}`
+        `${API_BASE_URL}/users/check-username/${username}`
       );
       const data = await response.json();
       setUsernameAvailable(data.available);

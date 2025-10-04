@@ -1,9 +1,10 @@
 import React, { createContext, useState } from "react";
 import io from "socket.io-client";
+import { SOCKET_BASE_URL } from "../utils/api";
 
 export const ChatContext = createContext();
 
-const socket = io("http://localhost:5000"); // Adjust to your backend URL
+const socket = io(SOCKET_BASE_URL); // Adjusted for shared backend URL
 
 export const ChatProvider = ({ children }) => {
   const [activeChat, setActiveChat] = useState(null);

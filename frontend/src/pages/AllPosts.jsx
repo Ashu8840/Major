@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import PostCard from "../components/PostCard";
+import toast from "react-hot-toast";
 import {
   getPosts,
   searchPosts,
@@ -12,11 +13,7 @@ import {
   bookmarkPost,
   unbookmarkPost,
 } from "../utils/api";
-import {
-  IoSearch,
-  IoArrowBack,
-  IoRefresh,
-} from "react-icons/io5";
+import { IoSearch, IoArrowBack, IoRefresh } from "react-icons/io5";
 
 export default function AllPosts() {
   const { user } = useContext(AuthContext);
@@ -72,11 +69,13 @@ export default function AllPosts() {
   const handlePostLike = async (postId) => {
     try {
       const result = await likePost(postId);
-      setPosts(prev => prev.map(post => 
-        post._id === postId 
-          ? { ...post, likes: result.likes, isLiked: result.isLiked }
-          : post
-      ));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, likes: result.likes, isLiked: result.isLiked }
+            : post
+        )
+      );
     } catch (error) {
       console.error("Like post error:", error);
     }
@@ -85,54 +84,60 @@ export default function AllPosts() {
   const handlePostShare = async (postId) => {
     try {
       const result = await sharePost(postId);
-      setPosts(prev => prev.map(post => 
-        post._id === postId 
-          ? { ...post, shares: { length: result.shares } }
-          : post
-      ));
-      alert("Post shared successfully!");
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, shares: { length: result.shares } }
+            : post
+        )
+      );
+      toast.success("Post shared successfully!");
     } catch (error) {
       console.error("Share post error:", error);
-      alert("Unable to share post. Please try again.");
+      toast.error("Unable to share post. Please try again.");
     }
   };
 
   const handleAddComment = async (postId, text) => {
     try {
       const newComment = await addComment(postId, text);
-      setPosts(prev => prev.map(post => 
-        post._id === postId 
-          ? { ...post, comments: [...(post.comments || []), newComment] }
-          : post
-      ));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, comments: [...(post.comments || []), newComment] }
+            : post
+        )
+      );
     } catch (error) {
       console.error("Add comment error:", error);
-      alert("Unable to add comment. Please try again.");
+      toast.error("Unable to add comment. Please try again.");
     }
   };
 
   const handleDeletePost = async (postId) => {
     try {
       await deletePost(postId);
-      setPosts(prev => prev.filter(post => post._id !== postId));
-      alert("Post deleted successfully!");
+      setPosts((prev) => prev.filter((post) => post._id !== postId));
+      toast.success("Post deleted successfully!");
     } catch (error) {
       console.error("Delete post error:", error);
-      alert("Unable to delete post. Please try again.");
+      toast.error("Unable to delete post. Please try again.");
     }
   };
 
   const handleBookmarkPost = async (postId) => {
     try {
       const result = await bookmarkPost(postId);
-      setPosts(prev => prev.map(post => 
-        post._id === postId 
-          ? { ...post, isBookmarked: result.isBookmarked }
-          : post
-      ));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, isBookmarked: result.isBookmarked }
+            : post
+        )
+      );
     } catch (error) {
       console.error("Bookmark post error:", error);
-      alert("Unable to bookmark post. Please try again.");
+      toast.error("Unable to bookmark post. Please try again.");
     }
   };
 
@@ -142,21 +147,23 @@ export default function AllPosts() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)} 
+            <button
+              onClick={() => navigate(-1)}
               className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50"
             >
               <IoArrowBack className="w-6 h-6" />
             </button>
             <h1 className="text-3xl font-bold text-blue-900">All Posts</h1>
           </div>
-          
+
           <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            <IoRefresh className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <IoRefresh
+              className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
         </div>
@@ -171,7 +178,7 @@ export default function AllPosts() {
                 placeholder="Search posts by title, content, tags, or username..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 className="w-full pl-10 pr-4 py-3 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
               />
             </div>
@@ -180,7 +187,7 @@ export default function AllPosts() {
               disabled={searching}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {searching ? 'Searching...' : 'Search'}
+              {searching ? "Searching..." : "Search"}
             </button>
           </div>
         </div>
@@ -193,7 +200,9 @@ export default function AllPosts() {
         ) : posts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-blue-600 text-lg">
-              {searchTerm ? 'No posts found matching your search.' : 'No posts available.'}
+              {searchTerm
+                ? "No posts found matching your search."
+                : "No posts available."}
             </p>
           </div>
         ) : (

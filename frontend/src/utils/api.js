@@ -1,7 +1,22 @@
 import axios from "axios";
 
+const trimTrailingSlash = (value) =>
+  typeof value === "string" ? value.replace(/\/+$/, "") : value;
+
+const DEFAULT_BACKEND_HOST = "http://10.100.246.93:5000";
+const ENV_API_URL = trimTrailingSlash(import.meta.env.VITE_API_URL);
+const ENV_BACKEND_HOST = trimTrailingSlash(import.meta.env.VITE_BACKEND_HOST);
+const ENV_SOCKET_URL = trimTrailingSlash(import.meta.env.VITE_SOCKET_URL);
+
+export const API_HOST =
+  ENV_BACKEND_HOST ||
+  ENV_API_URL?.replace(/\/api$/, "") ||
+  DEFAULT_BACKEND_HOST;
+export const API_BASE_URL = ENV_API_URL || `${API_HOST}/api`;
+export const SOCKET_BASE_URL = ENV_SOCKET_URL || API_HOST;
+
 export const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
   withCredentials: false,
 });
 
@@ -11,13 +26,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Analytics APIs
+export const getAnalyticsOverview = async (period = "month") => {
+  const response = await api.get("/analytics/overview", {
+    params: { period },
+  });
+  return response.data;
+};
+
 // Post APIs
-export const createPost = async (content, files = [], audience = "public", tags = []) => {
+export const createPost = async (
+  content,
+  files = [],
+  audience = "public",
+  tags = []
+) => {
   const formData = new FormData();
   formData.append("content", content);
   formData.append("visibility", audience);
   formData.append("tags", JSON.stringify(tags));
-  
+
   if (files.length > 0) {
     formData.append("image", files[0]);
   }
@@ -34,12 +62,16 @@ export const getPosts = async (page = 1) => {
 };
 
 export const searchPosts = async (query, page = 1) => {
-  const response = await api.get(`/posts/search?q=${encodeURIComponent(query)}&page=${page}`);
+  const response = await api.get(
+    `/posts/search?q=${encodeURIComponent(query)}&page=${page}`
+  );
   return response.data;
 };
 
-export const getTrendingPosts = async (page = 1, timeFilter = 'today') => {
-  const response = await api.get(`/posts/trending?page=${page}&timeFilter=${timeFilter}`);
+export const getTrendingPosts = async (page = 1, timeFilter = "today") => {
+  const response = await api.get(
+    `/posts/trending?page=${page}&timeFilter=${timeFilter}`
+  );
   return response.data;
 };
 
@@ -87,14 +119,233 @@ export const likeComment = async (commentId) => {
   return response.data;
 };
 
+// Profile APIs
+export const getProfile = async (userId = null) => {
+  const endpoint = userId ? `/profile/${userId}` : "/profile";
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+export const updateProfile = async (profileData) => {
+  const response = await api.put("/profile", profileData);
+  return response.data;
+};
+
+export const uploadProfileImage = async (imageFile) => {
+  const formData = new FormData();
+  formData.append("profileImage", imageFile);
+
+  const response = await api.post("/profile/upload/profile-image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+export const uploadCoverPhoto = async (imageFile) => {
+  const formData = new FormData();
+  formData.append("coverPhoto", imageFile);
+
+  const response = await api.post("/profile/upload/cover-photo", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+export const getProfileAnalytics = async (userId = null) => {
+  const endpoint = userId
+    ? `/profile/${userId}/analytics`
+    : "/profile/analytics";
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+export const getProfileStats = async (userId = null) => {
+  const endpoint = userId ? `/profile/${userId}/stats` : "/profile/stats";
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+export const getUserContent = async (
+  userId = null,
+  type = "all",
+  page = 1,
+  limit = 10
+) => {
+  const endpoint = userId ? `/profile/${userId}/content` : "/profile/content";
+  const params = new URLSearchParams({ type, page, limit });
+  const response = await api.get(`${endpoint}?${params.toString()}`);
+  return response.data;
+};
+
+export const getUserFavorites = async (type = "all", page = 1) => {
+  const response = await api.get(
+    `/profile/favorites?type=${type}&page=${page}`
+  );
+  return response.data;
+};
+
+export const addToFavorites = async (contentId, contentType) => {
+  const response = await api.post("/profile/favorites", {
+    contentId,
+    contentType,
+  });
+  return response.data;
+};
+
+export const removeFromFavorites = async (contentId, contentType) => {
+  const response = await api.delete("/profile/favorites", {
+    data: { contentId, contentType },
+  });
+  return response.data;
+};
+
+export const getUserBooks = async (userId = null, page = 1, limit = 10) => {
+  return getUserContent(userId, "books", page, limit);
+};
+
+// Chat APIs
+export const getChatList = async () => {
+  const response = await api.get("/chats");
+  return response.data;
+};
+
+export const getChatMessages = async (targetUserId, page = 1, limit = 50) => {
+  const response = await api.get(
+    `/chats/${targetUserId}/messages?page=${page}&limit=${limit}`
+  );
+  return response.data;
+};
+
+export const sendChatMessage = async (
+  targetUserId,
+  { text, attachment } = {}
+) => {
+  const formData = new FormData();
+  if (text) {
+    formData.append("text", text);
+  }
+  if (attachment) {
+    formData.append("attachment", attachment);
+  }
+
+  const response = await api.post(`/chats/${targetUserId}/messages`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+export const clearChat = async (targetUserId) => {
+  const response = await api.delete(`/chats/${targetUserId}/messages`);
+  return response.data;
+};
+
+export const blockChatUser = async (targetUserId) => {
+  const response = await api.post(`/chats/${targetUserId}/block`);
+  return response.data;
+};
+
+export const unblockChatUser = async (targetUserId) => {
+  const response = await api.delete(`/chats/${targetUserId}/block`);
+  return response.data;
+};
+
+export const deleteChatForUser = async (targetUserId) => {
+  const response = await api.delete(`/chats/${targetUserId}`);
+  return response.data;
+};
+
+// Social APIs
+export const fetchSocialOverview = async () => {
+  const response = await api.get("/social/overview");
+  return response.data;
+};
+
+export const searchSocialUsers = async (query) => {
+  if (!query || !query.trim()) {
+    return { results: [] };
+  }
+
+  const response = await api.get("/social/search", {
+    params: { q: query.trim() },
+  });
+  return response.data;
+};
+
+export const updateFavoriteFriends = async (friendIds) => {
+  const response = await api.post("/social/favorites", { friendIds });
+  return response.data;
+};
+
+export const fetchCircles = async () => {
+  const response = await api.get("/social/circles");
+  return response.data;
+};
+
+export const fetchCircleDetails = async (circleId) => {
+  const response = await api.get(`/social/circles/${circleId}`);
+  return response.data;
+};
+
+export const createSocialCircle = async (payload) => {
+  const response = await api.post("/social/circles", payload);
+  return response.data;
+};
+
+export const joinSocialCircle = async (circleId, key) => {
+  const response = await api.post(
+    `/social/circles/${circleId}/join`,
+    key ? { key } : {}
+  );
+  return response.data;
+};
+
+export const leaveSocialCircle = async (circleId) => {
+  const response = await api.post(`/social/circles/${circleId}/leave`);
+  return response.data;
+};
+
+export const transferSocialCircleOwnership = async (circleId, memberId) => {
+  const response = await api.post(`/social/circles/${circleId}/transfer`, {
+    memberId,
+  });
+  return response.data;
+};
+
+export const removeSocialCircleMember = async (circleId, memberId) => {
+  const response = await api.delete(
+    `/social/circles/${circleId}/members/${memberId}`
+  );
+  return response.data;
+};
+
+export const deleteSocialCircle = async (circleId) => {
+  const response = await api.delete(`/social/circles/${circleId}`);
+  return response.data;
+};
+
+export const fetchCircleMessages = async (circleId, page = 1, limit = 30) => {
+  const response = await api.get(`/social/circles/${circleId}/messages`, {
+    params: { page, limit },
+  });
+  return response.data;
+};
+
+export const sendCircleMessage = async (circleId, payload) => {
+  const response = await api.post(
+    `/social/circles/${circleId}/messages`,
+    payload
+  );
+  return response.data;
+};
+
 // User APIs
 export const followUser = async (userId) => {
-  const response = await api.post(`/users/${userId}/follow`);
+  const response = await api.post(`/profile/follow/${userId}`);
   return response.data;
 };
 
 export const unfollowUser = async (userId) => {
-  const response = await api.delete(`/users/${userId}/follow`);
+  const response = await api.delete(`/profile/follow/${userId}`);
   return response.data;
 };
 
@@ -104,7 +355,9 @@ export const getDiscoverUsers = async () => {
 };
 
 export const searchUsers = async (query) => {
-  const response = await api.get(`/users/search?q=${encodeURIComponent(query)}`);
+  const response = await api.get(
+    `/users/search?q=${encodeURIComponent(query)}`
+  );
   return response.data;
 };
 
@@ -122,17 +375,29 @@ export const getDiscoverPosts = async () => {
 // AI APIs (placeholders)
 export const improveWriting = async (text) => {
   // Placeholder for AI functionality
-  return { improvedText: text, error: true, message: "AI service not available" };
+  return {
+    improvedText: text,
+    error: true,
+    message: "AI service not available",
+  };
 };
 
 export const correctGrammar = async (text) => {
   // Placeholder for AI functionality
-  return { correctedText: text, error: true, message: "AI service not available" };
+  return {
+    correctedText: text,
+    error: true,
+    message: "AI service not available",
+  };
 };
 
 export const translateText = async (text, targetLanguage) => {
   // Placeholder for AI functionality
-  return { translatedText: text, error: true, message: "AI service not available" };
+  return {
+    translatedText: text,
+    error: true,
+    message: "AI service not available",
+  };
 };
 
 // Community Insights APIs (placeholders)
@@ -155,6 +420,54 @@ export const getUpcomingEvents = async () => {
 
 export const joinDailyChallenge = async (challengeId) => {
   return { success: true };
+};
+
+// Settings APIs
+export const getUserSettings = async () => {
+  const response = await api.get("/users/settings");
+  return response.data;
+};
+
+export const updateUserSettings = async (settingsData) => {
+  const response = await api.put("/users/settings", settingsData);
+  return response.data;
+};
+
+export const updatePrivacySettings = async (privacyData) => {
+  const response = await api.put("/users/settings/privacy", {
+    privacy: privacyData,
+  });
+  return response.data;
+};
+
+export const updateNotificationSettings = async (notificationData) => {
+  const response = await api.put("/users/settings/notifications", {
+    notifications: notificationData,
+  });
+  return response.data;
+};
+
+export const updateThemePreference = async (theme) => {
+  const response = await api.put("/users/settings/theme", { theme });
+  return response.data;
+};
+
+export const checkUsernameAvailability = async (username) => {
+  const response = await api.get(
+    `/users/check-username/${encodeURIComponent(username)}`
+  );
+  return response.data;
+};
+
+export const uploadProfileAvatar = async (file) => {
+  const formData = new FormData();
+  formData.append("profileImage", file);
+
+  const response = await api.post("/profile/upload/profile-image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+  return response.data;
 };
 
 export default api;

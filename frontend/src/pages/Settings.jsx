@@ -2,11 +2,19 @@ import { useState, useContext, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import { AuthContext } from "../context/AuthContext";
+import {
+  getUserSettings,
+  updateUserSettings,
+  updatePrivacySettings,
+  updateNotificationSettings,
+  updateThemePreference,
+  checkUsernameAvailability,
+  uploadProfileAvatar,
+} from "../utils/api";
 // import { ThemeContext } from "../context/ThemeContext"; // TODO: Implement theme system later
 import {
   IoSettings,
   IoPersonCircle,
-  IoLockClosed,
   IoShield,
   IoNotificationsOutline as IoNotifications,
   IoTrash,
@@ -32,87 +40,181 @@ import {
 } from "react-icons/io5";
 
 export default function Settings() {
-  const { user, userProfile, logout, updateProfile } = useContext(AuthContext);
+  const { user, userProfile, logout, fetchUserProfile } =
+    useContext(AuthContext);
   const navigate = useNavigate();
   // const { currentTheme, setTheme } = useContext(ThemeContext); // TODO: Implement theme system later
   const [activeSection, setActiveSection] = useState("general");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [previewTheme, setPreviewTheme] = useState("default");
-  const [profileImageFile, setProfileImageFile] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState({
+    type: "idle",
+    message: "",
+  });
   const fileInputRef = useRef(null);
+  const originalUsernameRef = useRef(null);
 
-  // Settings state - populated from real user data
+  // Settings state - will be populated from API
   const [settings, setSettings] = useState({
     profile: {
-      username: userProfile?.username || "",
-      displayName: userProfile?.displayName || "",
-      email: userProfile?.email || "",
-      bio: userProfile?.bio || "",
-      profileImage: userProfile?.profileImage || "",
-      uid: userProfile?.uid || "DA-2025-USR001", // Read-only
+      username: "",
+      displayName: "",
+      email: "",
+      bio: "",
+      profileImage: null,
+      coverPhoto: null,
+      uid: "",
+      userId: "",
+    },
+    address: {
+      street: "",
+      city: "",
+      state: "",
+      country: "",
+      zipCode: "",
+    },
+    socialLinks: {
+      website: "",
+      twitter: "",
+      instagram: "",
+      linkedin: "",
+      facebook: "",
+      youtube: "",
     },
     privacy: {
-      diaryVisibility: "private",
-      allowMessages: "followers",
-      showOnlineStatus: true,
-      indexProfile: true,
+      profileVisibility: "public",
+      showEmail: false,
+      showAnalytics: true,
     },
     notifications: {
-      emailNotifications: true,
-      pushNotifications: true,
-      newFollowers: true,
-      messages: true,
-      purchases: false,
-      marketing: false,
+      email: true,
+      push: true,
+      followers: true,
+      comments: true,
     },
-    account: {
-      twoFactor: false,
-      dataDownload: false,
+    theme: {
+      current: "light",
     },
   });
 
-  // Update settings when userProfile changes
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch user settings on component mount
   useEffect(() => {
-    if (userProfile) {
+    const fetchSettings = async () => {
+      try {
+        setLoading(true);
+        const response = await getUserSettings();
+        if (response.settings) {
+          setSettings(response.settings);
+          originalUsernameRef.current =
+            response.settings.profile?.username || "";
+          const profileUrl = response.settings.profile?.profileImage?.url;
+          setProfileImagePreview(profileUrl || null);
+          setUsernameStatus({ type: "idle", message: "" });
+        }
+      } catch (error) {
+        console.error("Failed to fetch settings:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchSettings();
+    }
+  }, [user]);
+
+  // Update settings when userProfile changes (fallback)
+  useEffect(() => {
+    if (userProfile && !loading) {
       setSettings((prev) => ({
         ...prev,
         profile: {
-          username: userProfile.username || "",
-          displayName: userProfile.displayName || "",
-          email: userProfile.email || "",
-          bio: userProfile.bio || "",
-          profileImage: userProfile.profileImage || "",
-          uid: userProfile.uid || "DA-2025-USR001",
+          username: userProfile.username || prev.profile.username || "",
+          displayName:
+            userProfile.displayName || prev.profile.displayName || "",
+          email: userProfile.email || prev.profile.email || "",
+          bio: userProfile.bio || prev.profile.bio || "",
+          profileImage: userProfile.profileImage || prev.profile.profileImage,
+          coverPhoto: userProfile.coverPhoto || prev.profile.coverPhoto,
+          uid: userProfile.userId || prev.profile.uid || "",
+          userId: userProfile.userId || prev.profile.userId || "",
+        },
+        address: userProfile.address || prev.address,
+        socialLinks: userProfile.socialLinks || prev.socialLinks,
+      }));
+
+      if (!originalUsernameRef.current) {
+        originalUsernameRef.current = userProfile.username || "";
+      }
+
+      if (!profileImagePreview && userProfile.profileImage?.url) {
+        setProfileImagePreview(userProfile.profileImage.url);
+      }
+    }
+  }, [userProfile, loading, profileImagePreview]);
+
+  // Validate and upload profile image to backend/cloudinary
+  const handleImageChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    const previousImage = settings.profile.profileImage;
+    const tempPreviewUrl = URL.createObjectURL(file);
+    setProfileImagePreview(tempPreviewUrl);
+
+    try {
+      setUploadingProfileImage(true);
+      const response = await uploadProfileAvatar(file);
+
+      if (response?.profileImage?.url) {
+        setSettings((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            profileImage: response.profileImage,
+          },
+        }));
+
+        setProfileImagePreview(response.profileImage.url);
+        toast.success("Profile photo updated");
+        await fetchUserProfile();
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (error) {
+      console.error("Image upload error:", error);
+      setSettings((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          profileImage: previousImage,
         },
       }));
-    }
-  }, [userProfile]);
-
-  // Handle profile image upload
-  const handleImageChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Check file size (5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File size must be less than 5MB");
-        return;
-      }
-
-      // Check file type
-      if (!file.type.startsWith("image/")) {
-        toast.error("Please select a valid image file");
-        return;
-      }
-
-      setProfileImageFile(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setProfileImagePreview(e.target.result);
-      };
-      reader.readAsDataURL(file);
+      setProfileImagePreview(previousImage?.url || null);
+      toast.error(
+        error.response?.data?.message ||
+          "Failed to upload image. Please try again."
+      );
+    } finally {
+      setUploadingProfileImage(false);
+      URL.revokeObjectURL(tempPreviewUrl);
     }
   };
 
@@ -120,68 +222,151 @@ export default function Settings() {
     fileInputRef.current?.click();
   };
 
-  const uploadProfileImage = async () => {
-    if (!profileImageFile) return null;
+  const validateUsername = async () => {
+    const currentUsername = settings.profile.username?.trim() || "";
+
+    if (!currentUsername) {
+      setUsernameStatus({ type: "error", message: "Username is required" });
+      return false;
+    }
+
+    if (currentUsername.length < 3) {
+      setUsernameStatus({
+        type: "error",
+        message: "Username must be at least 3 characters",
+      });
+      return false;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(currentUsername)) {
+      setUsernameStatus({
+        type: "error",
+        message: "Only letters, numbers, and underscores are allowed",
+      });
+      return false;
+    }
+
+    if (currentUsername === originalUsernameRef.current) {
+      setUsernameStatus({ type: "success", message: "Username unchanged" });
+      return true;
+    }
 
     try {
-      // For now, we'll create a local URL for the image
-      // In production, you would upload to your server or cloud storage
-      const imageUrl = URL.createObjectURL(profileImageFile);
+      setCheckingUsername(true);
+      const result = await checkUsernameAvailability(currentUsername);
+      if (result.available) {
+        setUsernameStatus({
+          type: "success",
+          message: result.message || "Username is available",
+        });
+        return true;
+      }
 
-      // Simulate upload delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      return imageUrl;
+      setUsernameStatus({
+        type: "error",
+        message: result.message || "Username is already taken",
+      });
+      return false;
     } catch (error) {
-      console.error("Image upload error:", error);
-      toast.error("Failed to upload image. Please try again.");
-      return null;
+      setUsernameStatus({
+        type: "error",
+        message: error.response?.data?.message || "Unable to verify username",
+      });
+      return false;
+    } finally {
+      setCheckingUsername(false);
     }
+  };
+
+  const handleUsernameBlur = () => {
+    validateUsername();
   };
 
   // Handle profile save
   const handleSaveProfile = async () => {
-    const { displayName, bio } = settings.profile;
+    const displayName = settings.profile.displayName?.trim() || "";
+    const bio = settings.profile.bio?.trim() || "";
+    const username = settings.profile.username?.trim() || "";
+    const userId =
+      settings.profile.userId?.trim() || settings.profile.uid?.trim() || "";
 
-    console.log("Saving profile with data:", { displayName, bio });
+    console.log("Saving profile with data:", {
+      displayName,
+      bio,
+      username,
+      userId,
+    });
 
     // Validate required fields
-    if (!displayName.trim()) {
+    if (!displayName) {
       toast.error(
         "Please complete your profile first! Display name is required."
       );
       return;
     }
 
-    try {
-      let profileImageUrl = settings.profile.profileImage;
+    if (userId && !/^[a-zA-Z0-9-]+$/.test(userId)) {
+      toast.error("User ID can only contain letters, numbers, and hyphens.");
+      return;
+    }
 
-      // Upload new image if selected
-      if (profileImageFile) {
-        console.log("Uploading new profile image...");
-        const uploadedImageUrl = await uploadProfileImage();
-        if (uploadedImageUrl) {
-          profileImageUrl = uploadedImageUrl;
-          console.log("Image uploaded, URL:", uploadedImageUrl);
-        }
-      }
+    if (userId && userId.length < 6) {
+      toast.error("User ID must be at least 6 characters long.");
+      return;
+    }
+
+    const usernameValid = await validateUsername();
+    if (!usernameValid) {
+      toast.error("Please resolve username issues before saving.");
+      return;
+    }
+
+    try {
+      setSaving(true);
 
       const updateData = {
+        username,
         displayName,
         bio,
-        profileImage: profileImageUrl,
+        userId,
+        profileImage: settings.profile.profileImage || undefined,
+        socialLinks: settings.socialLinks,
+        address: settings.address,
+        preferences: {
+          privacy: settings.privacy,
+          notifications: settings.notifications,
+          theme: settings.theme.current,
+        },
       };
 
-      console.log("Calling updateProfile with:", updateData);
+      console.log("Calling updateUserSettings with:", updateData);
 
-      // Call API to update profile
-      await updateProfile(updateData);
+      // Call API to update settings
+      const response = await updateUserSettings(updateData);
+
+      if (response.user) {
+        // Update local state with new data
+        setSettings((prevSettings) => ({
+          ...prevSettings,
+          profile: {
+            ...prevSettings.profile,
+            displayName: response.user.displayName,
+            bio: response.user.bio,
+            username: response.user.username,
+            userId: response.user.userId,
+            uid: response.user.userId,
+            profileImage:
+              response.user.profileImage || prevSettings.profile.profileImage,
+          },
+        }));
+
+        originalUsernameRef.current = response.user.username;
+
+        // Update AuthContext if needed
+        await fetchUserProfile();
+      }
 
       toast.success("Profile updated successfully!");
-
-      // Reset image states
-      setProfileImageFile(null);
-      setProfileImagePreview(null);
 
       // If this is the first time completing profile, redirect to home
       if (!userProfile?.profileCompleted) {
@@ -192,6 +377,8 @@ export default function Settings() {
     } catch (error) {
       console.error("Profile update error:", error);
       toast.error("Failed to update profile. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -255,23 +442,50 @@ export default function Settings() {
   ];
 
   const handleSettingChange = (section, key, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [section]: {
+    setSettings((prev) => {
+      const updatedSection = {
         ...prev[section],
         [key]: value,
-      },
-    }));
+      };
+
+      if (section === "profile" && key === "userId") {
+        updatedSection.uid = value;
+      }
+
+      return {
+        ...prev,
+        [section]: updatedSection,
+      };
+    });
+
+    if (section === "profile" && key === "username") {
+      setUsernameStatus({ type: "idle", message: "" });
+    }
   };
 
   const handleThemeSelect = (themeId) => {
     setPreviewTheme(themeId);
   };
 
-  const handleThemeSave = () => {
-    // setTheme(previewTheme); // TODO: Implement theme system later
-    // Here you would also save to backend/localStorage
-    console.log("Theme saving will be implemented later:", previewTheme);
+  const handleThemeSave = async () => {
+    try {
+      setSaving(true);
+      await updateThemePreference(previewTheme);
+
+      setSettings((prev) => ({
+        ...prev,
+        theme: {
+          current: previewTheme,
+        },
+      }));
+
+      toast.success("Theme updated successfully!");
+    } catch (error) {
+      console.error("Theme update error:", error);
+      toast.error("Failed to update theme");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -299,620 +513,673 @@ export default function Settings() {
           </p>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
-          <div className="lg:w-1/4">
-            <div className="bg-white rounded-xl shadow-sm border p-4 sticky top-4">
-              <nav className="space-y-2">
-                {sidebarSections.map((section) => {
-                  const IconComponent = section.icon;
-                  return (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveSection(section.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                        activeSection === section.id
-                          ? "bg-blue-600 text-white"
-                          : "hover:bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      <IconComponent className="w-5 h-5" />
-                      {section.label}
-                      <IoChevronForward className="w-4 h-4 ml-auto" />
-                    </button>
-                  );
-                })}
-              </nav>
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading settings...</p>
             </div>
           </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Sidebar */}
+            <div className="lg:w-1/4">
+              <div className="bg-white rounded-xl shadow-sm border p-4 sticky top-4">
+                <nav className="space-y-2">
+                  {sidebarSections.map((section) => {
+                    const IconComponent = section.icon;
+                    return (
+                      <button
+                        key={section.id}
+                        onClick={() => setActiveSection(section.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                          activeSection === section.id
+                            ? "bg-blue-600 text-white"
+                            : "hover:bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        <IconComponent className="w-5 h-5" />
+                        {section.label}
+                        <IoChevronForward className="w-4 h-4 ml-auto" />
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
 
-          {/* Main Content */}
-          <div className="lg:w-3/4">
-            <div className="bg-white rounded-xl shadow-sm border">
-              {/* General Settings */}
-              {activeSection === "general" && (
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    General Settings
-                  </h2>
+            {/* Main Content */}
+            <div className="lg:w-3/4">
+              <div className="bg-white rounded-xl shadow-sm border">
+                {/* General Settings */}
+                {activeSection === "general" && (
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      General Settings
+                    </h2>
 
-                  <div className="space-y-6">
-                    {/* Profile Picture */}
-                    <div className="flex items-center gap-6">
-                      <img
-                        src={
-                          profileImagePreview ||
-                          settings.profile.profileImage ||
-                          "/api/placeholder/80/80"
-                        }
-                        alt="Profile"
-                        className="w-20 h-20 rounded-full object-cover border-4 border-gray-200"
-                      />
-                      <div>
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleImageChange}
-                          accept="image/*"
-                          className="hidden"
+                    <div className="space-y-6">
+                      {/* Profile Picture */}
+                      <div className="flex items-center gap-6">
+                        <img
+                          src={
+                            profileImagePreview ||
+                            settings.profile.profileImage?.url ||
+                            "/api/placeholder/80/80"
+                          }
+                          alt="Profile"
+                          className="w-20 h-20 rounded-full object-cover border-4 border-gray-200"
                         />
-                        <button
-                          onClick={handleChangePhoto}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Change Photo
-                        </button>
-                        <p className="text-sm text-gray-500 mt-1">
-                          JPG, PNG up to 5MB
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* User ID (Read-only) */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Unique User ID
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          value={settings.profile.uid}
-                          readOnly
-                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                        />
-                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                          <IoLockClosed className="w-4 h-4" />
-                          Cannot be changed
+                        <div>
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageChange}
+                            accept="image/*"
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleChangePhoto}
+                            disabled={uploadingProfileImage}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {uploadingProfileImage
+                              ? "Uploading..."
+                              : "Change Photo"}
+                          </button>
+                          <p className="text-sm text-gray-500 mt-1">
+                            JPG, PNG up to 5MB
+                          </p>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Username */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Username{" "}
-                        <span className="text-gray-500 text-xs">
-                          (Cannot be changed)
-                        </span>
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.profile.username}
-                        disabled={true}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
-                        placeholder="Username will appear here after registration"
-                      />
-                    </div>
+                      {/* User ID (Read-only) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Unique User ID
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            settings.profile.userId || settings.profile.uid
+                          }
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "profile",
+                              "userId",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter a unique user ID"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Letters, numbers, and hyphens only, minimum 6
+                          characters. This appears on sharable profile links.
+                        </p>
+                      </div>
 
-                    {/* Display Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Display Name
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.profile.displayName}
-                        onChange={(e) =>
-                          handleSettingChange(
-                            "profile",
-                            "displayName",
-                            e.target.value
-                          )
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-
-                    {/* Email */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address{" "}
-                        <span className="text-gray-500 text-xs">
-                          (Cannot be changed)
-                        </span>
-                      </label>
-                      <input
-                        type="email"
-                        value={settings.profile.email}
-                        disabled={true}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
-                        placeholder="Email will appear here after registration"
-                      />
-                    </div>
-
-                    {/* Bio */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bio
-                      </label>
-                      <textarea
-                        value={settings.profile.bio}
-                        onChange={(e) =>
-                          handleSettingChange("profile", "bio", e.target.value)
-                        }
-                        rows={3}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleSaveProfile}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                      >
-                        <IoSave className="w-4 h-4" />
-                        Save Changes
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Theme Settings */}
-              {activeSection === "theme" && (
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    Theme Settings
-                  </h2>
-
-                  <div className="mb-6">
-                    <p className="text-gray-600 mb-4">
-                      Choose your preferred theme. Changes will be applied after
-                      saving.
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                      {themes.map((theme) => {
-                        const IconComponent = theme.icon;
-                        return (
-                          <div
-                            key={theme.id}
-                            onClick={() => handleThemeSelect(theme.id)}
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                              previewTheme === theme.id
-                                ? "border-blue-500 ring-2 ring-blue-200"
-                                : "border-gray-200 hover:border-gray-300"
-                            }`}
-                          >
-                            <div
-                              className={`h-20 rounded-lg bg-gradient-to-br ${theme.colors} mb-3 relative overflow-hidden`}
+                      {/* Username */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.profile.username}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "profile",
+                              "username",
+                              e.target.value
+                            )
+                          }
+                          onBlur={handleUsernameBlur}
+                          autoComplete="off"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Choose your username"
+                        />
+                        <div className="mt-1 flex items-center gap-2 text-xs">
+                          {checkingUsername && (
+                            <span className="text-blue-600">
+                              Checking availability...
+                            </span>
+                          )}
+                          {!checkingUsername && usernameStatus.message && (
+                            <span
+                              className={
+                                usernameStatus.type === "error"
+                                  ? "text-red-500"
+                                  : "text-green-600"
+                              }
                             >
-                              <div
-                                className={`absolute bottom-2 right-2 p-1 ${theme.primary} rounded`}
-                              >
-                                <IconComponent className="w-4 h-4 text-white" />
-                              </div>
-                            </div>
-                            <h3 className="font-medium text-gray-900">
-                              {theme.name}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              {theme.description}
-                            </p>
-
-                            {previewTheme === theme.id && (
-                              <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded-full">
-                                <IoCheckmarkCircle className="w-4 h-4 text-white" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleThemeSave}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                      >
-                        <IoSave className="w-4 h-4" />
-                        Apply Theme
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Privacy Settings */}
-              {activeSection === "privacy" && (
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    Privacy Settings
-                  </h2>
-
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Diary Entries Visibility
-                      </label>
-                      <div className="space-y-2">
-                        {["public", "private", "followers"].map((option) => (
-                          <label
-                            key={option}
-                            className="flex items-center gap-3"
-                          >
-                            <input
-                              type="radio"
-                              name="diaryVisibility"
-                              value={option}
-                              checked={
-                                settings.privacy.diaryVisibility === option
-                              }
-                              onChange={(e) =>
-                                handleSettingChange(
-                                  "privacy",
-                                  "diaryVisibility",
-                                  e.target.value
-                                )
-                              }
-                              className="w-4 h-4 text-blue-600"
-                            />
-                            <span className="capitalize">{option}</span>
-                          </label>
-                        ))}
+                              {usernameStatus.message}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Allow Messages From
-                      </label>
-                      <select
-                        value={settings.privacy.allowMessages}
-                        onChange={(e) =>
-                          handleSettingChange(
-                            "privacy",
-                            "allowMessages",
-                            e.target.value
-                          )
-                        }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="everyone">Everyone</option>
-                        <option value="followers">Followers Only</option>
-                        <option value="nobody">Nobody</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
+                      {/* Display Name */}
                       <div>
-                        <h3 className="font-medium text-gray-900">
-                          Show Online Status
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Let others see when you're active
-                        </p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          handleSettingChange(
-                            "privacy",
-                            "showOnlineStatus",
-                            !settings.privacy.showOnlineStatus
-                          )
-                        }
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          settings.privacy.showOnlineStatus
-                            ? "bg-blue-600"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.privacy.showOnlineStatus
-                              ? "translate-x-6"
-                              : ""
-                          }`}
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Display Name
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.profile.displayName}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "profile",
+                              "displayName",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
-                      </button>
-                    </div>
+                      </div>
 
-                    <div className="flex items-center justify-between">
+                      {/* Email */}
                       <div>
-                        <h3 className="font-medium text-gray-900">
-                          Index Profile
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Allow search engines to find your profile
-                        </p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          handleSettingChange(
-                            "privacy",
-                            "indexProfile",
-                            !settings.privacy.indexProfile
-                          )
-                        }
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          settings.privacy.indexProfile
-                            ? "bg-blue-600"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.privacy.indexProfile ? "translate-x-6" : ""
-                          }`}
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Email Address{" "}
+                          <span className="text-gray-500 text-xs">
+                            (Cannot be changed)
+                          </span>
+                        </label>
+                        <input
+                          type="email"
+                          value={settings.profile.email}
+                          disabled={true}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                          placeholder="Email will appear here after registration"
                         />
-                      </button>
-                    </div>
+                      </div>
 
-                    <div className="pt-4 border-t">
-                      <h3 className="font-medium text-gray-900 mb-3">
-                        Blocked Users
-                      </h3>
-                      <div className="bg-gray-50 rounded-lg p-4 text-center">
-                        <p className="text-gray-500">No blocked users</p>
+                      {/* Bio */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Bio
+                        </label>
+                        <textarea
+                          value={settings.profile.bio}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "profile",
+                              "bio",
+                              e.target.value
+                            )
+                          }
+                          rows={3}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleSaveProfile}
+                          disabled={
+                            saving || uploadingProfileImage || checkingUsername
+                          }
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <IoSave className="w-4 h-4" />
+                          {saving ? "Saving..." : "Save Changes"}
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Notifications */}
-              {activeSection === "notifications" && (
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    Notification Settings
-                  </h2>
+                {/* Theme Settings */}
+                {activeSection === "theme" && (
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Theme Settings
+                    </h2>
 
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-900">
-                          Email Notifications
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Receive notifications via email
-                        </p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          handleSettingChange(
-                            "notifications",
-                            "emailNotifications",
-                            !settings.notifications.emailNotifications
-                          )
-                        }
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          settings.notifications.emailNotifications
-                            ? "bg-blue-600"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.notifications.emailNotifications
-                              ? "translate-x-6"
-                              : ""
-                          }`}
-                        />
-                      </button>
-                    </div>
+                    <div className="mb-6">
+                      <p className="text-gray-600 mb-4">
+                        Choose your preferred theme. Changes will be applied
+                        after saving.
+                      </p>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-900">
-                          Push Notifications
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Receive push notifications in browser
-                        </p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          handleSettingChange(
-                            "notifications",
-                            "pushNotifications",
-                            !settings.notifications.pushNotifications
-                          )
-                        }
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          settings.notifications.pushNotifications
-                            ? "bg-blue-600"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.notifications.pushNotifications
-                              ? "translate-x-6"
-                              : ""
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    <div className="border-t pt-4">
-                      <h3 className="font-medium text-gray-900 mb-4">
-                        Notification Types
-                      </h3>
-                      <div className="space-y-4">
-                        {[
-                          {
-                            key: "newFollowers",
-                            label: "New Followers",
-                            desc: "When someone follows you",
-                          },
-                          {
-                            key: "messages",
-                            label: "Messages",
-                            desc: "New chat messages",
-                          },
-                          {
-                            key: "purchases",
-                            label: "Purchases",
-                            desc: "Book sales and purchases",
-                          },
-                          {
-                            key: "marketing",
-                            label: "Marketing",
-                            desc: "Product updates and tips",
-                          },
-                        ].map((item) => (
-                          <div
-                            key={item.key}
-                            className="flex items-center justify-between"
-                          >
-                            <div>
-                              <h4 className="font-medium text-gray-900">
-                                {item.label}
-                              </h4>
-                              <p className="text-sm text-gray-500">
-                                {item.desc}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() =>
-                                handleSettingChange(
-                                  "notifications",
-                                  item.key,
-                                  !settings.notifications[item.key]
-                                )
-                              }
-                              className={`relative w-12 h-6 rounded-full transition-colors ${
-                                settings.notifications[item.key]
-                                  ? "bg-blue-600"
-                                  : "bg-gray-300"
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        {themes.map((theme) => {
+                          const IconComponent = theme.icon;
+                          return (
+                            <div
+                              key={theme.id}
+                              onClick={() => handleThemeSelect(theme.id)}
+                              className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                previewTheme === theme.id
+                                  ? "border-blue-500 ring-2 ring-blue-200"
+                                  : "border-gray-200 hover:border-gray-300"
                               }`}
                             >
                               <div
-                                className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                                  settings.notifications[item.key]
-                                    ? "translate-x-6"
-                                    : ""
-                                }`}
-                              />
-                            </button>
-                          </div>
-                        ))}
+                                className={`h-20 rounded-lg bg-gradient-to-br ${theme.colors} mb-3 relative overflow-hidden`}
+                              >
+                                <div
+                                  className={`absolute bottom-2 right-2 p-1 ${theme.primary} rounded`}
+                                >
+                                  <IconComponent className="w-4 h-4 text-white" />
+                                </div>
+                              </div>
+                              <h3 className="font-medium text-gray-900">
+                                {theme.name}
+                              </h3>
+                              <p className="text-sm text-gray-500">
+                                {theme.description}
+                              </p>
+
+                              {previewTheme === theme.id && (
+                                <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded-full">
+                                  <IoCheckmarkCircle className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleThemeSave}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                          <IoSave className="w-4 h-4" />
+                          Apply Theme
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Account Settings */}
-              {activeSection === "account" && (
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    Account Settings
-                  </h2>
+                {/* Privacy Settings */}
+                {activeSection === "privacy" && (
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Privacy Settings
+                    </h2>
 
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
+                    <div className="space-y-6">
                       <div>
-                        <h3 className="font-medium text-gray-900">
-                          Two-Factor Authentication
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Add an extra layer of security
-                        </p>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Diary Entries Visibility
+                        </label>
+                        <div className="space-y-2">
+                          {["public", "private", "followers"].map((option) => (
+                            <label
+                              key={option}
+                              className="flex items-center gap-3"
+                            >
+                              <input
+                                type="radio"
+                                name="diaryVisibility"
+                                value={option}
+                                checked={
+                                  settings.privacy.diaryVisibility === option
+                                }
+                                onChange={(e) =>
+                                  handleSettingChange(
+                                    "privacy",
+                                    "diaryVisibility",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-4 h-4 text-blue-600"
+                              />
+                              <span className="capitalize">{option}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          handleSettingChange(
-                            "account",
-                            "twoFactor",
-                            !settings.account.twoFactor
-                          )
-                        }
-                        className={`relative w-12 h-6 rounded-full transition-colors ${
-                          settings.account.twoFactor
-                            ? "bg-blue-600"
-                            : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.account.twoFactor ? "translate-x-6" : ""
-                          }`}
-                        />
-                      </button>
-                    </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-medium text-gray-900 mb-4">
-                        Data Management
-                      </h3>
-
-                      <div className="space-y-4">
-                        <button className="flex items-center gap-3 p-4 w-full text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                          <IoDownload className="w-5 h-5 text-blue-600" />
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              Download My Data
-                            </h4>
-                            <p className="text-sm text-gray-500">
-                              Get a copy of all your data
-                            </p>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={logout}
-                          className="flex items-center gap-3 p-4 w-full text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Allow Messages From
+                        </label>
+                        <select
+                          value={settings.privacy.allowMessages}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "privacy",
+                              "allowMessages",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
-                          <IoSettings className="w-5 h-5 text-gray-600" />
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              Sign Out
-                            </h4>
-                            <p className="text-sm text-gray-500">
-                              Sign out of your account
-                            </p>
-                          </div>
-                        </button>
+                          <option value="everyone">Everyone</option>
+                          <option value="followers">Followers Only</option>
+                          <option value="nobody">Nobody</option>
+                        </select>
                       </div>
-                    </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-medium text-red-600 mb-4">
-                        Danger Zone
-                      </h3>
-
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="flex items-center gap-3 p-4 w-full text-left border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                      >
-                        <IoTrash className="w-5 h-5 text-red-600" />
+                      <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium text-red-600">
-                            Delete Account
-                          </h4>
-                          <p className="text-sm text-red-500">
-                            Permanently delete your account and all data
+                          <h3 className="font-medium text-gray-900">
+                            Show Online Status
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Let others see when you're active
                           </p>
                         </div>
-                      </button>
+                        <button
+                          onClick={() =>
+                            handleSettingChange(
+                              "privacy",
+                              "showOnlineStatus",
+                              !settings.privacy.showOnlineStatus
+                            )
+                          }
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            settings.privacy.showOnlineStatus
+                              ? "bg-blue-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.privacy.showOnlineStatus
+                                ? "translate-x-6"
+                                : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            Index Profile
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Allow search engines to find your profile
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleSettingChange(
+                              "privacy",
+                              "indexProfile",
+                              !settings.privacy.indexProfile
+                            )
+                          }
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            settings.privacy.indexProfile
+                              ? "bg-blue-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.privacy.indexProfile
+                                ? "translate-x-6"
+                                : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="pt-4 border-t">
+                        <h3 className="font-medium text-gray-900 mb-3">
+                          Blocked Users
+                        </h3>
+                        <div className="bg-gray-50 rounded-lg p-4 text-center">
+                          <p className="text-gray-500">No blocked users</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Notifications */}
+                {activeSection === "notifications" && (
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Notification Settings
+                    </h2>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            Email Notifications
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Receive notifications via email
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleSettingChange(
+                              "notifications",
+                              "emailNotifications",
+                              !settings.notifications.emailNotifications
+                            )
+                          }
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            settings.notifications.emailNotifications
+                              ? "bg-blue-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.notifications.emailNotifications
+                                ? "translate-x-6"
+                                : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            Push Notifications
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Receive push notifications in browser
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleSettingChange(
+                              "notifications",
+                              "pushNotifications",
+                              !settings.notifications.pushNotifications
+                            )
+                          }
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            settings.notifications.pushNotifications
+                              ? "bg-blue-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.notifications.pushNotifications
+                                ? "translate-x-6"
+                                : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="border-t pt-4">
+                        <h3 className="font-medium text-gray-900 mb-4">
+                          Notification Types
+                        </h3>
+                        <div className="space-y-4">
+                          {[
+                            {
+                              key: "newFollowers",
+                              label: "New Followers",
+                              desc: "When someone follows you",
+                            },
+                            {
+                              key: "messages",
+                              label: "Messages",
+                              desc: "New chat messages",
+                            },
+                            {
+                              key: "purchases",
+                              label: "Purchases",
+                              desc: "Book sales and purchases",
+                            },
+                            {
+                              key: "marketing",
+                              label: "Marketing",
+                              desc: "Product updates and tips",
+                            },
+                          ].map((item) => (
+                            <div
+                              key={item.key}
+                              className="flex items-center justify-between"
+                            >
+                              <div>
+                                <h4 className="font-medium text-gray-900">
+                                  {item.label}
+                                </h4>
+                                <p className="text-sm text-gray-500">
+                                  {item.desc}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleSettingChange(
+                                    "notifications",
+                                    item.key,
+                                    !settings.notifications[item.key]
+                                  )
+                                }
+                                className={`relative w-12 h-6 rounded-full transition-colors ${
+                                  settings.notifications[item.key]
+                                    ? "bg-blue-600"
+                                    : "bg-gray-300"
+                                }`}
+                              >
+                                <div
+                                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                                    settings.notifications[item.key]
+                                      ? "translate-x-6"
+                                      : ""
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Account Settings */}
+                {activeSection === "account" && (
+                  <div className="p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                      Account Settings
+                    </h2>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            Two-Factor Authentication
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Add an extra layer of security
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleSettingChange(
+                              "account",
+                              "twoFactor",
+                              !settings.account.twoFactor
+                            )
+                          }
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            settings.account.twoFactor
+                              ? "bg-blue-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.account.twoFactor ? "translate-x-6" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="border-t pt-6">
+                        <h3 className="font-medium text-gray-900 mb-4">
+                          Data Management
+                        </h3>
+
+                        <div className="space-y-4">
+                          <button className="flex items-center gap-3 p-4 w-full text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                            <IoDownload className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <h4 className="font-medium text-gray-900">
+                                Download My Data
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                Get a copy of all your data
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={logout}
+                            className="flex items-center gap-3 p-4 w-full text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            <IoSettings className="w-5 h-5 text-gray-600" />
+                            <div>
+                              <h4 className="font-medium text-gray-900">
+                                Sign Out
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                Sign out of your account
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="border-t pt-6">
+                        <h3 className="font-medium text-red-600 mb-4">
+                          Danger Zone
+                        </h3>
+
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="flex items-center gap-3 p-4 w-full text-left border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <IoTrash className="w-5 h-5 text-red-600" />
+                          <div>
+                            <h4 className="font-medium text-red-600">
+                              Delete Account
+                            </h4>
+                            <p className="text-sm text-red-500">
+                              Permanently delete your account and all data
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (

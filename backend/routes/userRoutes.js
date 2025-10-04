@@ -5,6 +5,11 @@ const {
   updateProfile,
   getProfile,
   checkUsername,
+  updateUserSettings,
+  getUserSettings,
+  updatePrivacySettings,
+  updateNotificationSettings,
+  updateThemePreference,
 } = require("../controllers/userController");
 const { validateRequest } = require("../middlewares/validationMiddleware");
 const { protect } = require("../middlewares/authMiddleware");
@@ -52,5 +57,40 @@ router.put(
   validateRequest,
   updateProfile
 );
+
+// Settings routes
+router.get("/settings", protect, getUserSettings);
+
+router.put(
+  "/settings",
+  protect,
+  [
+    body("username")
+      .optional()
+      .trim()
+      .isLength({ min: 3, max: 30 })
+      .withMessage("Username must be between 3 and 30 characters")
+      .matches(/^[a-zA-Z0-9_]+$/)
+      .withMessage(
+        "Username can only contain letters, numbers, and underscores"
+      ),
+    body("userId")
+      .optional()
+      .trim()
+      .isLength({ min: 6, max: 30 })
+      .withMessage("User ID must be between 6 and 30 characters"),
+    body("displayName").optional().trim().isLength({ min: 1, max: 100 }),
+    body("bio").optional().isLength({ max: 500 }),
+    body("socialLinks").optional().isObject(),
+    body("address").optional().isObject(),
+    body("preferences").optional().isObject(),
+  ],
+  validateRequest,
+  updateUserSettings
+);
+
+router.put("/settings/privacy", protect, updatePrivacySettings);
+router.put("/settings/notifications", protect, updateNotificationSettings);
+router.put("/settings/theme", protect, updateThemePreference);
 
 module.exports = router;

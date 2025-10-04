@@ -1,5 +1,6 @@
 import { useState, useContext, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { getAnalyticsOverview } from "../utils/api";
 import {
   IoFlame,
   IoHeart,
@@ -12,81 +13,125 @@ import {
   IoCheckmark,
   IoCloseOutline as IoClose,
   IoRemove,
+  IoLockClosed,
+  IoEarth,
 } from "react-icons/io5";
+
+const formatNumber = (value) => {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "0";
+  }
+  return Number(value).toLocaleString();
+};
+
+const formatDate = (value) => {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+};
+
+const getHeatmapClass = (count) => {
+  if (count >= 4) return "bg-blue-700";
+  if (count === 3) return "bg-blue-600";
+  if (count === 2) return "bg-blue-500";
+  if (count === 1) return "bg-blue-400";
+  return "bg-blue-100";
+};
 
 export default function Analytics() {
   const { user } = useContext(AuthContext);
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Mock data - in real app, this would come from API
-  const [analytics] = useState({
-    dailyStreak: 12,
-    totalEntries: 143,
-    averageWordsPerEntry: 350,
-    longestEntry: 1200,
-    moodDistribution: {
-      positive: 65,
-      neutral: 25,
-      negative: 10,
-    },
-    communityStats: {
-      followers: 234,
-      following: 89,
-      likesReceived: 1247,
-      commentsReceived: 456,
-      impressions: 1200,
-    },
-    commentSentiment: {
-      positive: 78,
-      neutral: 18,
-      negative: 4,
-    },
-    weeklyActivity: [3, 5, 2, 7, 4, 6, 8], // Mon-Sun
-    badges: [
-      {
-        name: "First Entry",
-        unlocked: true,
-        description: "Write your first diary entry",
-      },
-      {
-        name: "Weekly Writer",
-        unlocked: true,
-        description: "Write entries for 7 consecutive days",
-      },
-      {
-        name: "Mood Tracker",
-        unlocked: true,
-        description: "Record your mood 30 times",
-      },
-      {
-        name: "Community Star",
-        unlocked: false,
-        description: "Get 100 likes on your posts",
-      },
-      {
-        name: "Streak Master",
-        unlocked: false,
-        description: "Maintain a 30-day writing streak",
-      },
-      {
-        name: "Wordsmith",
-        unlocked: false,
-        description: "Write an entry with 2000+ words",
-      },
-    ],
-  });
+  useEffect(() => {
+    if (!user) {
+      setAnalytics(null);
+      return undefined;
+    }
 
-  const aiInsights = [
-    "You are most active on weekends",
-    "70% of your diary entries are positive this month",
-    "Your writing streak is 20% longer than average users",
-    "Tuesday entries tend to be the most detailed",
-  ];
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    getAnalyticsOverview(selectedPeriod)
+      .then((data) => {
+        if (active) {
+          setAnalytics(data);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(
+            err?.response?.data?.message ||
+              "Unable to load analytics right now."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPeriod, user, refreshKey]);
+
+  const handleRetry = () => {
+    setRefreshKey((key) => key + 1);
+  };
+
+  const periodLabel =
+    selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1);
+  const writingHabits = analytics?.writingHabits || [];
+  const maxHabitCount = writingHabits.length
+    ? Math.max(...writingHabits.map((item) => item.count))
+    : 0;
+  const recentActivity = analytics?.recentActivity || [];
+  const moodDistribution = analytics?.moodDistribution;
+  const community = analytics?.community;
+  const commentSentiment = analytics?.commentSentiment;
+  const badges = analytics?.badges || [];
+  const longestEntry = analytics?.totals?.longestEntry;
 
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-600">Please log in to view analytics.</p>
+      </div>
+    );
+  }
+
+  if (loading && !analytics) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50">
+        <p className="text-blue-700 font-medium">Loading your analytics…</p>
+      </div>
+    );
+  }
+
+  if (error && !analytics) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 px-4">
+        <p className="text-red-600 font-semibold mb-4">{error}</p>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-500 transition-colors"
+        >
+          Try again
+        </button>
       </div>
     );
   }
@@ -119,6 +164,19 @@ export default function Analytics() {
               </button>
             ))}
           </div>
+
+          {error && analytics && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="text-red-700 font-semibold hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Analytics Grid */}
@@ -134,11 +192,15 @@ export default function Analytics() {
 
             <div className="text-center mb-6">
               <div className="text-6xl font-bold text-blue-600 mb-2">
-                🔥{analytics.dailyStreak}
+                🔥{analytics?.streak?.current || 0}
               </div>
               <p className="text-blue-700 text-lg">Days in a row</p>
               <p className="text-blue-500 mt-2">
-                Keep writing daily to grow your streak!
+                Longest streak: {analytics?.streak?.longest || 0} days · Last
+                entry: {formatDate(analytics?.streak?.lastEntryDate)}
+              </p>
+              <p className="text-blue-500 mt-2">
+                Stay consistent to keep the streak growing!
               </p>
             </div>
 
@@ -148,18 +210,17 @@ export default function Analytics() {
                 Recent Activity
               </h3>
               <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 35 }, (_, i) => {
-                  const isActive = Math.random() > 0.3; // Mock activity
-                  return (
-                    <div
-                      key={i}
-                      className={`w-6 h-6 rounded ${
-                        isActive ? "bg-blue-600" : "bg-blue-100"
-                      } transition-colors hover:scale-110`}
-                      title={`Day ${i + 1}`}
-                    />
-                  );
-                })}
+                {recentActivity.map((activity) => (
+                  <div
+                    key={activity.date}
+                    className={`w-6 h-6 rounded ${getHeatmapClass(
+                      activity.count
+                    )} transition-transform duration-150 hover:scale-110`}
+                    title={`${formatDate(activity.date)} · ${activity.count} ${
+                      activity.count === 1 ? "entry" : "entries"
+                    }`}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -173,7 +234,7 @@ export default function Analytics() {
                     Total Entries
                   </p>
                   <p className="text-2xl font-bold text-blue-900">
-                    {analytics.totalEntries}
+                    {formatNumber(analytics?.totals?.entries || 0)}
                   </p>
                 </div>
                 <IoTime className="w-8 h-8 text-blue-500" />
@@ -184,13 +245,40 @@ export default function Analytics() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-600 text-sm font-medium">
-                    Avg Words/Entry
+                    Entries this {periodLabel}
                   </p>
                   <p className="text-2xl font-bold text-blue-900">
-                    {analytics.averageWordsPerEntry}
+                    {formatNumber(analytics?.periodStats?.entryCount || 0)}
                   </p>
                 </div>
                 <IoTrendingUp className="w-8 h-8 text-blue-500" />
+              </div>
+              <p className="text-xs text-blue-500 mt-2">
+                Avg words:{" "}
+                {formatNumber(analytics?.periodStats?.avgWordsPerEntry || 0)}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-4 shadow-lg border border-blue-100 hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-600 text-sm font-medium">
+                    Visibility Mix
+                  </p>
+                  <div className="text-blue-900 text-lg font-bold">
+                    <span className="flex items-center gap-2">
+                      <IoEarth className="text-blue-500" />
+                      {formatNumber(analytics?.totals?.publicEntries || 0)}{" "}
+                      public
+                    </span>
+                  </div>
+                  <div className="text-blue-700 text-sm flex items-center gap-2 mt-1">
+                    <IoLockClosed className="text-blue-400" />
+                    {formatNumber(analytics?.totals?.privateEntries || 0)}{" "}
+                    private
+                  </div>
+                </div>
+                <IoPeople className="w-8 h-8 text-blue-500" />
               </div>
             </div>
 
@@ -201,7 +289,11 @@ export default function Analytics() {
                     Longest Entry
                   </p>
                   <p className="text-2xl font-bold text-blue-900">
-                    {analytics.longestEntry} words
+                    {formatNumber(longestEntry?.words || 0)} words
+                  </p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    {longestEntry?.title || "No entry yet"} ·{" "}
+                    {formatDate(longestEntry?.createdAt)}
                   </p>
                 </div>
                 <IoStar className="w-8 h-8 text-blue-500" />
@@ -239,7 +331,7 @@ export default function Analytics() {
                   <span className="text-blue-700">😊 Positive</span>
                 </div>
                 <span className="font-semibold text-blue-900">
-                  {analytics.moodDistribution.positive}%
+                  {moodDistribution?.positive?.percentage || 0}%
                 </span>
               </div>
 
@@ -249,7 +341,7 @@ export default function Analytics() {
                   <span className="text-blue-700">😐 Neutral</span>
                 </div>
                 <span className="font-semibold text-blue-900">
-                  {analytics.moodDistribution.neutral}%
+                  {moodDistribution?.neutral?.percentage || 0}%
                 </span>
               </div>
 
@@ -259,15 +351,17 @@ export default function Analytics() {
                   <span className="text-blue-700">😢 Negative</span>
                 </div>
                 <span className="font-semibold text-blue-900">
-                  {analytics.moodDistribution.negative}%
+                  {moodDistribution?.negative?.percentage || 0}%
                 </span>
               </div>
             </div>
 
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-600">
-                <strong>Insight:</strong> Most common mood this month: Positive
-                😊
+                <strong>Insight:</strong>{" "}
+                {analytics?.periodStats?.topMood
+                  ? `Most common mood this ${selectedPeriod}: ${analytics.periodStats.topMood}`
+                  : "Log your moods to unlock insights."}
               </p>
             </div>
           </div>
@@ -281,35 +375,56 @@ export default function Analytics() {
             {/* Bar Chart */}
             <div className="mb-6">
               <div className="flex items-end justify-between h-32 space-x-2">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                  (day, index) => (
+                {writingHabits.map((item) => {
+                  const barHeight = maxHabitCount
+                    ? Math.max(
+                        (item.count / maxHabitCount) * 100,
+                        item.count ? 10 : 0
+                      )
+                    : 0;
+                  return (
                     <div
-                      key={day}
+                      key={item.day}
                       className="flex flex-col items-center flex-1"
                     >
                       <div
                         className="bg-blue-600 rounded-t w-full transition-all hover:bg-blue-700"
-                        style={{
-                          height: `${
-                            (analytics.weeklyActivity[index] / 8) * 100
-                          }%`,
-                        }}
+                        style={{ height: `${barHeight}%` }}
+                        title={`${item.day}: ${item.count} ${
+                          item.count === 1 ? "entry" : "entries"
+                        }`}
                       ></div>
-                      <span className="text-xs text-blue-600 mt-2">{day}</span>
+                      <span className="text-xs text-blue-600 mt-2">
+                        {item.day}
+                      </span>
                     </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-blue-700">Most active day:</span>
-                <span className="font-semibold text-blue-900">Sunday</span>
+                <span className="font-semibold text-blue-900">
+                  {analytics?.periodStats?.mostActiveDay || "—"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-blue-700">Weekly average:</span>
-                <span className="font-semibold text-blue-900">5 entries</span>
+                <span className="font-semibold text-blue-900">
+                  {formatNumber(
+                    Math.round(
+                      (analytics?.periodStats?.entryCount || 0) /
+                        (selectedPeriod === "week"
+                          ? 1
+                          : selectedPeriod === "month"
+                          ? 4
+                          : 52)
+                    )
+                  )}{" "}
+                  entries
+                </span>
               </div>
             </div>
           </div>
@@ -324,7 +439,7 @@ export default function Analytics() {
               <div className="text-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                 <IoPeople className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-blue-900">
-                  {analytics.communityStats.followers}
+                  {formatNumber(community?.followers || 0)}
                 </div>
                 <div className="text-sm text-blue-600">Followers</div>
               </div>
@@ -332,7 +447,7 @@ export default function Analytics() {
               <div className="text-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                 <IoHeart className="w-8 h-8 text-red-500 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-blue-900">
-                  {analytics.communityStats.likesReceived}
+                  {formatNumber(community?.likesReceived || 0)}
                 </div>
                 <div className="text-sm text-blue-600">Likes</div>
               </div>
@@ -340,7 +455,7 @@ export default function Analytics() {
               <div className="text-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                 <IoChatbubble className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-blue-900">
-                  {analytics.communityStats.commentsReceived}
+                  {formatNumber(community?.commentsReceived || 0)}
                 </div>
                 <div className="text-sm text-blue-600">Comments</div>
               </div>
@@ -348,7 +463,7 @@ export default function Analytics() {
               <div className="text-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                 <IoTrendingUp className="w-8 h-8 text-green-500 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-blue-900">
-                  {analytics.communityStats.impressions}k
+                  {formatNumber(community?.impressions || 0)}
                 </div>
                 <div className="text-sm text-blue-600">Impressions</div>
               </div>
@@ -356,9 +471,10 @@ export default function Analytics() {
 
             <div className="p-4 bg-blue-50 rounded-xl">
               <p className="text-blue-700">
-                <strong>This Month:</strong> Your posts got{" "}
-                {analytics.communityStats.impressions}k impressions and{" "}
-                {analytics.communityStats.likesReceived} likes!
+                <strong>This {periodLabel}:</strong> Engagement rate{" "}
+                {community?.engagementRate ?? 0}% ·{" "}
+                {formatNumber(community?.shares || 0)} shares ·{" "}
+                {formatNumber(community?.posts || 0)} posts
               </p>
             </div>
           </div>
@@ -377,13 +493,13 @@ export default function Analytics() {
                     <span className="text-blue-700">Positive</span>
                   </div>
                   <span className="font-semibold text-blue-900">
-                    {analytics.commentSentiment.positive}%
+                    {commentSentiment?.positive ?? 0}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-green-500 h-2 rounded-full transition-all"
-                    style={{ width: `${analytics.commentSentiment.positive}%` }}
+                    style={{ width: `${commentSentiment?.positive || 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -395,13 +511,13 @@ export default function Analytics() {
                     <span className="text-blue-700">Neutral</span>
                   </div>
                   <span className="font-semibold text-blue-900">
-                    {analytics.commentSentiment.neutral}%
+                    {commentSentiment?.neutral ?? 0}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-gray-400 h-2 rounded-full transition-all"
-                    style={{ width: `${analytics.commentSentiment.neutral}%` }}
+                    style={{ width: `${commentSentiment?.neutral || 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -413,13 +529,13 @@ export default function Analytics() {
                     <span className="text-blue-700">Negative</span>
                   </div>
                   <span className="font-semibold text-blue-900">
-                    {analytics.commentSentiment.negative}%
+                    {commentSentiment?.negative ?? 0}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-red-500 h-2 rounded-full transition-all"
-                    style={{ width: `${analytics.commentSentiment.negative}%` }}
+                    style={{ width: `${commentSentiment?.negative || 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -433,9 +549,9 @@ export default function Analytics() {
             </h2>
 
             <div className="grid grid-cols-3 gap-4">
-              {analytics.badges.map((badge, index) => (
+              {badges.map((badge) => (
                 <div
-                  key={index}
+                  key={badge.id || badge.name}
                   className={`p-4 rounded-xl text-center cursor-pointer transition-all hover:scale-105 ${
                     badge.unlocked
                       ? "bg-yellow-50 border-2 border-yellow-300"
@@ -455,6 +571,11 @@ export default function Analytics() {
                   >
                     {badge.name}
                   </p>
+                  <p className="text-[10px] text-blue-500 mt-1">
+                    {badge.unlocked
+                      ? `Unlocked ${formatDate(badge.earnedAt)}`
+                      : "Progress ongoing"}
+                  </p>
                 </div>
               ))}
             </div>
@@ -467,7 +588,7 @@ export default function Analytics() {
             </h2>
 
             <div className="space-y-4">
-              {aiInsights.map((insight, index) => (
+              {(analytics?.aiInsights || []).map((insight, index) => (
                 <div
                   key={index}
                   className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -476,23 +597,12 @@ export default function Analytics() {
                   <p className="text-blue-700">{insight}</p>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Upgrade Section */}
-          <div className="lg:col-span-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Upgrade to Pro
-                </h2>
-                <p className="text-yellow-100">
-                  Unlock advanced analytics, AI insights, and premium features
-                </p>
-              </div>
-              <button className="bg-white text-orange-500 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors">
-                Upgrade Now
-              </button>
+              {(!analytics?.aiInsights ||
+                analytics.aiInsights.length === 0) && (
+                <div className="p-3 bg-blue-50 rounded-lg text-blue-600 text-sm">
+                  Keep journaling to unlock personalized insights.
+                </div>
+              )}
             </div>
           </div>
         </div>
