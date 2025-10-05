@@ -11,7 +11,11 @@ export const normaliseId = (value) => {
 export const resolveAvatarUrl = (avatar) => {
   if (!avatar) return null;
   if (typeof avatar === "string") return avatar;
-  if (typeof avatar === "object" && avatar.url) return avatar.url;
+  if (typeof avatar === "object") {
+    if (typeof avatar.url === "string") return avatar.url;
+    if (typeof avatar.secure_url === "string") return avatar.secure_url;
+    if (typeof avatar.path === "string") return avatar.path;
+  }
   return null;
 };
 

@@ -3,6 +3,7 @@ import { AuthContext } from "../context/AuthContext";
 import CommentItem from "./CommentItem";
 import api from "../utils/api";
 import toast from "react-hot-toast";
+import { buildDisplayName, resolveAvatarUrl } from "../utils/socialHelpers";
 import {
   IoHeart,
   IoHeartOutline,
@@ -11,6 +12,7 @@ import {
   IoSend,
   IoEllipsisHorizontal,
   IoBookmarkOutline,
+  IoBookmark,
   IoEye,
   IoTimeOutline,
   IoPersonCircleOutline,
@@ -26,10 +28,19 @@ export default function PostCard({
   onComment,
   onShare,
   onDelete,
+  onSave,
+  isSaved = false,
+  isHighlighted = false,
 }) {
   const { user, userProfile } = useContext(AuthContext);
-  const [liked, setLiked] = useState(post.isLikedByUser || false);
-  const [likesCount, setLikesCount] = useState(post.likes?.length || 0);
+  const [liked, setLiked] = useState(Boolean(post.isLikedByUser));
+  const [likesCount, setLikesCount] = useState(
+    typeof post.likesCount === "number"
+      ? post.likesCount
+      : Array.isArray(post.likes)
+      ? post.likes.length
+      : 0
+  );
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
@@ -39,13 +50,35 @@ export default function PostCard({
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [likePending, setLikePending] = useState(false);
+  const [saved, setSaved] = useState(Boolean(isSaved));
   const optionsMenuRef = useRef(null);
+  const authorDisplayName = buildDisplayName(post.author);
+  const authorAvatarUrl =
+    resolveAvatarUrl(post.author?.profileImage) ||
+    resolveAvatarUrl(post.author?.avatar) ||
+    post.author?.profileImageUrl ||
+    post.author?.avatarUrl ||
+    null;
+  const authorInitial = authorDisplayName
+    ? authorDisplayName.charAt(0).toUpperCase()
+    : "U";
 
   // Sync state with prop changes (important for refresh)
   useEffect(() => {
-    setLiked(post.isLikedByUser || false);
-    setLikesCount(post.likes?.length || 0);
-  }, [post.isLikedByUser, post.likes]);
+    setLiked(Boolean(post.isLikedByUser));
+    setLikesCount(
+      typeof post.likesCount === "number"
+        ? post.likesCount
+        : Array.isArray(post.likes)
+        ? post.likes.length
+        : 0
+    );
+  }, [post.isLikedByUser, post.likes, post.likesCount]);
+
+  useEffect(() => {
+    setSaved(Boolean(isSaved));
+  }, [isSaved]);
 
   // Close options menu when clicking outside
   useEffect(() => {
@@ -65,6 +98,8 @@ export default function PostCard({
   }, []);
 
   const handleLike = async () => {
+    if (likePending) return;
+
     // Optimistic UI update
     const previousLiked = liked;
     const previousCount = likesCount;
@@ -73,12 +108,19 @@ export default function PostCard({
     setLikesCount(liked ? likesCount - 1 : likesCount + 1);
 
     try {
+      setLikePending(true);
       const response = await api.post(`/community/post/${post._id}/like`);
       // Update with server response
-      setLiked(response.data.isLiked);
-      setLikesCount(response.data.likesCount);
+      setLiked(Boolean(response.data.isLiked));
+      setLikesCount(
+        typeof response.data.likesCount === "number"
+          ? response.data.likesCount
+          : Array.isArray(response.data.likes)
+          ? response.data.likes.length
+          : 0
+      );
 
-      if (onLike) onLike(post._id);
+      if (onLike) onLike(post._id, response.data);
 
       // Show success feedback
       if (response.data.isLiked) {
@@ -93,17 +135,67 @@ export default function PostCard({
 
       console.error("Error liking post:", error);
       toast.error("Failed to update like status");
+    } finally {
+      setLikePending(false);
     }
   };
 
   const handleShare = async () => {
+    if (typeof window === "undefined") return;
+
+    const shareUrl = `${window.location.origin}/community/post/${post._id}`;
+    const shareTitle = `Check out this post from ${authorDisplayName}`;
+    const shareText = post.content
+      ? `${post.content.substring(0, 140)}${
+          post.content.length > 140 ? "…" : ""
+        }`
+      : shareTitle;
+
     try {
-      await api.post(`/community/post/${post._id}/share`);
-      toast.success("Post shared successfully!");
-      if (onShare) onShare(post._id);
+      if (navigator.share) {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        toast.success("Share sheet opened");
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied to clipboard");
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.top = "-1000px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        toast.success("Link copied to clipboard");
+      }
+
+      if (onShare) onShare(post._id, shareUrl);
     } catch (error) {
       console.error("Error sharing post:", error);
       toast.error("Failed to share post");
+    }
+  };
+
+  const handleSave = async () => {
+    const nextSaved = !saved;
+    setSaved(nextSaved);
+
+    try {
+      if (onSave) {
+        await Promise.resolve(onSave(post, nextSaved));
+      }
+
+      toast.success(nextSaved ? "Post saved" : "Removed from saved");
+    } catch (error) {
+      console.error("Error saving post:", error);
+      setSaved(!nextSaved);
+      toast.error("Failed to update saved posts");
     }
   };
 
@@ -188,31 +280,34 @@ export default function PostCard({
       ? post.content.substring(0, 300) + "..."
       : post.content;
 
+  const containerClasses = `bg-white rounded-2xl border mb-6 overflow-hidden transition-all duration-200 ${
+    isHighlighted
+      ? "border-blue-500 shadow-xl ring-2 ring-blue-100/80 bg-gradient-to-br from-blue-50/70 to-white"
+      : "border-gray-200 shadow-sm hover:shadow-md"
+  }`;
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <div className={containerClasses} data-post-id={post?._id || ""}>
       {/* Header */}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm">
-              {post.author?.profileImage ? (
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm overflow-hidden">
+              {authorAvatarUrl ? (
                 <img
-                  src={post.author.profileImage}
-                  alt={post.author.displayName || post.author.username}
-                  className="w-full h-full rounded-full object-cover"
+                  src={authorAvatarUrl}
+                  alt={authorDisplayName}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               ) : (
-                (post.author?.displayName || post.author?.username || "U")
-                  .charAt(0)
-                  .toUpperCase()
+                authorInitial
               )}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer">
-                  {post.author?.displayName ||
-                    post.author?.username ||
-                    "Unknown User"}
+                  {authorDisplayName}
                 </h3>
                 {post.author?.isVerified && (
                   <div className="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
@@ -346,22 +441,23 @@ export default function PostCard({
       )}
 
       {/* Action Buttons */}
-      <div className="border-t border-gray-100 px-4 py-2">
-        <div className="flex items-center justify-around">
+      <div className="border-t border-gray-100 px-2 sm:px-4 py-2">
+        <div className="flex items-center justify-around gap-2 text-sm">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 ${
               liked
                 ? "text-red-600 bg-red-50 hover:bg-red-100"
                 : "text-gray-600 hover:text-red-600 hover:bg-gray-50"
             }`}
+            aria-label={liked ? "Unlike" : "Like"}
           >
             {liked ? (
               <IoHeart className="w-5 h-5 text-red-600" />
             ) : (
               <IoHeartOutline className="w-5 h-5" />
             )}
-            <span className="font-medium text-sm">
+            <span className="hidden sm:inline font-medium text-sm">
               {likesCount > 0
                 ? `${likesCount} Like${likesCount !== 1 ? "s" : ""}`
                 : "Like"}
@@ -370,23 +466,41 @@ export default function PostCard({
 
           <button
             onClick={loadComments}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors"
+            aria-label="Comments"
           >
             <IoChatbubbleOutline className="w-5 h-5" />
-            <span className="font-medium text-sm">Comment</span>
+            <span className="hidden sm:inline font-medium text-sm">
+              Comment
+            </span>
           </button>
 
           <button
             onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:text-green-600 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-gray-600 hover:text-green-600 hover:bg-gray-50 transition-colors"
+            aria-label="Share"
           >
             <IoShareSocialOutline className="w-5 h-5" />
-            <span className="font-medium text-sm">Share</span>
+            <span className="hidden sm:inline font-medium text-sm">Share</span>
           </button>
 
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:text-yellow-600 hover:bg-gray-50 transition-colors">
-            <IoBookmarkOutline className="w-5 h-5" />
-            <span className="font-medium text-sm">Save</span>
+          <button
+            onClick={handleSave}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors ${
+              saved
+                ? "text-yellow-600 bg-yellow-50 hover:bg-yellow-100"
+                : "text-gray-600 hover:text-yellow-600 hover:bg-gray-50"
+            }`}
+            aria-label={saved ? "Unsave" : "Save"}
+          >
+            {saved ? (
+              <IoBookmark className="w-5 h-5" />
+            ) : (
+              <IoBookmarkOutline className="w-5 h-5" />
+            )}
+            <span className="hidden sm:inline font-medium text-sm">
+              {saved ? "Saved" : "Save"}
+            </span>
           </button>
         </div>
       </div>

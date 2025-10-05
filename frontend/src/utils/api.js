@@ -3,7 +3,25 @@ import axios from "axios";
 const trimTrailingSlash = (value) =>
   typeof value === "string" ? value.replace(/\/+$/, "") : value;
 
-const DEFAULT_BACKEND_HOST = "http://10.100.246.93:5000";
+const detectDefaultBackendHost = () => {
+  if (typeof window !== "undefined" && window?.location) {
+    const { protocol, hostname } = window.location;
+
+    if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//localhost:5000`;
+    }
+
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return `${protocol}//${hostname}:5000`;
+    }
+
+    return `${protocol}//${hostname}`;
+  }
+
+  return "http://localhost:5000";
+};
+
+const DEFAULT_BACKEND_HOST = detectDefaultBackendHost();
 const ENV_API_URL = trimTrailingSlash(import.meta.env.VITE_API_URL);
 const ENV_BACKEND_HOST = trimTrailingSlash(import.meta.env.VITE_BACKEND_HOST);
 const ENV_SOCKET_URL = trimTrailingSlash(import.meta.env.VITE_SOCKET_URL);

@@ -81,7 +81,12 @@ export default function AllPosts() {
     }
   };
 
-  const handlePostShare = async (postId) => {
+  const handlePostShare = async (postId, shareUrl) => {
+    if (shareUrl) {
+      toast.success("Share link copied");
+      return;
+    }
+
     try {
       const result = await sharePost(postId);
       setPosts((prev) =>
@@ -125,13 +130,21 @@ export default function AllPosts() {
     }
   };
 
-  const handleBookmarkPost = async (postId) => {
+  const handleBookmarkPost = async (postId, shouldSave) => {
     try {
-      const result = await bookmarkPost(postId);
+      const result = shouldSave
+        ? await bookmarkPost(postId)
+        : await unbookmarkPost(postId);
       setPosts((prev) =>
         prev.map((post) =>
           post._id === postId
-            ? { ...post, isBookmarked: result.isBookmarked }
+            ? {
+                ...post,
+                isBookmarked:
+                  typeof result.isBookmarked === "boolean"
+                    ? result.isBookmarked
+                    : shouldSave,
+              }
             : post
         )
       );
@@ -215,7 +228,10 @@ export default function AllPosts() {
                 onShare={handlePostShare}
                 onComment={handleAddComment}
                 onDelete={handleDeletePost}
-                onBookmark={handleBookmarkPost}
+                onSave={(entry, shouldSave) =>
+                  handleBookmarkPost(entry._id, shouldSave)
+                }
+                isSaved={Boolean(post.isBookmarked)}
               />
             ))}
           </div>

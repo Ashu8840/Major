@@ -1,9 +1,11 @@
-import { useEffect, useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { AuthContext } from "../context/AuthContext";
+import { useCurrentUser } from "../hooks/useAuth";
 import PostCard from "../components/PostCard";
 import api from "../utils/api";
+import { resolveAvatarUrl } from "../utils/socialHelpers";
+import { useNotifications } from "../context/NotificationContext";
+import { useLocation } from "react-router-dom";
 import {
   IoAdd,
   IoSearch,
@@ -28,21 +30,100 @@ import {
   IoTime,
 } from "react-icons/io5";
 
+const createComposerState = (overrides = {}) => ({
+  type: "text",
+  content: "",
+  media: [],
+  pollQuestion: "",
+  pollOptions: ["", ""],
+  pollAllowMultiple: false,
+  pollExpiresAt: "",
+  articleTitle: "",
+  articleSummary: "",
+  articleBody: "",
+  articleCover: null,
+  eventTitle: "",
+  eventLocation: "",
+  eventStart: "",
+  eventEnd: "",
+  eventDescription: "",
+  eventCapacity: "",
+  eventIsVirtual: false,
+  ...overrides,
+});
+
+const getComposerValidationError = (composer) => {
+  if (!composer) return "Share something with the community";
+  const type = composer.type || "text";
+  const trimmedContent = (composer.content || "").trim();
+  const pollOptions = (composer.pollOptions || [])
+    .map((option) => option.trim())
+    .filter(Boolean);
+
+  switch (type) {
+    case "text":
+      return trimmedContent.length === 0
+        ? "Share something with the community"
+        : null;
+    case "image":
+      return composer.media?.length === 0 && trimmedContent.length === 0
+        ? "Add an image or a caption to continue"
+        : null;
+    case "poll":
+      if (!composer.pollQuestion?.trim()) {
+        return "Ask a question for your poll";
+      }
+      if (pollOptions.length < 2) {
+        return "Provide at least two poll options";
+      }
+      return null;
+    case "article":
+      if (!composer.articleTitle?.trim()) {
+        return "Add a headline for your article";
+      }
+      if (!composer.articleBody?.trim()) {
+        return "Write the article content";
+      }
+      return null;
+    case "event":
+      if (!composer.eventTitle?.trim()) {
+        return "Give your event a title";
+      }
+      if (!composer.eventStart || !composer.eventEnd) {
+        return "Provide the start and end time";
+      }
+      if (new Date(composer.eventEnd) < new Date(composer.eventStart)) {
+        return "Event end time must be after the start time";
+      }
+      return null;
+    default:
+      return trimmedContent.length === 0
+        ? "Share something with the community"
+        : null;
+  }
+};
+
 const Community = () => {
-  const { user, userProfile, fetchUserProfile } = useContext(AuthContext);
-  const navigate = useNavigate();
+  const {
+    currentUser,
+    user: authUser,
+    userProfile,
+    refreshProfile,
+  } = useCurrentUser();
+  const location = useLocation();
+  const { addNotification } = useNotifications();
+  const user = authUser;
   const [posts, setPosts] = useState([]);
   const [trendingHashtags, setTrendingHashtags] = useState([]);
   const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("recent");
   const [filterBy, setFilterBy] = useState("all");
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
   const [showPostComposer, setShowPostComposer] = useState(false);
-  const [newPost, setNewPost] = useState({ content: "", media: [] });
-  const [mediaPreviews, setMediaPreviews] = useState([]); // Track blob URLs
+  const [composer, setComposer] = useState(() => createComposerState());
+  const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [composerSubmitting, setComposerSubmitting] = useState(false);
   const [followedUsers, setFollowedUsers] = useState(new Set());
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -52,6 +133,220 @@ const Community = () => {
     totalLikes: 0,
     newUsersToday: 0,
   });
+  const [savedPosts, setSavedPosts] = useState([]);
+  const [highlightedPostId, setHighlightedPostId] = useState(null);
+  const highlightTimeoutRef = useRef(null);
+  const seenPostIdsRef = useRef(new Set());
+  const postsInitializedRef = useRef(false);
+  const composerTypeOptions = useMemo(
+    () => [
+      { id: "text", label: "Update", badge: "📝" },
+      { id: "image", label: "Photo", badge: "🖼️" },
+      { id: "poll", label: "Poll", badge: "📊" },
+      { id: "article", label: "Article", badge: "✍️" },
+      { id: "event", label: "Event", badge: "🎉" },
+    ],
+    []
+  );
+  const composerValidationError = useMemo(
+    () => getComposerValidationError(composer),
+    [composer]
+  );
+  const savedPostIds = useMemo(
+    () => new Set(savedPosts.map((post) => post._id)),
+    [savedPosts]
+  );
+  const sortedSavedPosts = useMemo(() => {
+    return [...savedPosts].sort((a, b) => {
+      const aTime = new Date(a.savedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.savedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+  }, [savedPosts]);
+  const composerProfile = currentUser?.rawProfile || userProfile || user || {};
+  const composerDisplayName =
+    currentUser?.displayName ||
+    composerProfile.displayName ||
+    composerProfile.username ||
+    currentUser?.username ||
+    user?.username ||
+    "User";
+  const composerAvatarUrl =
+    currentUser?.profileImageUrl ||
+    resolveAvatarUrl(composerProfile.profileImage) ||
+    resolveAvatarUrl(composerProfile.avatar) ||
+    composerProfile.profileImageUrl ||
+    null;
+  const composerInitial = composerDisplayName
+    ? composerDisplayName.charAt(0).toUpperCase()
+    : "U";
+  const seenStorageKey = useMemo(() => {
+    if (!currentUser?.id) return null;
+    return `community_seen_posts:${currentUser.id}`;
+  }, [currentUser?.id]);
+
+  const updateSeenPostStorage = useCallback(() => {
+    if (typeof window === "undefined" || !seenStorageKey) return;
+    try {
+      const serialised = JSON.stringify(
+        Array.from(seenPostIdsRef.current || [])
+      );
+      localStorage.setItem(seenStorageKey, serialised);
+    } catch (storageError) {
+      console.warn("Failed to persist seen community posts", storageError);
+    }
+  }, [seenStorageKey]);
+
+  const isPostFromFollowedAuthor = useCallback(
+    (post) => {
+      if (!post?.author) return false;
+      const author = post.author;
+      const authorId = author._id || author.id || author.userId || null;
+      if (authorId && typeof followedUsers?.has === "function") {
+        if (followedUsers.has(authorId)) return true;
+      }
+      if (typeof author.isFollowed === "boolean" && author.isFollowed) {
+        return true;
+      }
+      if (
+        typeof author.isFollowedByCurrentUser === "boolean" &&
+        author.isFollowedByCurrentUser
+      ) {
+        return true;
+      }
+      if (typeof author.isFollowing === "boolean" && author.isFollowing) {
+        return true;
+      }
+      if (Array.isArray(author.followers)) {
+        const viewerId = currentUser?.id || currentUser?._id || null;
+        if (viewerId && author.followers.includes(viewerId)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [followedUsers, currentUser?.id, currentUser?._id]
+  );
+
+  const processFeedForNotifications = useCallback(
+    (postList) => {
+      if (!Array.isArray(postList) || postList.length === 0) return;
+      const seenSet = seenPostIdsRef.current;
+      const followedUpdates = [];
+
+      postList.forEach((post) => {
+        const postId = post?._id;
+        if (!postId) return;
+        if (!seenSet.has(postId)) {
+          seenSet.add(postId);
+          if (postsInitializedRef.current && isPostFromFollowedAuthor(post)) {
+            followedUpdates.push(post);
+          }
+        }
+      });
+
+      if (postsInitializedRef.current && followedUpdates.length > 0) {
+        followedUpdates.forEach((post) => {
+          const authorName =
+            post.author?.displayName ||
+            post.author?.username ||
+            post.author?.name ||
+            "Someone you follow";
+          const content = (post.content || "").trim();
+          const message = content
+            ? `${content.slice(0, 120)}${content.length > 120 ? "…" : ""}`
+            : "Tap to read the latest update.";
+
+          addNotification({
+            type: "new_post",
+            title: `${authorName} shared a new post`,
+            message,
+            link: `/community?highlight=${post._id}`,
+            meta: {
+              postId: post._id,
+              authorId: post.author?._id || post.author?.id || null,
+            },
+            externalId: `community-post-${post._id}`,
+          });
+        });
+      }
+
+      if (!postsInitializedRef.current) {
+        postsInitializedRef.current = true;
+      }
+
+      updateSeenPostStorage();
+    },
+    [addNotification, isPostFromFollowedAuthor, updateSeenPostStorage]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!seenStorageKey) {
+      seenPostIdsRef.current = new Set();
+      postsInitializedRef.current = false;
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(seenStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          seenPostIdsRef.current = new Set(parsed);
+        } else {
+          seenPostIdsRef.current = new Set();
+        }
+      } else {
+        seenPostIdsRef.current = new Set();
+      }
+    } catch (error) {
+      console.warn("Failed to restore seen community posts", error);
+      seenPostIdsRef.current = new Set();
+    }
+
+    postsInitializedRef.current = false;
+  }, [seenStorageKey]);
+
+  useEffect(() => {
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const highlightId = params.get("highlight");
+    setHighlightedPostId(highlightId);
+
+    if (highlightId) {
+      highlightTimeoutRef.current = setTimeout(
+        () => setHighlightedPostId(null),
+        8000
+      );
+    }
+
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
+    };
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!highlightedPostId) return;
+
+    const frame = requestAnimationFrame(() => {
+      const element = document.querySelector(
+        `[data-post-id="${highlightedPostId}"]`
+      );
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [highlightedPostId, posts]);
 
   useEffect(() => {
     // Debounce API calls to prevent 429 errors
@@ -61,6 +356,30 @@ const Community = () => {
 
     return () => clearTimeout(timeoutId);
   }, [sortBy]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem("communitySavedPosts");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setSavedPosts(parsed);
+        }
+      }
+    } catch (storageError) {
+      console.warn("Failed to restore saved posts", storageError);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("communitySavedPosts", JSON.stringify(savedPosts));
+    } catch (storageError) {
+      console.warn("Failed to persist saved posts", storageError);
+    }
+  }, [savedPosts]);
 
   // Cleanup blob URLs when component unmounts or media changes
   useEffect(() => {
@@ -88,7 +407,7 @@ const Community = () => {
           totalPosts: basicStats.data.totalPosts || 0,
         }));
       } catch (statsError) {
-        console.log("Basic stats failed, using fallback");
+        console.warn("Basic stats failed, using fallback", statsError);
       }
 
       // Then get other data with individual error handling
@@ -102,10 +421,29 @@ const Community = () => {
           .catch(() => ({ data: [] })),
       ]);
 
+      const fetchedPosts = Array.isArray(postsRes.data.posts)
+        ? [...postsRes.data.posts]
+        : [];
+
+      fetchedPosts.sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
       // Handle correct response structure from backend
-      setPosts(postsRes.data.posts || []);
+      setPosts(fetchedPosts);
+      processFeedForNotifications(fetchedPosts);
       setTrendingHashtags(hashtagsRes.data || []); // Backend returns array directly
       setSuggestedUsers(usersRes.data || []); // Backend returns array directly
+
+      setSavedPosts((prev) =>
+        prev.map((saved) => {
+          const latest = fetchedPosts.find((post) => post._id === saved._id);
+          if (!latest) return saved;
+          return { ...latest, savedAt: saved.savedAt };
+        })
+      );
 
       // Try to get detailed insights (optional)
       try {
@@ -114,17 +452,20 @@ const Community = () => {
           setCommunityInsights(insightsRes.data);
         }
       } catch (insightsError) {
-        console.log("Detailed insights failed, using basic stats");
+        console.warn(
+          "Detailed insights failed, using basic stats",
+          insightsError
+        );
         // Keep the basic stats we already set
         setCommunityInsights((prev) => ({
           ...prev,
           totalLikes:
-            postsRes.data.posts?.reduce(
+            fetchedPosts.reduce(
               (total, post) => total + (post.likes?.length || 0),
               0
             ) || 0,
           totalComments:
-            postsRes.data.posts?.reduce(
+            fetchedPosts.reduce(
               (total, post) => total + (post.comments?.length || 0),
               0
             ) || 0,
@@ -153,14 +494,61 @@ const Community = () => {
     loadCommunityData();
   };
 
-  const handleLikePost = async (postId) => {
+  const handleLikePost = async (postId, payload) => {
     try {
-      const response = await api.post(`/posts/${postId}/like`);
-      setPosts(
-        posts.map((post) =>
+      let likeData = payload;
+      if (!likeData) {
+        const response = await api.post(`/community/post/${postId}/like`);
+        likeData = response.data;
+      }
+
+      const nextLikesArray = Array.isArray(likeData.likes)
+        ? likeData.likes
+        : null;
+      const nextLikesCount =
+        typeof likeData.likesCount === "number"
+          ? likeData.likesCount
+          : nextLikesArray
+          ? nextLikesArray.length
+          : undefined;
+      const nextIsLiked =
+        typeof likeData.isLiked === "boolean" ? likeData.isLiked : undefined;
+
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
           post._id === postId
-            ? { ...post, likes: response.data.likes, isLiked: !post.isLiked }
+            ? {
+                ...post,
+                likes: nextLikesArray ?? post.likes,
+                likesCount:
+                  nextLikesCount ??
+                  (Array.isArray(post.likes)
+                    ? post.likes.length
+                    : typeof post.likesCount === "number"
+                    ? post.likesCount
+                    : 0),
+                isLikedByUser: nextIsLiked ?? post.isLikedByUser,
+              }
             : post
+        )
+      );
+
+      setSavedPosts((prevSaved) =>
+        prevSaved.map((saved) =>
+          saved._id === postId
+            ? {
+                ...saved,
+                likes: nextLikesArray ?? saved.likes,
+                likesCount:
+                  nextLikesCount ??
+                  (Array.isArray(saved.likes)
+                    ? saved.likes.length
+                    : typeof saved.likesCount === "number"
+                    ? saved.likesCount
+                    : 0),
+                isLikedByUser: nextIsLiked ?? saved.isLikedByUser,
+              }
+            : saved
         )
       );
     } catch (error) {
@@ -188,8 +576,8 @@ const Community = () => {
         return newSet;
       });
       toast.success(response.data.message || "Follow status updated");
-      if (typeof fetchUserProfile === "function") {
-        await fetchUserProfile({ silent: true });
+      if (typeof refreshProfile === "function") {
+        await refreshProfile({ silent: true });
       }
     } catch (error) {
       console.error("Error following user:", error);
@@ -203,24 +591,196 @@ const Community = () => {
     }
   };
 
+  const handleSavePost = (postData, shouldSave) => {
+    setSavedPosts((prev) => {
+      if (shouldSave) {
+        const existing = prev.find((item) => item._id === postData._id);
+        const timestamp = existing?.savedAt || new Date().toISOString();
+        const sourcePost =
+          posts.find((item) => item._id === postData._id) || postData;
+        const nextEntry = { ...sourcePost, savedAt: timestamp };
+
+        if (existing) {
+          return prev.map((item) =>
+            item._id === postData._id ? nextEntry : item
+          );
+        }
+
+        return [nextEntry, ...prev];
+      }
+
+      return prev.filter((item) => item._id !== postData._id);
+    });
+  };
+
   const handleDeletePost = (postId) => {
     // Remove the deleted post from the local state
-    setPosts(posts.filter((post) => post._id !== postId));
+    setPosts((prev) => prev.filter((post) => post._id !== postId));
+    setSavedPosts((prev) => prev.filter((post) => post._id !== postId));
     // Refresh community data to get updated stats
     loadCommunityData();
   };
 
+  const changeComposerType = (type) => {
+    setComposer((prev) => {
+      if (prev.type === type) return prev;
+      const next = {
+        ...createComposerState({ type }),
+        content: prev.content,
+        media: prev.media,
+      };
+
+      if (type === "poll") {
+        next.pollQuestion = prev.pollQuestion;
+        next.pollOptions = prev.pollOptions?.length
+          ? [...prev.pollOptions]
+          : ["", ""];
+        next.pollAllowMultiple = prev.pollAllowMultiple;
+        next.pollExpiresAt = prev.pollExpiresAt;
+      }
+
+      if (type === "article") {
+        next.articleTitle = prev.articleTitle;
+        next.articleSummary = prev.articleSummary;
+        next.articleBody = prev.articleBody;
+        next.articleCover = prev.articleCover;
+      }
+
+      if (type === "event") {
+        next.eventTitle = prev.eventTitle;
+        next.eventLocation = prev.eventLocation;
+        next.eventStart = prev.eventStart;
+        next.eventEnd = prev.eventEnd;
+        next.eventDescription = prev.eventDescription;
+        next.eventCapacity = prev.eventCapacity;
+        next.eventIsVirtual = prev.eventIsVirtual;
+      }
+
+      return next;
+    });
+  };
+
+  const updatePollOption = (index, value) => {
+    setComposer((prev) => {
+      const options = [...prev.pollOptions];
+      options[index] = value;
+      return { ...prev, pollOptions: options };
+    });
+  };
+
+  const addPollOption = () => {
+    setComposer((prev) => {
+      if (prev.pollOptions.length >= 4) return prev;
+      return { ...prev, pollOptions: [...prev.pollOptions, ""] };
+    });
+  };
+
+  const removePollOption = (index) => {
+    setComposer((prev) => {
+      if (prev.pollOptions.length <= 2) return prev;
+      return {
+        ...prev,
+        pollOptions: prev.pollOptions.filter((_, i) => i !== index),
+      };
+    });
+  };
+
+  const resetComposer = () => {
+    setComposer(createComposerState());
+    setMediaPreviews((prev) => {
+      prev.forEach((url) => {
+        if (url?.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      return [];
+    });
+  };
+
+  const openComposer = (type = "text") => {
+    setComposer(createComposerState({ type }));
+    setMediaPreviews([]);
+    setShowPostComposer(true);
+  };
+
+  const closeComposer = () => {
+    resetComposer();
+    setShowPostComposer(false);
+  };
+
   const handleCreatePost = async () => {
-    if (!newPost.content.trim()) {
-      toast.error("Please enter some content");
+    if (composerSubmitting) return;
+
+    const type = composer.type || "text";
+    const trimmedContent = composer.content.trim();
+    const pollOptions = (composer.pollOptions || [])
+      .map((option) => option.trim())
+      .filter(Boolean);
+
+    const validationError = getComposerValidationError({
+      ...composer,
+      content: trimmedContent,
+      pollOptions,
+    });
+
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
     try {
+      setComposerSubmitting(true);
       const formData = new FormData();
-      formData.append("content", newPost.content);
-      if (newPost.media.length > 0) {
-        formData.append("image", newPost.media[0]); // Backend expects 'image' field
+      formData.append("postType", type);
+      if (trimmedContent) {
+        formData.append("content", trimmedContent);
+      }
+      formData.append("visibility", "public");
+
+      if (composer.media.length > 0) {
+        formData.append(
+          type === "article" ? "articleCover" : "image",
+          composer.media[0]
+        );
+      }
+
+      if (type === "poll") {
+        formData.append("pollQuestion", composer.pollQuestion.trim());
+        formData.append("pollOptions", JSON.stringify(pollOptions));
+        formData.append(
+          "pollAllowMultiple",
+          composer.pollAllowMultiple ? "true" : "false"
+        );
+        if (composer.pollExpiresAt) {
+          formData.append("pollExpiresAt", composer.pollExpiresAt);
+        }
+      }
+
+      if (type === "article") {
+        formData.append("articleTitle", composer.articleTitle.trim());
+        if (composer.articleSummary.trim()) {
+          formData.append("articleSummary", composer.articleSummary.trim());
+        }
+        formData.append("articleBody", composer.articleBody.trim());
+      }
+
+      if (type === "event") {
+        formData.append("eventTitle", composer.eventTitle.trim());
+        if (composer.eventLocation.trim()) {
+          formData.append("eventLocation", composer.eventLocation.trim());
+        }
+        formData.append("eventStart", composer.eventStart);
+        formData.append("eventEnd", composer.eventEnd);
+        if (composer.eventDescription.trim()) {
+          formData.append("eventDescription", composer.eventDescription.trim());
+        }
+        if (composer.eventCapacity) {
+          formData.append("eventCapacity", composer.eventCapacity);
+        }
+        formData.append(
+          "eventIsVirtual",
+          composer.eventIsVirtual ? "true" : "false"
+        );
       }
 
       const response = await api.post("/community/post", formData, {
@@ -229,19 +789,25 @@ const Community = () => {
         },
       });
 
-      setPosts([response.data.post, ...posts]);
-      setNewPost({ content: "", media: [] });
-      setShowPostComposer(false);
-      toast.success("Post created successfully!");
-      // Refresh community data to get updated stats
-      loadCommunityData();
+      const createdPost = response.data?.post || response.data;
+      setPosts((prev) => [createdPost, ...prev]);
+      if (createdPost?._id) {
+        seenPostIdsRef.current.add(createdPost._id);
+        updateSeenPostStorage();
+      }
+      closeComposer();
+      toast.success("Post shared with the community!");
+      await loadCommunityData();
+      if (typeof refreshProfile === "function") {
+        refreshProfile({ silent: true });
+      }
     } catch (error) {
       console.error("Error creating post:", error);
       toast.error(
-        `Failed to create post: ${
-          error.response?.data?.message || error.message
-        }`
+        error.response?.data?.message || "Failed to create post. Try again."
       );
+    } finally {
+      setComposerSubmitting(false);
     }
   };
 
@@ -252,10 +818,23 @@ const Community = () => {
     const newPreviews = files.map((file) => URL.createObjectURL(file));
     setMediaPreviews((prev) => [...prev, ...newPreviews]);
 
-    setNewPost((prev) => ({
-      ...prev,
-      media: [...prev.media, ...files],
-    }));
+    setComposer((prev) => {
+      const updatedMedia = [...prev.media, ...files];
+      const nextState = {
+        ...prev,
+        media: updatedMedia,
+      };
+
+      if (prev.type === "text" && files.length > 0) {
+        nextState.type = "image";
+      }
+
+      if (prev.type === "article" && !prev.articleCover && files[0]) {
+        nextState.articleCover = files[0];
+      }
+
+      return nextState;
+    });
   };
 
   const removeFile = (index) => {
@@ -266,10 +845,19 @@ const Community = () => {
     }
 
     // Update media and previews
-    setNewPost((prev) => ({
-      ...prev,
-      media: prev.media.filter((_, i) => i !== index),
-    }));
+    setComposer((prev) => {
+      const updatedMedia = prev.media.filter((_, i) => i !== index);
+      const nextState = {
+        ...prev,
+        media: updatedMedia,
+      };
+
+      if (prev.type === "article") {
+        nextState.articleCover = updatedMedia[0] || null;
+      }
+
+      return nextState;
+    });
     setMediaPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -358,6 +946,16 @@ const Community = () => {
                   📝 Posts
                 </button>
                 <button
+                  onClick={() => setActiveTab("saved")}
+                  className={`flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                    activeTab === "saved"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "text-blue-600 hover:bg-blue-50"
+                  }`}
+                >
+                  🔖 Saved
+                </button>
+                <button
                   onClick={() => setActiveTab("insights")}
                   className={`flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${
                     activeTab === "insights"
@@ -413,31 +1011,21 @@ const Community = () => {
                   <div className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm overflow-hidden">
-                        {userProfile?.profileImage ? (
+                        {composerAvatarUrl ? (
                           <img
-                            src={userProfile.profileImage}
-                            alt={
-                              userProfile.displayName ||
-                              userProfile.username ||
-                              user?.username
-                            }
+                            src={composerAvatarUrl}
+                            alt={composerDisplayName}
                             className="w-full h-full rounded-full object-cover"
+                            loading="lazy"
                           />
                         ) : (
-                          (
-                            userProfile?.displayName ||
-                            userProfile?.username ||
-                            user?.username ||
-                            "U"
-                          )
-                            .charAt(0)
-                            .toUpperCase()
+                          composerInitial
                         )}
                       </div>
 
                       <div className="flex-1">
                         <button
-                          onClick={() => setShowPostComposer(true)}
+                          onClick={() => openComposer()}
                           className="w-full text-left px-4 py-3 text-gray-500 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors border border-gray-200"
                         >
                           Start a post...
@@ -449,7 +1037,7 @@ const Community = () => {
                     <div className="flex items-center justify-around mt-4 pt-3 border-t border-gray-100">
                       <button
                         onClick={() => {
-                          setShowPostComposer(true);
+                          openComposer("image");
                           // Focus on image upload when modal opens
                         }}
                         className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -460,14 +1048,20 @@ const Community = () => {
                         <span className="font-medium text-sm">Photo</span>
                       </button>
 
-                      <button className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors">
+                      <button
+                        onClick={() => openComposer("article")}
+                        className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                      >
                         <div className="w-6 h-6 bg-orange-100 rounded flex items-center justify-center">
                           <IoDocument className="w-4 h-4 text-orange-600" />
                         </div>
                         <span className="font-medium text-sm">Article</span>
                       </button>
 
-                      <button className="flex items-center gap-2 px-4 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                      <button
+                        onClick={() => openComposer("poll")}
+                        className="flex items-center gap-2 px-4 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      >
                         <div className="w-6 h-6 bg-green-100 rounded flex items-center justify-center">
                           <span className="text-green-600 text-xs font-bold">
                             📊
@@ -476,7 +1070,10 @@ const Community = () => {
                         <span className="font-medium text-sm">Poll</span>
                       </button>
 
-                      <button className="flex items-center gap-2 px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                      <button
+                        onClick={() => openComposer("event")}
+                        className="flex items-center gap-2 px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                      >
                         <div className="w-6 h-6 bg-purple-100 rounded flex items-center justify-center">
                           <span className="text-purple-600 text-xs font-bold">
                             🎉
@@ -494,33 +1091,20 @@ const Community = () => {
                           <div className="flex items-center justify-between p-4 border-b border-gray-200">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden">
-                                {userProfile?.profileImage ? (
+                                {composerAvatarUrl ? (
                                   <img
-                                    src={userProfile.profileImage}
-                                    alt={
-                                      userProfile.displayName ||
-                                      userProfile.username ||
-                                      user?.username
-                                    }
-                                    className="w-full h-full rounded-full object-cover"
+                                    src={composerAvatarUrl}
+                                    alt={composerDisplayName}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
                                   />
                                 ) : (
-                                  (
-                                    userProfile?.displayName ||
-                                    userProfile?.username ||
-                                    user?.username ||
-                                    "U"
-                                  )
-                                    .charAt(0)
-                                    .toUpperCase()
+                                  composerInitial
                                 )}
                               </div>
                               <div>
                                 <h3 className="font-semibold text-gray-900">
-                                  {userProfile?.displayName ||
-                                    userProfile?.username ||
-                                    user?.username ||
-                                    "User"}
+                                  {composerDisplayName}
                                 </h3>
                                 <p className="text-sm text-gray-600">
                                   Post to Community
@@ -528,7 +1112,7 @@ const Community = () => {
                               </div>
                             </div>
                             <button
-                              onClick={() => setShowPostComposer(false)}
+                              onClick={closeComposer}
                               className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
                             >
                               <IoClose className="w-6 h-6" />
@@ -536,66 +1120,370 @@ const Community = () => {
                           </div>
 
                           {/* Modal Content */}
-                          <div className="p-4 max-h-[60vh] overflow-y-auto">
-                            <textarea
-                              value={newPost.content}
-                              onChange={(e) =>
-                                setNewPost((prev) => ({
-                                  ...prev,
-                                  content: e.target.value,
-                                }))
-                              }
-                              placeholder="What do you want to talk about?"
-                              className="w-full p-0 border-none resize-none focus:outline-none text-lg placeholder-gray-400"
-                              rows={6}
-                              style={{ minHeight: "120px" }}
-                            />
+                          <div className="p-4 max-h-[60vh] overflow-y-auto space-y-6">
+                            <div className="flex flex-wrap gap-2">
+                              {composerTypeOptions.map((option) => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => changeComposerType(option.id)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                                    composer.type === option.id
+                                      ? "bg-blue-600 text-white shadow"
+                                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                  }`}
+                                >
+                                  <span>{option.badge}</span>
+                                  <span>{option.label}</span>
+                                </button>
+                              ))}
+                            </div>
 
-                            {/* Media Preview */}
-                            {newPost.media.length > 0 && (
-                              <div className="mt-4">
-                                <div className="grid grid-cols-2 gap-3">
-                                  {newPost.media.map((file, index) => (
-                                    <div key={index} className="relative group">
-                                      <img
-                                        src={
-                                          mediaPreviews[index] ||
-                                          URL.createObjectURL(file)
+                            {composer.type !== "article" && (
+                              <div>
+                                <textarea
+                                  value={composer.content}
+                                  onChange={(e) =>
+                                    setComposer((prev) => ({
+                                      ...prev,
+                                      content: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="What do you want to share with the community?"
+                                  className="w-full border border-transparent focus:border-blue-300 focus:ring-0 resize-none text-lg text-gray-900 placeholder-gray-400"
+                                  rows={composer.type === "text" ? 6 : 4}
+                                  style={{
+                                    minHeight:
+                                      composer.type === "text"
+                                        ? "140px"
+                                        : "100px",
+                                  }}
+                                />
+                                {composer.type === "poll" && (
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Add optional context or background for your
+                                    poll.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {composer.type === "poll" && (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Poll question
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={composer.pollQuestion}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        pollQuestion: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    placeholder="What would you like to ask?"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  {composer.pollOptions.map((option, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <span className="text-sm text-gray-500 w-5 text-right">
+                                        {index + 1}.
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={option}
+                                        onChange={(e) =>
+                                          updatePollOption(
+                                            index,
+                                            e.target.value
+                                          )
                                         }
-                                        alt={`Preview ${index}`}
-                                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                                        onError={(e) => {
-                                          console.error(
-                                            "Image load error for preview:",
-                                            e
-                                          );
-                                          // Try to create a new blob URL as fallback
-                                          try {
-                                            e.target.src =
-                                              URL.createObjectURL(file);
-                                          } catch (fallbackError) {
-                                            console.error(
-                                              "Fallback URL creation failed:",
-                                              fallbackError
-                                            );
-                                            e.target.style.display = "none";
-                                          }
-                                        }}
-                                        onLoad={(e) => {
-                                          // Successfully loaded, no action needed
-                                          console.log(
-                                            "Image preview loaded successfully"
-                                          );
-                                        }}
+                                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                        placeholder={`Option ${index + 1}`}
                                       />
-                                      <button
-                                        onClick={() => removeFile(index)}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                      >
-                                        ×
-                                      </button>
+                                      {composer.pollOptions.length > 2 && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removePollOption(index)
+                                          }
+                                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                        >
+                                          <IoClose className="w-5 h-5" />
+                                        </button>
+                                      )}
                                     </div>
                                   ))}
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <button
+                                    type="button"
+                                    onClick={addPollOption}
+                                    className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={composer.pollOptions.length >= 4}
+                                  >
+                                    + Add option
+                                  </button>
+                                  <label className="flex items-center gap-2 text-gray-600">
+                                    <input
+                                      type="checkbox"
+                                      checked={composer.pollAllowMultiple}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          pollAllowMultiple: e.target.checked,
+                                        }))
+                                      }
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    Allow multiple choices
+                                  </label>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Poll closes (optional)
+                                  </label>
+                                  <input
+                                    type="datetime-local"
+                                    value={composer.pollExpiresAt}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        pollExpiresAt: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {composer.type === "article" && (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Headline
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={composer.articleTitle}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        articleTitle: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    placeholder="Catch readers' attention"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Summary (optional)
+                                  </label>
+                                  <textarea
+                                    value={composer.articleSummary}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        articleSummary: e.target.value,
+                                      }))
+                                    }
+                                    rows={3}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                                    placeholder="Give readers a quick overview"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Article body
+                                  </label>
+                                  <textarea
+                                    value={composer.articleBody}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        articleBody: e.target.value,
+                                      }))
+                                    }
+                                    rows={8}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    placeholder="Share your full story here..."
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {composer.type === "event" && (
+                              <div className="space-y-3">
+                                <div className="grid sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                      Event title
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={composer.eventTitle}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventTitle: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                      placeholder="Give your event a name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                      Location (optional)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={composer.eventLocation}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventLocation: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                      placeholder="Online or physical venue"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                      Starts at
+                                    </label>
+                                    <input
+                                      type="datetime-local"
+                                      value={composer.eventStart}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventStart: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                      Ends at
+                                    </label>
+                                    <input
+                                      type="datetime-local"
+                                      value={composer.eventEnd}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventEnd: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-3 items-center">
+                                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                                    <input
+                                      type="checkbox"
+                                      checked={composer.eventIsVirtual}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventIsVirtual: e.target.checked,
+                                        }))
+                                      }
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    Virtual event
+                                  </label>
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                      Capacity (optional)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={composer.eventCapacity}
+                                      onChange={(e) =>
+                                        setComposer((prev) => ({
+                                          ...prev,
+                                          eventCapacity: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                      placeholder="Maximum attendees"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Description (optional)
+                                  </label>
+                                  <textarea
+                                    value={composer.eventDescription}
+                                    onChange={(e) =>
+                                      setComposer((prev) => ({
+                                        ...prev,
+                                        eventDescription: e.target.value,
+                                      }))
+                                    }
+                                    rows={4}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    placeholder="What should attendees know?"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {composer.media.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="text-sm font-semibold text-gray-700">
+                                  Attached media
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {composer.media.map((file, index) => {
+                                    const previewUrl =
+                                      mediaPreviews[index] ||
+                                      (typeof file === "string" ? file : null);
+
+                                    return (
+                                      <div
+                                        key={index}
+                                        className="relative group"
+                                      >
+                                        {previewUrl ? (
+                                          <img
+                                            src={previewUrl}
+                                            alt={`Preview ${index + 1}`}
+                                            className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                                          />
+                                        ) : (
+                                          <div className="w-full h-32 bg-gray-100 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
+                                            Preview unavailable
+                                          </div>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => removeFile(index)}
+                                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -603,7 +1491,7 @@ const Community = () => {
 
                           {/* Modal Footer */}
                           <div className="border-t border-gray-200 p-4">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center gap-2">
                                 <input
                                   type="file"
@@ -611,26 +1499,36 @@ const Community = () => {
                                   multiple
                                   onChange={handleFileSelect}
                                   className="hidden"
-                                  id="media-upload-modal"
+                                  id="composer-media-upload"
                                 />
                                 <label
-                                  htmlFor="media-upload-modal"
+                                  htmlFor="composer-media-upload"
                                   className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                                 >
                                   <IoImage className="w-5 h-5" />
                                   <span className="text-sm font-medium">
-                                    Media
+                                    {composer.type === "article"
+                                      ? "Cover"
+                                      : composer.type === "event"
+                                      ? "Banner"
+                                      : "Media"}
                                   </span>
                                 </label>
 
-                                <button className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
                                   <span className="text-sm">🎭</span>
                                   <span className="text-sm font-medium">
                                     Feeling
                                   </span>
                                 </button>
 
-                                <button className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
                                   <span className="text-sm">📍</span>
                                   <span className="text-sm font-medium">
                                     Location
@@ -641,12 +1539,12 @@ const Community = () => {
                               <button
                                 onClick={handleCreatePost}
                                 disabled={
-                                  !newPost.content.trim() &&
-                                  newPost.media.length === 0
+                                  composerSubmitting ||
+                                  Boolean(composerValidationError)
                                 }
                                 className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                               >
-                                Post
+                                {composerSubmitting ? "Posting..." : "Post"}
                               </button>
                             </div>
                           </div>
@@ -688,7 +1586,7 @@ const Community = () => {
                         Be the first to share something with the community!
                       </p>
                       <button
-                        onClick={() => setShowPostComposer(true)}
+                        onClick={() => openComposer()}
                         className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors font-medium"
                       >
                         Create your first post
@@ -699,15 +1597,52 @@ const Community = () => {
                       <PostCard
                         key={post._id}
                         post={post}
-                        onLike={() => handleLikePost(post._id)}
+                        onLike={handleLikePost}
                         onComment={() => loadCommunityData()}
-                        onShare={() => loadCommunityData()}
                         onDelete={handleDeletePost}
+                        onSave={handleSavePost}
+                        isSaved={savedPostIds.has(post._id)}
+                        isHighlighted={highlightedPostId === post._id}
                       />
                     ))
                   )}
                 </div>
               </>
+            )}
+
+            {activeTab === "saved" && (
+              <div className="space-y-6">
+                {sortedSavedPosts.length === 0 ? (
+                  <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                    <div className="text-6xl mb-4">🔖</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      No saved posts yet
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      Tap the save icon on any community post to keep it here.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("posts")}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Explore posts
+                    </button>
+                  </div>
+                ) : (
+                  sortedSavedPosts.map((post) => (
+                    <PostCard
+                      key={post._id}
+                      post={post}
+                      onLike={handleLikePost}
+                      onComment={() => loadCommunityData()}
+                      onDelete={handleDeletePost}
+                      onSave={handleSavePost}
+                      isSaved
+                      isHighlighted={highlightedPostId === post._id}
+                    />
+                  ))
+                )}
+              </div>
             )}
 
             {activeTab === "insights" && (
@@ -802,44 +1737,57 @@ const Community = () => {
                         </p>
                       </div>
                     ) : (
-                      suggestedUsers.map((user) => (
-                        <div key={user._id} className="flex items-start gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg">
-                            {user.profileImage ? (
-                              <img
-                                src={user.profileImage}
-                                alt={user.username}
-                                className="w-full h-full rounded-full object-cover"
-                              />
-                            ) : (
-                              user.username.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-blue-900 truncate">
-                              {user.displayName || user.username}
-                            </div>
-                            <div className="text-sm text-blue-600 line-clamp-2">
-                              {user.bio || "New community member"}
-                            </div>
-                            <div className="text-xs text-blue-400">
-                              {user.followersCount || 0} followers
-                            </div>
-                          </div>
-                          <button
-                            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                              followedUsers.has(user._id)
-                                ? "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                                : "bg-blue-600 hover:bg-blue-700 text-white"
-                            }`}
-                            onClick={() => handleFollowUser(user._id)}
+                      suggestedUsers.map((user) => {
+                        const avatarUrl =
+                          resolveAvatarUrl(user.profileImage) ||
+                          resolveAvatarUrl(user.avatar) ||
+                          user.profileImageUrl ||
+                          null;
+                        const displayName =
+                          user.displayName || user.username || "Creator";
+
+                        return (
+                          <div
+                            key={user._id}
+                            className="flex items-start gap-3"
                           >
-                            {followedUsers.has(user._id)
-                              ? "Following"
-                              : "Follow"}
-                          </button>
-                        </div>
-                      ))
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg overflow-hidden">
+                              {avatarUrl ? (
+                                <img
+                                  src={avatarUrl}
+                                  alt={displayName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                displayName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-blue-900 truncate">
+                                {displayName}
+                              </div>
+                              <div className="text-sm text-blue-600 line-clamp-2">
+                                {user.bio || "New community member"}
+                              </div>
+                              <div className="text-xs text-blue-400">
+                                {user.followersCount || 0} followers
+                              </div>
+                            </div>
+                            <button
+                              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                                followedUsers.has(user._id)
+                                  ? "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                                  : "bg-blue-600 hover:bg-blue-700 text-white"
+                              }`}
+                              onClick={() => handleFollowUser(user._id)}
+                            >
+                              {followedUsers.has(user._id)
+                                ? "Following"
+                                : "Follow"}
+                            </button>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -972,6 +1920,7 @@ const Community = () => {
 
                   <div className="space-y-4">
                     {posts
+                      .slice()
                       .sort(
                         (a, b) =>
                           (b.likes?.length || 0) - (a.likes?.length || 0)
@@ -1010,7 +1959,7 @@ const Community = () => {
                 </div>
 
                 {/* Top Users */}
-                {communityInsights.topUsers &&
+                {Array.isArray(communityInsights.topUsers) &&
                   communityInsights.topUsers.length > 0 && (
                     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-200 p-6 shadow-lg">
                       <div className="flex items-center gap-2 mb-4">
@@ -1021,39 +1970,47 @@ const Community = () => {
                       </div>
 
                       <div className="space-y-4">
-                        {communityInsights.topUsers.map((user, index) => (
-                          <div
-                            key={user._id}
-                            className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-lg"
-                          >
-                            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-bold text-indigo-600">
-                              {index + 1}
-                            </div>
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                              {user.profileImage ? (
-                                <img
-                                  src={user.profileImage}
-                                  alt={user.username}
-                                  className="w-full h-full rounded-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-lg font-medium text-blue-600">
-                                  {(user.displayName || user.username)
-                                    .charAt(0)
-                                    .toUpperCase()}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-medium text-blue-900">
-                                {user.displayName || user.username}
+                        {communityInsights.topUsers.map((member, index) => {
+                          const avatarUrl =
+                            resolveAvatarUrl(member.profileImage) ||
+                            resolveAvatarUrl(member.avatar) ||
+                            member.profileImageUrl ||
+                            null;
+                          const displayName =
+                            member.displayName || member.username || "Member";
+
+                          return (
+                            <div
+                              key={member._id || index}
+                              className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-lg"
+                            >
+                              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-bold text-indigo-600">
+                                {index + 1}
                               </div>
-                              <div className="text-sm text-blue-600">
-                                {user.followersCount} followers
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={displayName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-lg font-medium text-blue-600">
+                                    {displayName.charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-medium text-blue-900">
+                                  {displayName}
+                                </div>
+                                <div className="text-sm text-blue-600">
+                                  {member.followersCount || 0} followers
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1072,6 +2029,7 @@ const Community = () => {
                     communityInsights.recentActivity.length > 0
                       ? communityInsights.recentActivity
                       : posts
+                          .slice()
                           .sort(
                             (a, b) =>
                               new Date(b.createdAt) - new Date(a.createdAt)

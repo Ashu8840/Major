@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { IoArrowBack } from "react-icons/io5";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
@@ -161,6 +161,7 @@ const normaliseChatSummary = (chat) => {
 const Chat = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -191,6 +192,16 @@ const Chat = () => {
     normaliseId(user?._id) ||
     normaliseId(user?.id) ||
     normaliseId(user?._id?._id);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const openChat = params.get("open");
+
+    if (openChat && openChat !== activeChatIdRef.current) {
+      setActiveChatId(openChat);
+      activeChatIdRef.current = openChat;
+    }
+  }, [location.search]);
 
   const loadChats = useCallback(
     async ({ silent = false, cancelledRef } = {}) => {
@@ -262,7 +273,8 @@ const Chat = () => {
   const ensureSocket = useCallback(() => {
     if (!socketRef.current) {
       socketRef.current = io(SOCKET_URL, {
-        transports: ["websocket", "polling"],
+        transports: ["polling"],
+        upgrade: false,
       });
     }
     return socketRef.current;

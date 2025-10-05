@@ -1,8 +1,10 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../utils/api";
 import { AuthContext } from "../context/AuthContext";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   IoSearch,
   IoBook,
@@ -26,6 +28,54 @@ import {
   IoList,
 } from "react-icons/io5";
 
+const EXPORT_COLOR_FALLBACK_CSS = `
+  :where(.bg-blue-50){background-color:#eff6ff!important;}
+  :where(.bg-blue-100){background-color:#dbeafe!important;}
+  :where(.bg-blue-200){background-color:#bfdbfe!important;}
+  :where(.bg-purple-50){background-color:#f5f3ff!important;}
+  :where(.bg-purple-100){background-color:#ede9fe!important;}
+  :where(.bg-purple-200){background-color:#ddd6fe!important;}
+  :where(.bg-green-50){background-color:#f0fdf4!important;}
+  :where(.bg-orange-50){background-color:#fff7ed!important;}
+  :where(.bg-white\\/60){background-color:rgba(255,255,255,0.6)!important;}
+  :where(.bg-white\\/80){background-color:rgba(255,255,255,0.8)!important;}
+  :where(.bg-white\\/90){background-color:rgba(255,255,255,0.9)!important;}
+  :where(.border-blue-100){border-color:#dbeafe!important;}
+  :where(.border-blue-200){border-color:#bfdbfe!important;}
+  :where(.text-blue-900){color:#1e3a8a!important;}
+  :where(.text-blue-800){color:#1e40af!important;}
+  :where(.text-blue-700){color:#1d4ed8!important;}
+  :where(.text-blue-600){color:#2563eb!important;}
+  :where(.text-blue-500){color:#3b82f6!important;}
+  :where(.text-blue-400){color:#60a5fa!important;}
+  :where(.text-blue-300){color:#93c5fd!important;}
+  :where(.text-purple-900){color:#581c87!important;}
+  :where(.text-purple-700){color:#7e22ce!important;}
+  :where(.text-purple-600){color:#9333ea!important;}
+  :where(.text-green-900){color:#14532d!important;}
+  :where(.text-green-600){color:#16a34a!important;}
+  :where(.text-orange-900){color:#7c2d12!important;}
+  :where(.text-orange-600){color:#ea580c!important;}
+  :where(.text-red-500){color:#ef4444!important;}
+  :where(.bg-blue-600){background-color:#2563eb!important;}
+  :where(.bg-blue-700){background-color:#1d4ed8!important;}
+  :where(.bg-green-600){background-color:#16a34a!important;}
+  :where(.bg-green-700){background-color:#15803d!important;}
+  :where(.bg-red-500){background-color:#ef4444!important;}
+  :where(.bg-red-600){background-color:#dc2626!important;}
+  :where(.from-blue-50){
+    --tw-gradient-from:#eff6ff!important;
+    --tw-gradient-to:rgba(239,246,255,0)!important;
+    --tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)!important;
+  }
+  :where(.to-indigo-50){
+    --tw-gradient-to:#eef2ff!important;
+  }
+  :where(.via-white){
+    --tw-gradient-stops:var(--tw-gradient-from),#ffffff,var(--tw-gradient-to)!important;
+  }
+`;
+
 export default function Diary() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -41,6 +91,8 @@ export default function Diary() {
   const [selectedMoodFilter, setSelectedMoodFilter] = useState("");
   const [selectedTagFilter, setSelectedTagFilter] = useState("");
   const [showInsights, setShowInsights] = useState(false);
+  const exportRef = useRef(null);
+  const [exportingEntry, setExportingEntry] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -219,6 +271,150 @@ export default function Diary() {
           0
         ) / entries.length || 0,
     };
+  };
+
+  const sanitiseCloneStyles = (clonedDoc) => {
+    if (typeof window === "undefined") return;
+    if (!clonedDoc || !exportRef.current) return;
+
+    const clonedRoot = clonedDoc.querySelector('[data-export-root="true"]');
+    if (!clonedRoot) return;
+
+    const originalRoot = exportRef.current;
+    const sourceElements = [
+      originalRoot,
+      ...originalRoot.querySelectorAll("*"),
+    ];
+    const targetElements = [clonedRoot, ...clonedRoot.querySelectorAll("*")];
+    const limit = Math.min(sourceElements.length, targetElements.length);
+
+    for (let index = 0; index < limit; index += 1) {
+      const sourceNode = sourceElements[index];
+      const targetNode = targetElements[index];
+      if (!sourceNode || !targetNode) continue;
+
+      const computed = window.getComputedStyle(sourceNode);
+      if (!computed) continue;
+
+      const assignIfSafe = (property, value) => {
+        if (!value || typeof value !== "string") return;
+        if (value.includes("oklch")) return;
+        targetNode.style[property] = value;
+      };
+
+      assignIfSafe("color", computed.color);
+      assignIfSafe("backgroundColor", computed.backgroundColor);
+      assignIfSafe("borderColor", computed.borderColor);
+      assignIfSafe("borderTopColor", computed.borderTopColor);
+      assignIfSafe("borderRightColor", computed.borderRightColor);
+      assignIfSafe("borderBottomColor", computed.borderBottomColor);
+      assignIfSafe("borderLeftColor", computed.borderLeftColor);
+
+      const backgroundImage = computed.backgroundImage;
+      if (backgroundImage && backgroundImage !== "none") {
+        targetNode.style.backgroundImage = backgroundImage.includes("oklch")
+          ? "none"
+          : backgroundImage;
+      }
+
+      const boxShadow = computed.boxShadow;
+      if (boxShadow && boxShadow !== "none" && !boxShadow.includes("oklch")) {
+        targetNode.style.boxShadow = boxShadow;
+      }
+
+      const gradientFrom = computed.getPropertyValue("--tw-gradient-from");
+      if (gradientFrom) {
+        targetNode.style.setProperty(
+          "--tw-gradient-from",
+          gradientFrom.includes("oklch") ? "#ffffff" : gradientFrom
+        );
+      }
+      const gradientVia = computed.getPropertyValue("--tw-gradient-stops");
+      if (gradientVia) {
+        targetNode.style.setProperty(
+          "--tw-gradient-stops",
+          gradientVia.includes("oklch") ? "#ffffff, #ffffff" : gradientVia
+        );
+      }
+      const gradientTo = computed.getPropertyValue("--tw-gradient-to");
+      if (gradientTo) {
+        targetNode.style.setProperty(
+          "--tw-gradient-to",
+          gradientTo.includes("oklch") ? "#ffffff" : gradientTo
+        );
+      }
+    }
+  };
+
+  const handleExportEntry = async () => {
+    if (!selectedEntry || !exportRef.current || exportingEntry) return;
+    if (typeof window === "undefined") return;
+
+    try {
+      setExportingEntry(true);
+      const canvas = await html2canvas(exportRef.current, {
+        scale: Math.min(window.devicePixelRatio || 1.5, 2),
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        onclone: (clonedDoc) => {
+          if (!clonedDoc) return;
+          const styleEl = clonedDoc.createElement("style");
+          styleEl.id = "export-color-fallbacks";
+          styleEl.textContent = EXPORT_COLOR_FALLBACK_CSS;
+          clonedDoc.head?.appendChild(styleEl);
+
+          const clonedRoot = clonedDoc.querySelector(
+            '[data-export-root="true"]'
+          );
+          if (clonedRoot) {
+            clonedRoot.style.backgroundColor = "#ffffff";
+            const header = clonedRoot.querySelector(
+              '[data-export-header="true"]'
+            );
+            if (header) {
+              header.style.background =
+                "linear-gradient(135deg, #eff6ff, #eef2ff)";
+            }
+          }
+
+          sanitiseCloneStyles(clonedDoc);
+        },
+      });
+
+      const imageData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const imgProps = pdf.getImageProperties(imageData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      let remainingHeight = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imgHeight);
+      remainingHeight -= pdfHeight;
+
+      while (remainingHeight > 0) {
+        position = remainingHeight - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imgHeight);
+        remainingHeight -= pdfHeight;
+      }
+
+      const safeTitle = selectedEntry.title
+        ? selectedEntry.title.replace(/[^a-z0-9\s-_]/gi, "").trim()
+        : "diary-entry";
+
+      pdf.save(`${safeTitle || "diary-entry"}.pdf`);
+      toast.success("Entry exported as PDF");
+    } catch (error) {
+      console.error("Failed to export diary entry", error);
+      toast.error("Unable to export this entry right now. Please try again.");
+    } finally {
+      setExportingEntry(false);
+    }
   };
 
   const updateEntry = async () => {
@@ -639,12 +835,24 @@ export default function Diary() {
 
         {/* Entry Detail Modal */}
         {selectedEntry && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center items-start p-2 sm:p-4 lg:pl-[266px]"
+            style={{
+              paddingTop: "calc(var(--navbar-height, 80px) + 5px)",
+            }}
+          >
+            <div
+              ref={exportRef}
+              data-export-root="true"
+              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+            >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-blue-100">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+              <div
+                data-export-header="true"
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6 border-b border-blue-100"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1 min-w-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -655,15 +863,15 @@ export default function Diary() {
                             title: e.target.value,
                           })
                         }
-                        className="text-3xl font-bold text-blue-900 w-full bg-transparent border-b-2 border-blue-300 focus:outline-none focus:border-blue-500 pb-2"
+                        className="text-2xl sm:text-3xl font-bold text-blue-900 w-full bg-transparent border-b-2 border-blue-300 focus:outline-none focus:border-blue-500 pb-2"
                       />
                     ) : (
-                      <h2 className="text-3xl font-bold text-blue-900 mb-2">
+                      <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2 break-words">
                         {selectedEntry.title}
                       </h2>
                     )}
 
-                    <div className="flex items-center gap-6 text-blue-600">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-blue-600">
                       <div className="flex items-center gap-2">
                         <IoCalendar className="w-4 h-4" />
                         <span>
@@ -693,19 +901,19 @@ export default function Diary() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 w-full lg:w-auto">
                     {isEditing ? (
                       <>
                         <button
                           onClick={updateEntry}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors w-full sm:w-auto"
                         >
                           <IoDocument className="w-4 h-4" />
                           Save
                         </button>
                         <button
                           onClick={() => setIsEditing(false)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors w-full sm:w-auto"
                         >
                           Cancel
                         </button>
@@ -714,7 +922,7 @@ export default function Diary() {
                       <>
                         <button
                           onClick={() => toggleFavorite(selectedEntry._id)}
-                          className="p-3 rounded-xl bg-white/50 hover:bg-white/80 transition-colors"
+                          className="p-3 rounded-xl bg-white/60 hover:bg-white/80 transition-colors w-12 h-12 flex items-center justify-center"
                         >
                           {favorites.has(selectedEntry._id) ? (
                             <IoHeart className="w-5 h-5 text-red-500" />
@@ -725,20 +933,34 @@ export default function Diary() {
 
                         <button
                           onClick={() => setIsEditing(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors w-full sm:w-auto"
                         >
                           <IoCreate className="w-4 h-4" />
                           Edit
                         </button>
 
-                        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition-colors">
-                          <IoShare className="w-4 h-4" />
-                          Export
+                        <button
+                          onClick={handleExportEntry}
+                          disabled={exportingEntry}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-500/70 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors w-full sm:w-auto"
+                          aria-busy={exportingEntry}
+                        >
+                          {exportingEntry ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Exporting…
+                            </span>
+                          ) : (
+                            <>
+                              <IoShare className="w-4 h-4" />
+                              Export
+                            </>
+                          )}
                         </button>
 
                         <button
                           onClick={() => deleteEntry(selectedEntry._id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors w-full sm:w-auto"
                         >
                           <IoTrash className="w-4 h-4" />
                           Delete
@@ -748,7 +970,8 @@ export default function Diary() {
 
                     <button
                       onClick={() => setSelectedEntry(null)}
-                      className="p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors ml-2"
+                      className="p-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors ml-auto"
+                      aria-label="Close entry"
                     >
                       ×
                     </button>
@@ -757,7 +980,7 @@ export default function Diary() {
               </div>
 
               {/* Modal Content */}
-              <div className="p-8 overflow-y-auto max-h-[calc(90vh-200px)] relative">
+              <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
                 {/* Paper texture background */}
                 <div
                   className="absolute inset-0 opacity-5"

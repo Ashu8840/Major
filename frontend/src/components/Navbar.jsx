@@ -1,6 +1,7 @@
-import { useContext, useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { useCurrentUser } from "../hooks/useAuth";
+import { useNotifications } from "../context/NotificationContext";
 import {
   IoNotificationsOutline as IoNotifications,
   IoSearch,
@@ -23,16 +24,24 @@ import {
   IoCreate,
   IoStorefront,
   IoLibrary,
+  IoFlame,
+  IoCall,
+  IoVideocam,
+  IoShieldCheckmark,
+  IoSparkles,
 } from "react-icons/io5";
 
 export default function Navbar() {
-  const { user, userProfile, token, logout } = useContext(AuthContext);
+  const { currentUser, token, logout } = useCurrentUser();
   const navigate = useNavigate();
   const displayName =
-    userProfile?.displayName || user?.username || user?.name || "User";
-  const profileImage = userProfile?.profileImage;
-  const [notificationCount, setNotificationCount] = useState(0);
+    currentUser?.displayName || currentUser?.username || "User";
+  const profileImage = currentUser?.profileImageUrl;
+  const initials =
+    currentUser?.initials || displayName[0]?.toUpperCase() || "U";
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] =
+    useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage or system preference
@@ -43,19 +52,59 @@ export default function Navbar() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const dropdownRef = useRef(null);
+  const notificationsRef = useRef(null);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
 
-  // You can fetch notifications here or use a context/state management
-  useEffect(() => {
-    // This is where you would fetch notifications from your API
-    // For now, we'll simulate with no notifications
-    setNotificationCount(0);
-  }, [user]);
+  const notificationTone = useMemo(
+    () => ({
+      new_post: {
+        icon: <IoPeople className="text-blue-500" />,
+        badge: "New post",
+      },
+      message: {
+        icon: <IoChatbubbles className="text-purple-500" />,
+        badge: "Message",
+      },
+      streak: {
+        icon: <IoFlame className="text-orange-500" />,
+        badge: "Daily streak",
+      },
+      points: {
+        icon: <IoSparkles className="text-amber-500" />,
+        badge: "Points",
+      },
+      voice_call: {
+        icon: <IoCall className="text-emerald-500" />,
+        badge: "Voice call",
+      },
+      video_call: {
+        icon: <IoVideocam className="text-indigo-500" />,
+        badge: "Video call",
+      },
+      security: {
+        icon: <IoShieldCheckmark className="text-sky-500" />,
+        badge: "Security",
+      },
+      general: {
+        icon: <IoNotifications className="text-blue-500" />,
+        badge: "Update",
+      },
+    }),
+    []
+  );
 
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowProfileDropdown(false);
+      }
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target)
+      ) {
+        setShowNotificationsDropdown(false);
       }
       // Close mobile menu when clicking outside
       if (showMobileMenu && !event.target.closest(".mobile-menu-container")) {
@@ -65,10 +114,8 @@ export default function Navbar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMobileMenu]);
-
-  const handleNotificationClick = () => {
-    // For testing: toggle between 0 and 1 notification
-    setNotificationCount((prev) => (prev > 0 ? 0 : 1));
+  const handleNotificationToggle = () => {
+    setShowNotificationsDropdown((prev) => !prev);
   };
 
   const handleThemeToggle = () => {
@@ -93,6 +140,17 @@ export default function Navbar() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setShowMobileMenu(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const handleProfileClick = () => {
     setShowProfileDropdown(!showProfileDropdown);
   };
@@ -106,6 +164,80 @@ export default function Navbar() {
     logout();
     setShowProfileDropdown(false);
     window.location.href = "/";
+  };
+  const formatRelativeTime = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    if (diffMinutes < 1) return "Just now";
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const handleNotificationSelect = (notification) => {
+    if (!notification) return;
+    markAsRead(notification.id);
+    setShowNotificationsDropdown(false);
+
+    if (notification.link) {
+      navigate(notification.link, { state: notification.meta || {} });
+    } else if (notification.meta?.postId) {
+      navigate(`/community?highlight=${notification.meta.postId}`);
+    } else if (notification.meta?.partnerId) {
+      navigate(`/chat?open=${notification.meta.partnerId}`);
+    }
+  };
+
+  const renderNotificationItem = (notification) => {
+    const visuals =
+      notificationTone[notification.type] || notificationTone.general;
+    const isUnread = !notification.isRead;
+
+    return (
+      <button
+        key={notification.id}
+        onClick={() => handleNotificationSelect(notification)}
+        className={`w-full text-left px-4 py-3 flex gap-3 transition-colors ${
+          isUnread ? "bg-blue-50/70 hover:bg-blue-100" : "hover:bg-gray-50"
+        }`}
+      >
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white shadow-inner flex items-center justify-center">
+          {visuals.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-sm text-blue-900 truncate">
+              {notification.title}
+            </p>
+            <span className="text-xs text-gray-500">
+              {formatRelativeTime(notification.timestamp)}
+            </span>
+          </div>
+          {notification.message && (
+            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+              {notification.message}
+            </p>
+          )}
+          {visuals.badge && (
+            <span className="inline-flex items-center mt-2 text-[11px] uppercase tracking-wide font-semibold text-blue-500 bg-blue-100/80 rounded-full px-2 py-0.5">
+              {visuals.badge}
+            </span>
+          )}
+        </div>
+        {isUnread && (
+          <span className="w-2 h-2 rounded-full bg-blue-500 self-center" />
+        )}
+      </button>
+    );
   };
 
   return (
@@ -153,17 +285,68 @@ export default function Navbar() {
             {token ? (
               <>
                 {/* Notifications */}
-                <button
-                  onClick={handleNotificationClick}
-                  className="relative p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                >
-                  <IoNotifications className="w-5 h-5" />
-                  {notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {notificationCount}
-                    </span>
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={handleNotificationToggle}
+                    className={`relative p-2 rounded-lg transition-colors ${
+                      showNotificationsDropdown
+                        ? "bg-blue-100 text-blue-700"
+                        : "text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                    }`}
+                    aria-haspopup="true"
+                    aria-expanded={showNotificationsDropdown}
+                  >
+                    <IoNotifications className="w-5 h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotificationsDropdown && (
+                    <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 border border-blue-100 dark:border-gray-700 shadow-2xl rounded-2xl overflow-hidden z-50">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-blue-100 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-white dark:from-gray-700 dark:to-gray-800">
+                        <div>
+                          <h4 className="text-sm font-semibold text-blue-900 dark:text-white">
+                            Notifications
+                          </h4>
+                          <p className="text-xs text-blue-500 dark:text-gray-300">
+                            Stay up to date with your community
+                          </p>
+                        </div>
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={markAllAsRead}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-500"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-80 overflow-y-auto divide-y divide-blue-50 dark:divide-gray-700">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-sm text-blue-500 dark:text-gray-300">
+                            You're all caught up!
+                          </div>
+                        ) : (
+                          notifications.map(renderNotificationItem)
+                        )}
+                      </div>
+                      <div className="px-4 py-3 border-t border-blue-100 dark:border-gray-700 bg-blue-50/60 dark:bg-gray-900/40 text-right">
+                        <button
+                          onClick={() => {
+                            markAllAsRead();
+                            setShowNotificationsDropdown(false);
+                          }}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
 
                 {/* Theme Toggle - Hidden on mobile */}
                 <button
@@ -193,7 +376,7 @@ export default function Navbar() {
                     ) : (
                       <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
                         <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {displayName[0]?.toUpperCase() || "U"}
+                          {initials}
                         </span>
                       </div>
                     )}

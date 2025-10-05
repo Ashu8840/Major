@@ -28,6 +28,7 @@ import Marketplace from "./pages/Marketplace";
 import ReadersLounge from "./pages/ReadersLounge";
 import Settings from "./pages/Settings";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 // import  ThemeProvider  from "./context/ThemeContext";
 import { useContext, useState } from "react";
 import React from "react";
@@ -267,7 +268,9 @@ export default function App() {
     // <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
-        <AppContent />
+        <NotificationProvider>
+          <AppContent />
+        </NotificationProvider>
       </BrowserRouter>
     </AuthProvider>
     // </ThemeProvider>
