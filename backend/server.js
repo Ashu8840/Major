@@ -26,6 +26,15 @@ const socialRoutes = require("./routes/socialRoutes");
 const creatorRoutes = require("./routes/creatorRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
 
+const parseOrigins = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
 dotenv.config();
 
 // Debug: Check if JWT_SECRET is loaded
@@ -40,8 +49,12 @@ const app = express();
 const server = http.createServer(app);
 
 const DEFAULT_CLIENT_ORIGIN = "http://10.100.246.93:5173";
+const envOrigins = parseOrigins(process.env.CLIENT_ORIGINS);
+const singleClientOrigin = parseOrigins(process.env.CLIENT_URL);
+
 const allowedOrigins = [
-  process.env.CLIENT_URL,
+  ...envOrigins,
+  ...singleClientOrigin,
   "http://localhost:5173",
   "http://localhost:5174",
   DEFAULT_CLIENT_ORIGIN,
