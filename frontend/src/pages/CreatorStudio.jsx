@@ -154,8 +154,16 @@ const plainTextToHtml = (value = "") => {
   }
   return normalized
     .split(/\n{2,}/)
-    .map((paragraph) =>
-      `<p>${paragraph.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />").trim() || "<br />"}</p>`
+    .map(
+      (paragraph) =>
+        `<p>${
+          paragraph
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br />")
+            .trim() || "<br />"
+        }</p>`
     )
     .join("");
 };
@@ -248,7 +256,10 @@ const appendPageNumbers = (doc, margin, { startAt = 1 } = {}) => {
 };
 
 const inferImageFormat = (dataUrl = "") => {
-  if (dataUrl.startsWith("data:image/jpeg") || dataUrl.startsWith("data:image/jpg")) {
+  if (
+    dataUrl.startsWith("data:image/jpeg") ||
+    dataUrl.startsWith("data:image/jpg")
+  ) {
     return "JPEG";
   }
   if (dataUrl.startsWith("data:image/webp")) {
@@ -390,9 +401,12 @@ function SavedProjectsModal({
       <div className="w-full max-w-4xl rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-xl font-semibold text-slate-900">Saved projects</h3>
+            <h3 className="text-xl font-semibold text-slate-900">
+              Saved projects
+            </h3>
             <p className="text-sm text-slate-600">
-              Browse your library, preview covers, and jump back into any manuscript.
+              Browse your library, preview covers, and jump back into any
+              manuscript.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -433,7 +447,9 @@ function SavedProjectsModal({
             const background = pickProjectCoverBackground(project, globalIndex);
             const isActive = project._id === activeProjectId;
             const subtitle =
-              project.subtitle || project.promptHistory?.[0]?.tagline || "No tagline yet";
+              project.subtitle ||
+              project.promptHistory?.[0]?.tagline ||
+              "No tagline yet";
 
             return (
               <button
@@ -475,7 +491,9 @@ function SavedProjectsModal({
                   </span>
                   <span>{formatDate(project.updatedAt)}</span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs text-slate-500">{subtitle}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                  {subtitle}
+                </p>
               </button>
             );
           })}
@@ -629,7 +647,8 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, projectTitle }) {
               Delete this project?
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              "{projectTitle}" will be removed permanently. This action cannot be undone.
+              "{projectTitle}" will be removed permanently. This action cannot
+              be undone.
             </p>
           </div>
         </div>
@@ -670,7 +689,9 @@ export default function CreatorStudio() {
     visibility: "private",
     status: "draft",
   });
-  const [editorContent, setEditorContent] = useState("<p>Begin your story…</p>");
+  const [editorContent, setEditorContent] = useState(
+    "<p>Begin your story…</p>"
+  );
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState(null);
@@ -682,7 +703,10 @@ export default function CreatorStudio() {
   const [dirtySinceSave, setDirtySinceSave] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ open: false, projectId: null });
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    projectId: null,
+  });
   const [savedGalleryOpen, setSavedGalleryOpen] = useState(false);
   const [savedPage, setSavedPage] = useState(0);
   const [editorDraft, setEditorDraft] = useState(DEFAULT_EDITOR_TEXT);
@@ -705,7 +729,10 @@ export default function CreatorStudio() {
       setSavedPage(0);
       return;
     }
-    const maxPage = Math.max(0, Math.ceil(projectsLength / SAVED_PAGE_SIZE) - 1);
+    const maxPage = Math.max(
+      0,
+      Math.ceil(projectsLength / SAVED_PAGE_SIZE) - 1
+    );
     setSavedPage((prev) => Math.min(prev, maxPage));
   }, [projectsLength]);
 
@@ -715,11 +742,8 @@ export default function CreatorStudio() {
   );
 
   const wordCount = useMemo(() => {
-    return editorDraft
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .filter(Boolean).length;
+    return editorDraft.replace(/\s+/g, " ").trim().split(" ").filter(Boolean)
+      .length;
   }, [editorDraft]);
 
   const loadProjects = useCallback(async () => {
@@ -777,10 +801,10 @@ export default function CreatorStudio() {
       visibility: project.visibility || "private",
       status: project.status || "draft",
     });
-  const contentHtml = project.content || DEFAULT_EDITOR_HTML;
-  const draftText = htmlToNotebookText(contentHtml) || DEFAULT_EDITOR_TEXT;
-  setEditorContent(contentHtml);
-  setEditorDraft(draftText);
+    const contentHtml = project.content || DEFAULT_EDITOR_HTML;
+    const draftText = htmlToNotebookText(contentHtml) || DEFAULT_EDITOR_TEXT;
+    setEditorContent(contentHtml);
+    setEditorDraft(draftText);
     setAiHistory(project.promptHistory || []);
     setCoverState(project.coverDesign || INITIAL_COVER);
     setAiResult(null);
@@ -929,9 +953,7 @@ export default function CreatorStudio() {
           tags: metadata.tags,
           content: editorContent,
           coverDesign: coverState,
-          coverImage: coverSnapshot
-            ? { dataUrl: coverSnapshot }
-            : undefined,
+          coverImage: coverSnapshot ? { dataUrl: coverSnapshot } : undefined,
           visibility: metadata.visibility,
           status: metadata.status,
           promptHistory: aiHistory,
@@ -939,7 +961,9 @@ export default function CreatorStudio() {
 
         const updated = await updateCreatorProject(projectId, payload);
         setProjects((prev) =>
-          prev.map((project) => (project._id === updated._id ? updated : project))
+          prev.map((project) =>
+            project._id === updated._id ? updated : project
+          )
         );
         setDirtySinceSave(false);
         if (showToast) {
@@ -1129,9 +1153,14 @@ export default function CreatorStudio() {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(28);
         doc.setTextColor(15, 23, 42);
-        doc.text(metadata.title || "Untitled manuscript", pageWidth / 2, pageHeight / 2 - 16, {
-          align: "center",
-        });
+        doc.text(
+          metadata.title || "Untitled manuscript",
+          pageWidth / 2,
+          pageHeight / 2 - 16,
+          {
+            align: "center",
+          }
+        );
         doc.setFont("helvetica", "normal");
         if (metadata.subtitle) {
           doc.setFontSize(18);
@@ -1156,7 +1185,7 @@ export default function CreatorStudio() {
         await renderBlocksToPdf(doc, blocks, { margin });
       }
 
-  appendPageNumbers(doc, margin, { startAt: 2 });
+      appendPageNumbers(doc, margin, { startAt: 2 });
       doc.save(`${metadata.title || "manuscript"}.pdf`);
       await markCreatorProjectExported(projectId);
       toast.success("PDF exported to your device");
@@ -1173,7 +1202,9 @@ export default function CreatorStudio() {
       const { projectId } = deleteModal;
       if (!projectId) return;
       await deleteCreatorProject(projectId);
-      const nextProjects = projects.filter((project) => project._id !== projectId);
+      const nextProjects = projects.filter(
+        (project) => project._id !== projectId
+      );
       setProjects(nextProjects);
       if (currentProjectId === projectId) {
         if (nextProjects.length > 0) {
@@ -1225,14 +1256,18 @@ export default function CreatorStudio() {
                     Creator Studio
                   </h1>
                   <p className="text-sm text-slate-500">
-                    Blueprint your book, design covers, and publish with one workspace.
+                    Blueprint your book, design covers, and publish with one
+                    workspace.
                   </p>
                 </div>
               </div>
               <div className="mt-6 rounded-2xl bg-blue-50/80 p-4 text-sm text-blue-700">
-                <p className="font-medium">Hey {user.displayName || user.username}! ✨</p>
+                <p className="font-medium">
+                  Hey {user.displayName || user.username}! ✨
+                </p>
                 <p className="mt-1 text-blue-600">
-                  Every change auto-saves. Export anytime or publish privately until you're ready.
+                  Every change auto-saves. Export anytime or publish privately
+                  until you're ready.
                 </p>
               </div>
               <button
@@ -1249,9 +1284,13 @@ export default function CreatorStudio() {
                 {isSaving ? (
                   <span className="text-xs text-blue-500">Saving…</span>
                 ) : dirtySinceSave ? (
-                  <span className="text-xs text-amber-600">Unsaved changes</span>
+                  <span className="text-xs text-amber-600">
+                    Unsaved changes
+                  </span>
                 ) : (
-                  <span className="text-xs text-emerald-600">All changes saved</span>
+                  <span className="text-xs text-emerald-600">
+                    All changes saved
+                  </span>
                 )}
               </div>
               <button
@@ -1280,7 +1319,8 @@ export default function CreatorStudio() {
 
                 {projects.map((project) => {
                   const isActive = project._id === currentProjectId;
-                  const handleCardSelect = () => handleSelectProject(project._id);
+                  const handleCardSelect = () =>
+                    handleSelectProject(project._id);
                   return (
                     <div
                       key={project._id}
@@ -1309,7 +1349,9 @@ export default function CreatorStudio() {
                         {project.title || "Untitled manuscript"}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                        {project.subtitle || project.promptHistory?.[0]?.tagline || "No tagline yet"}
+                        {project.subtitle ||
+                          project.promptHistory?.[0]?.tagline ||
+                          "No tagline yet"}
                       </p>
                       <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
                         <span>{project.wordCount || 0} words</span>
@@ -1317,7 +1359,10 @@ export default function CreatorStudio() {
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            setDeleteModal({ open: true, projectId: project._id });
+                            setDeleteModal({
+                              open: true,
+                              projectId: project._id,
+                            });
                           }}
                           className="text-red-500 hover:text-red-600"
                         >
@@ -1337,13 +1382,17 @@ export default function CreatorStudio() {
                 <div>
                   <input
                     value={metadata.title}
-                    onChange={(event) => handleMetadataChange("title", event.target.value)}
+                    onChange={(event) =>
+                      handleMetadataChange("title", event.target.value)
+                    }
                     className="w-full rounded-2xl border border-transparent bg-slate-100 px-4 py-3 text-xl font-semibold text-slate-900 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="Project title"
                   />
                   <input
                     value={metadata.subtitle}
-                    onChange={(event) => handleMetadataChange("subtitle", event.target.value)}
+                    onChange={(event) =>
+                      handleMetadataChange("subtitle", event.target.value)
+                    }
                     className="mt-2 w-full rounded-2xl border border-transparent bg-slate-100 px-4 py-2 text-sm text-slate-600 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="Tagline or subtitle"
                   />
@@ -1356,10 +1405,20 @@ export default function CreatorStudio() {
                   <div className="flex flex-wrap gap-2">
                     <select
                       value={metadata.category}
-                      onChange={(event) => handleMetadataChange("category", event.target.value)}
+                      onChange={(event) =>
+                        handleMetadataChange("category", event.target.value)
+                      }
                       className="rounded-xl border border-slate-200 px-3 py-2"
                     >
-                      {["general", "fiction", "non-fiction", "fantasy", "romance", "thriller", "poetry"].map((item) => (
+                      {[
+                        "general",
+                        "fiction",
+                        "non-fiction",
+                        "fantasy",
+                        "romance",
+                        "thriller",
+                        "poetry",
+                      ].map((item) => (
                         <option key={item} value={item}>
                           {item}
                         </option>
@@ -1419,12 +1478,22 @@ export default function CreatorStudio() {
                 <div className="rounded-3xl bg-white shadow overflow-hidden">
                   <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">Notebook mode</p>
-                      <p className="text-xs text-slate-500">Your thoughts are saved as you type.</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Notebook mode
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Your thoughts are saved as you type.
+                      </p>
                     </div>
                     <div className="text-right text-xs text-slate-500">
                       <p>{wordCount} words</p>
-                      <p>{new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</p>
+                      <p>
+                        {new Date().toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
                     </div>
                   </div>
                   <textarea
@@ -1455,7 +1524,9 @@ export default function CreatorStudio() {
                       <div className="flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2">
                         <select
                           value={assistLanguage}
-                          onChange={(event) => setAssistLanguage(event.target.value)}
+                          onChange={(event) =>
+                            setAssistLanguage(event.target.value)
+                          }
                           className="flex-1 rounded-xl border border-slate-200 px-2 py-1 text-sm"
                         >
                           {LANG_OPTIONS.map((language) => (
@@ -1485,8 +1556,12 @@ export default function CreatorStudio() {
                       <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-semibold">{assistResult.title}</p>
-                            <p className="text-xs text-blue-500">{assistResult.message}</p>
+                            <p className="font-semibold">
+                              {assistResult.title}
+                            </p>
+                            <p className="text-xs text-blue-500">
+                              {assistResult.message}
+                            </p>
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -1577,7 +1652,10 @@ export default function CreatorStudio() {
                         {coverState.elements.map((element) => (
                           <Rnd
                             key={element.id}
-                            size={{ width: element.width, height: element.height }}
+                            size={{
+                              width: element.width,
+                              height: element.height,
+                            }}
                             position={{ x: element.x, y: element.y }}
                             onDragStop={(event, data) =>
                               handleElementChange(element.id, {
@@ -1585,7 +1663,13 @@ export default function CreatorStudio() {
                                 y: data.y,
                               })
                             }
-                            onResizeStop={(event, direction, ref, delta, position) =>
+                            onResizeStop={(
+                              event,
+                              direction,
+                              ref,
+                              delta,
+                              position
+                            ) =>
                               handleElementChange(element.id, {
                                 width: ref.offsetWidth,
                                 height: ref.offsetHeight,
@@ -1641,14 +1725,20 @@ export default function CreatorStudio() {
                             {selectedElementId === element.id && (
                               <div className="absolute -top-9 right-0 flex gap-1">
                                 <button
-                                  onClick={() => handleRemoveElement(element.id)}
+                                  onClick={() =>
+                                    handleRemoveElement(element.id)
+                                  }
                                   className="rounded-full bg-red-500 p-1 text-white shadow"
                                 >
                                   <IoTrash className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={() => {
-                                    const { id: _ignored, type: _t, ...rest } = element;
+                                    const {
+                                      id: _ignored,
+                                      type: _t,
+                                      ...rest
+                                    } = element;
                                     handleAddElement(element.type, {
                                       ...rest,
                                       x: element.x + 24,
@@ -1667,7 +1757,9 @@ export default function CreatorStudio() {
                     </div>
                     <div className="flex w-full flex-col gap-4 lg:w-72">
                       <div className="rounded-2xl border border-slate-200 p-4">
-                        <p className="text-sm font-semibold text-slate-700">Background</p>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Background
+                        </p>
                         <div className="mt-3 grid grid-cols-3 gap-2">
                           {GRADIENTS.map((gradient) => (
                             <button
@@ -1710,7 +1802,9 @@ export default function CreatorStudio() {
                       </div>
 
                       <div className="rounded-2xl border border-slate-200 p-4">
-                        <p className="text-sm font-semibold text-slate-700">Elements</p>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Elements
+                        </p>
                         <div className="mt-3 grid gap-2">
                           <button
                             onClick={() =>
@@ -1737,7 +1831,9 @@ export default function CreatorStudio() {
                             <IoPencil className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleAddElement("shape", { shape: "rectangle" })}
+                            onClick={() =>
+                              handleAddElement("shape", { shape: "rectangle" })
+                            }
                             className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:border-blue-200 hover:bg-blue-50"
                           >
                             <span>Block</span>
@@ -1760,7 +1856,9 @@ export default function CreatorStudio() {
                               if (!file) return;
                               const reader = new FileReader();
                               reader.onload = (loadEvent) => {
-                                handleAddElement("image", { src: loadEvent.target?.result });
+                                handleAddElement("image", {
+                                  src: loadEvent.target?.result,
+                                });
                               };
                               reader.readAsDataURL(file);
                             }}
@@ -1971,7 +2069,8 @@ export default function CreatorStudio() {
                     Generate a creative blueprint
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Describe what you're imagining. We'll suggest narrative angles, cover art, and a punchy tagline.
+                    Describe what you're imagining. We'll suggest narrative
+                    angles, cover art, and a punchy tagline.
                   </p>
                   <textarea
                     value={aiPrompt}
@@ -2049,7 +2148,8 @@ export default function CreatorStudio() {
                     <div className="mt-3 space-y-3 max-h-[420px] overflow-y-auto">
                       {aiHistory.length === 0 && (
                         <p className="rounded-2xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">
-                          No prompts yet. Your generated ideas will be saved automatically.
+                          No prompts yet. Your generated ideas will be saved
+                          automatically.
                         </p>
                       )}
                       {aiHistory.map((entry) => (
@@ -2081,7 +2181,8 @@ export default function CreatorStudio() {
                     Publishing controls
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Publish privately, share with followers, or release publicly.
+                    Publish privately, share with followers, or release
+                    publicly.
                   </p>
                   <div className="mt-5 grid gap-3">
                     <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-700">
@@ -2103,7 +2204,8 @@ export default function CreatorStudio() {
                     Export & deliverables
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Download high quality PDFs for beta readers or upload to distribution.
+                    Download high quality PDFs for beta readers or upload to
+                    distribution.
                   </p>
                   <div className="mt-5 space-y-3">
                     <button

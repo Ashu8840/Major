@@ -52,9 +52,8 @@ const RichTextEditor = forwardRef(
 
     const setQuillHTML = (instance, html) => {
       if (!instance) return;
-      const normalizedHTML = typeof html === "string" && html.trim().length
-        ? html
-        : "<p><br></p>";
+      const normalizedHTML =
+        typeof html === "string" && html.trim().length ? html : "<p><br></p>";
       const delta = instance.clipboard.convert(normalizedHTML);
       instance.setContents(delta, "silent");
       lastHtml.current = instance.root.innerHTML;

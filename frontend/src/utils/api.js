@@ -34,6 +34,19 @@ export const getAnalyticsOverview = async (period = "month") => {
   return response.data;
 };
 
+// Leaderboard APIs
+export const getLeaderboard = async (period = "all-time") => {
+  const response = await api.get("/leaderboard", {
+    params: { period },
+  });
+  return response.data;
+};
+
+export const getSeasonalLeaderboard = async () => {
+  const response = await api.get("/leaderboard/seasonal");
+  return response.data;
+};
+
 // Creator Studio APIs
 export const getCreatorProjects = async () => {
   const response = await api.get("/creator/projects");
@@ -51,7 +64,10 @@ export const updateCreatorProject = async (projectId, payload) => {
 };
 
 export const publishCreatorProject = async (projectId, payload) => {
-  const response = await api.post(`/creator/projects/${projectId}/publish`, payload);
+  const response = await api.post(
+    `/creator/projects/${projectId}/publish`,
+    payload
+  );
   return response.data;
 };
 
@@ -61,7 +77,9 @@ export const deleteCreatorProject = async (projectId) => {
 };
 
 export const generateCreatorPrompt = async (projectId, prompt) => {
-  const response = await api.post(`/creator/projects/${projectId}/prompt`, { prompt });
+  const response = await api.post(`/creator/projects/${projectId}/prompt`, {
+    prompt,
+  });
   return response.data;
 };
 

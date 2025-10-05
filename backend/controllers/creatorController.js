@@ -66,7 +66,9 @@ const fallbackPromptResult = (prompt) => {
   return {
     storyIdea: `A captivating narrative inspired by "${trimmedPrompt}". Follow a relatable protagonist as they face a defining moment, uncovering deep emotions and unexpected revelations. The story blends vivid imagery with heartfelt introspection to keep readers engaged from the opening line to the closing reflection.`,
     coverIdea: `Design a modern cover with a calming gradient in sapphire blue and ivory. Place a bold typographic title at the top, add a subtle illustrative motif related to "${trimmedPrompt}", and frame it with minimal geometric accents for a polished look.`,
-    tagline: `Discover a journey shaped by ${trimmedPrompt.toLowerCase() || "unexpected inspiration"}.`,
+    tagline: `Discover a journey shaped by ${
+      trimmedPrompt.toLowerCase() || "unexpected inspiration"
+    }.`,
   };
 };
 
@@ -101,12 +103,17 @@ Use double quotes for all JSON strings and do not include markdown or explanatio
     try {
       const parsed = JSON.parse(text);
       return {
-        storyIdea: parsed.storyIdea?.trim() || fallbackPromptResult(prompt).storyIdea,
-        coverIdea: parsed.coverIdea?.trim() || fallbackPromptResult(prompt).coverIdea,
+        storyIdea:
+          parsed.storyIdea?.trim() || fallbackPromptResult(prompt).storyIdea,
+        coverIdea:
+          parsed.coverIdea?.trim() || fallbackPromptResult(prompt).coverIdea,
         tagline: parsed.tagline?.trim() || fallbackPromptResult(prompt).tagline,
       };
     } catch (jsonError) {
-      console.warn("Failed to parse AI JSON response, using fallback:", jsonError.message);
+      console.warn(
+        "Failed to parse AI JSON response, using fallback:",
+        jsonError.message
+      );
       return fallbackPromptResult(prompt);
     }
   } catch (error) {
@@ -148,7 +155,18 @@ const getProject = async (req, res) => {
 
 const createProject = async (req, res) => {
   try {
-    const { title, subtitle, content = "", category, tags = [], coverDesign, coverImage, settings, visibility, status } = req.body;
+    const {
+      title,
+      subtitle,
+      content = "",
+      category,
+      tags = [],
+      coverDesign,
+      coverImage,
+      settings,
+      visibility,
+      status,
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ message: "Title is required" });
@@ -218,7 +236,8 @@ const updateProject = async (req, res) => {
 
     if (title !== undefined) project.title = title?.trim() || project.title;
     if (subtitle !== undefined) project.subtitle = subtitle?.trim() || "";
-    if (category !== undefined) project.category = category?.trim() || "general";
+    if (category !== undefined)
+      project.category = category?.trim() || "general";
     if (Array.isArray(tags)) project.tags = tags;
     if (content !== undefined) {
       project.content = content;
@@ -237,13 +256,15 @@ const updateProject = async (req, res) => {
     }
     if (settings) {
       project.settings = {
-        allowDownloads: settings.allowDownloads ?? project.settings.allowDownloads,
+        allowDownloads:
+          settings.allowDownloads ?? project.settings.allowDownloads,
         allowComments: settings.allowComments ?? project.settings.allowComments,
       };
     }
     if (visibility) project.visibility = visibility;
     if (status) project.status = status;
-    if (Array.isArray(promptHistory)) project.promptHistory = promptHistory.slice(0, 20);
+    if (Array.isArray(promptHistory))
+      project.promptHistory = promptHistory.slice(0, 20);
 
     await project.save();
 

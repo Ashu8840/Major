@@ -1,371 +1,173 @@
-import { useState, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { useContext, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import {
   IoTrophy,
-  IoFlame,
+  IoSparkles,
+  IoStatsChart,
   IoPencil,
+  IoFlame,
   IoHeart,
   IoChatbubble,
-  IoStar,
-  IoTime,
   IoRocket,
-  IoLeaf,
-  IoFlash,
-  IoRose,
-  IoPlanet,
-  IoInfinite,
+  IoTime,
   IoMedal,
-  IoGift,
 } from "react-icons/io5";
+import { AuthContext } from "../context/AuthContext";
+import { getLeaderboard, getSeasonalLeaderboard } from "../utils/api";
+
+const CATEGORIES = [
+  {
+    id: "global",
+    name: "Global Rankings",
+    icon: <IoTrophy className="w-5 h-5" />,
+  },
+  {
+    id: "seasonal",
+    name: "Seasonal Contest",
+    icon: <IoSparkles className="w-5 h-5" />,
+  },
+];
+
+const PERIOD_OPTIONS = [
+  { id: "all-time", label: "All Time" },
+  { id: "this-month", label: "This Month" },
+  { id: "this-week", label: "This Week" },
+];
+
+const SEASONAL_TABS = [
+  { id: "monthly", label: "Monthly Sprint" },
+  { id: "weekly", label: "Weekly Blitz" },
+  { id: "yearly", label: "Yearly Legends" },
+];
+
+const XP_RULES = {
+  diary: 50,
+  communityPost: 50,
+  like: 10,
+  comment: 14,
+  streak: 25,
+};
+
+const formatNumber = (value) =>
+  typeof value === "number" ? value.toLocaleString() : "0";
+
+const Avatar = ({ profileImage, initials }) => {
+  if (profileImage) {
+    return (
+      <img
+        src={profileImage}
+        alt="avatar"
+        className="h-12 w-12 rounded-full object-cover border border-blue-100"
+      />
+    );
+  }
+  return (
+    <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold">
+      {initials || "?"}
+    </div>
+  );
+};
+
+const RankIcon = ({ rank }) => {
+  if (rank === 1) {
+    return <IoTrophy className="w-6 h-6 text-yellow-500" />;
+  }
+  if (rank === 2) {
+    return <IoMedal className="w-6 h-6 text-gray-400" />;
+  }
+  if (rank === 3) {
+    return <IoMedal className="w-6 h-6 text-amber-600" />;
+  }
+  return (
+    <span className="w-6 h-6 flex items-center justify-center text-blue-600 font-semibold">
+      #{rank}
+    </span>
+  );
+};
+
+const BonusBadge = ({ value }) => (
+  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 px-2 py-1 text-xs font-semibold">
+    <IoRocket className="w-3 h-3" />+{formatNumber(value)} XP bonus
+  </span>
+);
 
 export default function Leaderboard() {
   const { user } = useContext(AuthContext);
   const [selectedCategory, setSelectedCategory] = useState("global");
   const [selectedPeriod, setSelectedPeriod] = useState("all-time");
+  const [seasonalTab, setSeasonalTab] = useState("monthly");
 
-  // Mock data for leaderboards
-  const globalLeaders = [
-    {
-      rank: 1,
-      name: "Luna_Writes",
-      avatar: "🌙",
-      level: 47,
-      xp: 23450,
-      entries: 245,
-      streak: 89,
-      engagement: 1250,
-      badge: "🏆 Legend",
-    },
-    {
-      rank: 2,
-      name: "Diary_Master",
-      avatar: "📚",
-      level: 43,
-      xp: 21200,
-      entries: 198,
-      streak: 67,
-      engagement: 980,
-      badge: "👑 Elite",
-    },
-    {
-      rank: 3,
-      name: "Mood_Tracker",
-      avatar: "😊",
-      level: 41,
-      xp: 19800,
-      entries: 167,
-      streak: 45,
-      engagement: 856,
-      badge: "⭐ Pro",
-    },
-    {
-      rank: 4,
-      name: "Dream_Catcher",
-      avatar: "✨",
-      level: 38,
-      xp: 18500,
-      entries: 145,
-      streak: 34,
-      engagement: 723,
-      badge: "💎 Expert",
-    },
-    {
-      rank: 5,
-      name: "Story_Teller",
-      avatar: "📖",
-      level: 36,
-      xp: 17200,
-      entries: 134,
-      streak: 28,
-      engagement: 645,
-      badge: "🔥 Rising",
-    },
-    {
-      rank: 6,
-      name: "Night_Writer",
-      avatar: "🌃",
-      level: 34,
-      xp: 16100,
-      entries: 123,
-      streak: 22,
-      engagement: 567,
-      badge: "🌟 Active",
-    },
-    {
-      rank: 7,
-      name: "Soul_Searcher",
-      avatar: "🔮",
-      level: 32,
-      xp: 15000,
-      entries: 112,
-      streak: 19,
-      engagement: 489,
-      badge: "💫 Dedicated",
-    },
-    {
-      rank: 8,
-      name: "Heart_Writer",
-      avatar: "💝",
-      level: 30,
-      xp: 14200,
-      entries: 98,
-      streak: 15,
-      engagement: 412,
-      badge: "🎯 Focused",
-    },
-  ];
+  const [globalData, setGlobalData] = useState(null);
+  const [seasonalData, setSeasonalData] = useState(null);
+  const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [loadingSeasonal, setLoadingSeasonal] = useState(false);
 
-  const themeLeaders = {
-    jungle: [
-      {
-        rank: 1,
-        name: "Forest_Explorer",
-        avatar: "🌿",
-        entries: 89,
-        specialty: "Nature Chronicles",
-        xp: 8900,
-      },
-      {
-        rank: 2,
-        name: "Wild_Heart",
-        avatar: "🦋",
-        entries: 76,
-        specialty: "Adventure Tales",
-        xp: 7600,
-      },
-      {
-        rank: 3,
-        name: "Tree_Whisperer",
-        avatar: "🌳",
-        entries: 64,
-        specialty: "Eco Warrior",
-        xp: 6400,
-      },
-    ],
-    cyberpunk: [
-      {
-        rank: 1,
-        name: "Neon_Dreams",
-        avatar: "⚡",
-        entries: 67,
-        specialty: "Future Visions",
-        xp: 6700,
-      },
-      {
-        rank: 2,
-        name: "Digital_Soul",
-        avatar: "🤖",
-        entries: 54,
-        specialty: "Tech Philosophy",
-        xp: 5400,
-      },
-      {
-        rank: 3,
-        name: "Cyber_Poet",
-        avatar: "💻",
-        entries: 43,
-        specialty: "Code & Heart",
-        xp: 4300,
-      },
-    ],
-    barbie: [
-      {
-        rank: 1,
-        name: "Pink_Positivity",
-        avatar: "💕",
-        entries: 92,
-        specialty: "Motivation Master",
-        xp: 9200,
-      },
-      {
-        rank: 2,
-        name: "Dream_Big",
-        avatar: "✨",
-        entries: 78,
-        specialty: "Self-Love Guru",
-        xp: 7800,
-      },
-      {
-        rank: 3,
-        name: "Sparkle_Queen",
-        avatar: "👑",
-        entries: 65,
-        specialty: "Confidence Boost",
-        xp: 6500,
-      },
-    ],
-    mars: [
-      {
-        rank: 1,
-        name: "Red_Planet",
-        avatar: "🔴",
-        entries: 71,
-        specialty: "Space Explorer",
-        xp: 7100,
-      },
-      {
-        rank: 2,
-        name: "Martian_Mind",
-        avatar: "👽",
-        entries: 58,
-        specialty: "Innovation Hub",
-        xp: 5800,
-      },
-      {
-        rank: 3,
-        name: "Cosmic_Thinker",
-        avatar: "🚀",
-        entries: 47,
-        specialty: "Future Builder",
-        xp: 4700,
-      },
-    ],
-    space: [
-      {
-        rank: 1,
-        name: "Starlight",
-        avatar: "⭐",
-        entries: 83,
-        specialty: "Philosophy Deep",
-        xp: 8300,
-      },
-      {
-        rank: 2,
-        name: "Galaxy_Mind",
-        avatar: "🌌",
-        entries: 69,
-        specialty: "Cosmic Thoughts",
-        xp: 6900,
-      },
-      {
-        rank: 3,
-        name: "Universe_Soul",
-        avatar: "🌠",
-        entries: 56,
-        specialty: "Existential",
-        xp: 5600,
-      },
-    ],
-  };
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
 
-  const seasonalContest = {
-    title: "September Motivation Masters 🍂",
-    description: "Most inspiring entries this month",
-    timeLeft: "12 days left",
-    prize: "Golden Quill Badge + Featured Post",
-    participants: 1247,
-    leaders: [
-      {
-        rank: 1,
-        name: "Hope_Bringer",
-        avatar: "🌅",
-        score: 892,
-        entry: "Turn Your Autumn Into Art",
-      },
-      {
-        rank: 2,
-        name: "Courage_Writer",
-        avatar: "🦁",
-        score: 756,
-        entry: "September Strength Stories",
-      },
-      {
-        rank: 3,
-        name: "Joy_Creator",
-        avatar: "🌈",
-        score: 634,
-        entry: "Finding Light in Dark Days",
-      },
-    ],
-  };
-
-  const categories = [
-    {
-      id: "global",
-      name: "Global Rankings",
-      icon: <IoTrophy className="w-5 h-5" />,
-    },
-    {
-      id: "themes",
-      name: "Theme Masters",
-      icon: <IoStar className="w-5 h-5" />,
-    },
-    {
-      id: "seasonal",
-      name: "Seasonal Contest",
-      icon: <IoGift className="w-5 h-5" />,
-    },
-    {
-      id: "collaboration",
-      name: "Collaboration",
-      icon: <IoHeart className="w-5 h-5" />,
-    },
-  ];
-
-  const themeCategories = [
-    {
-      id: "jungle",
-      name: "Jungle Writers",
-      icon: <IoLeaf className="w-5 h-5 text-green-500" />,
-      emoji: "🌳",
-    },
-    {
-      id: "cyberpunk",
-      name: "Cyberpunk",
-      icon: <IoFlash className="w-5 h-5 text-purple-500" />,
-      emoji: "⚡",
-    },
-    {
-      id: "barbie",
-      name: "Barbie",
-      icon: <IoRose className="w-5 h-5 text-pink-500" />,
-      emoji: "💕",
-    },
-    {
-      id: "mars",
-      name: "Mars",
-      icon: <IoRocket className="w-5 h-5 text-red-500" />,
-      emoji: "🔥",
-    },
-    {
-      id: "space",
-      name: "Space",
-      icon: <IoPlanet className="w-5 h-5 text-indigo-500" />,
-      emoji: "🌌",
-    },
-  ];
-
-  const [selectedTheme, setSelectedTheme] = useState("jungle");
-
-  const getRankColor = (rank) => {
-    switch (rank) {
-      case 1:
-        return "text-yellow-500";
-      case 2:
-        return "text-gray-400";
-      case 3:
-        return "text-amber-600";
-      default:
-        return "text-blue-600";
-    }
-  };
-
-  const getRankIcon = (rank) => {
-    switch (rank) {
-      case 1:
-        return <IoTrophy className="w-6 h-6 text-yellow-500" />;
-      case 2:
-        return <IoMedal className="w-6 h-6 text-gray-400" />;
-      case 3:
-        return <IoMedal className="w-6 h-6 text-amber-600" />;
-      default:
-        return (
-          <span className="w-6 h-6 flex items-center justify-center text-blue-600 font-bold">
-            #{rank}
-          </span>
+    const fetchGlobal = async () => {
+      setLoadingGlobal(true);
+      try {
+        const data = await getLeaderboard(selectedPeriod);
+        if (!mounted) return;
+        setGlobalData(data);
+      } catch (error) {
+        if (!mounted) return;
+        console.error("Global leaderboard error", error);
+        toast.error(
+          error?.response?.data?.message || "Unable to load leaderboard"
         );
-    }
-  };
+        setGlobalData(null);
+      } finally {
+        if (mounted) setLoadingGlobal(false);
+      }
+    };
+
+    fetchGlobal();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedPeriod, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+
+    const fetchSeasonal = async () => {
+      setLoadingSeasonal(true);
+      try {
+        const data = await getSeasonalLeaderboard();
+        if (!mounted) return;
+        setSeasonalData(data);
+      } catch (error) {
+        if (!mounted) return;
+        console.error("Seasonal leaderboard error", error);
+        toast.error(
+          error?.response?.data?.message || "Unable to load seasonal contest"
+        );
+        setSeasonalData(null);
+      } finally {
+        if (mounted) setLoadingSeasonal(false);
+      }
+    };
+
+    fetchSeasonal();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  const podium = useMemo(
+    () => (globalData?.rankings || []).slice(0, 3),
+    [globalData]
+  );
+  const rankings = useMemo(
+    () => (globalData?.rankings || []).slice(3),
+    [globalData]
+  );
 
   if (!user) {
     return (
@@ -375,389 +177,479 @@ export default function Leaderboard() {
     );
   }
 
-  return (
-    <div className="min-h-screen p-4 sm:p-6 bg-blue-50">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-3 mb-2">
-            <IoTrophy className="w-8 h-8 text-yellow-500" />
-            <h1 className="text-3xl font-bold text-blue-900">Leaderboard</h1>
-          </div>
-          <p className="text-blue-600">
-            Compete with writers worldwide and climb the ranks!
-          </p>
+  const currentUser = globalData?.currentUser;
+  const periodLabel = globalData?.label || "This period";
+  const periodLabelLower = periodLabel.toLowerCase();
+  const seasonalList = seasonalData?.leaderboards?.[seasonalTab] || [];
 
-          {/* Your Current Rank */}
-          <div className="mt-4 p-4 bg-white rounded-xl border-2 border-blue-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="text-2xl">👤</div>
-                <div>
-                  <p className="font-semibold text-blue-900">
-                    Your Current Rank
-                  </p>
-                  <p className="text-blue-600">#47 • Level 23 • 12,450 XP</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-blue-600">Next Level</p>
-                <div className="w-32 bg-blue-100 rounded-full h-2 mt-1">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full"
-                    style={{ width: "67%" }}
-                  ></div>
-                </div>
-                <p className="text-xs text-blue-500 mt-1">670/1000 XP</p>
+  return (
+    <div className="min-h-screen bg-blue-50 py-6 px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <header className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
+              <IoTrophy className="w-10 h-10 text-yellow-500" />
+              <div>
+                <h1 className="text-3xl font-bold text-blue-900">
+                  Leaderboard
+                </h1>
+                <p className="text-blue-600">
+                  Track your creative journey and see how you stack up across
+                  the community.
+                </p>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Category Tabs */}
-        <div className="mb-6 bg-white rounded-xl p-2 shadow-sm">
-          <div className="flex space-x-1 overflow-x-auto">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === category.id
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-blue-600 hover:bg-blue-50"
-                }`}
-              >
-                {category.icon}
-                <span>{category.name}</span>
-              </button>
-            ))}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl">
+                    {user?.displayName?.[0]?.toUpperCase() ||
+                      user?.username?.[0]?.toUpperCase() ||
+                      "👤"}
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-500">Current Rank</p>
+                    <p className="text-lg font-semibold text-blue-900">
+                      {currentUser ? `#${currentUser.rank}` : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-blue-500">Level</p>
+                  <p className="text-xl font-semibold text-blue-900">
+                    {currentUser?.level || 1}
+                  </p>
+                  <p className="text-xs text-blue-500">
+                    {currentUser
+                      ? `${formatNumber(currentUser.xp)} XP`
+                      : "Start earning XP"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs text-blue-500">
+                  <span>Progress to next level</span>
+                  <span>
+                    {currentUser
+                      ? `${formatNumber(currentUser.xpToNextLevel)} XP left`
+                      : "—"}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 w-full rounded-full bg-blue-100">
+                  <div
+                    className="h-2 rounded-full bg-blue-500 transition-all"
+                    style={{
+                      width: `${currentUser?.progressToNextLevel || 0}%`,
+                    }}
+                  />
+                </div>
+                {currentUser && (
+                  <p className="mt-2 text-xs text-blue-500">
+                    Top {currentUser.percentile || 100}% of all writers this{" "}
+                    {periodLabelLower}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <IoStatsChart className="h-8 w-8 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-blue-500">Writers Ranked</p>
+                    <p className="text-lg font-semibold text-blue-900">
+                      {formatNumber(globalData?.totals?.totalUsers)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-blue-500">Average XP</p>
+                  <p className="text-lg font-semibold text-blue-900">
+                    {formatNumber(globalData?.totals?.averageXp)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-blue-600">
+                <div className="rounded-xl bg-blue-50 px-3 py-2">
+                  <p className="font-medium">Diary entries</p>
+                  <p>+{XP_RULES.diary} XP each</p>
+                </div>
+                <div className="rounded-xl bg-blue-50 px-3 py-2">
+                  <p className="font-medium">Community posts</p>
+                  <p>+{XP_RULES.communityPost} XP each</p>
+                </div>
+                <div className="rounded-xl bg-blue-50 px-3 py-2">
+                  <p className="font-medium">Each like received</p>
+                  <p>+{XP_RULES.like} XP</p>
+                </div>
+                <div className="rounded-xl bg-blue-50 px-3 py-2">
+                  <p className="font-medium">Comments on your work</p>
+                  <p>+{XP_RULES.comment} XP</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-blue-500">Daily streak boost</p>
+              <p className="mt-2 text-2xl font-semibold text-blue-900">
+                +{XP_RULES.streak} XP per day
+              </p>
+              <p className="mt-3 text-xs text-blue-600">
+                Keep your journaling streak alive to maintain bonus XP every
+                day.
+              </p>
+              <div className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-xs text-blue-600">
+                <p>
+                  Streak XP is automatically added to your leaderboard score.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        </header>
 
-        {/* Global Rankings */}
-        {selectedCategory === "global" && (
-          <div className="space-y-6">
-            {/* Period Selector */}
-            <div className="flex space-x-2">
-              {["all-time", "this-month", "this-week"].map((period) => (
+        <section className="rounded-2xl bg-white p-2 shadow-sm">
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((category) => {
+              const isActive = selectedCategory === category.id;
+              return (
                 <button
-                  key={period}
-                  onClick={() => setSelectedPeriod(period)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    selectedPeriod === period
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow"
+                      : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  }`}
+                >
+                  {category.icon}
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {selectedCategory === "global" && (
+          <section className="space-y-6">
+            <div className="flex flex-wrap gap-2">
+              {PERIOD_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => setSelectedPeriod(option.id)}
+                  className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                    selectedPeriod === option.id
                       ? "bg-blue-600 text-white"
                       : "bg-white text-blue-600 hover:bg-blue-50"
                   }`}
                 >
-                  {period
-                    .replace("-", " ")
-                    .replace(/\b\w/g, (l) => l.toUpperCase())}
+                  {option.label}
                 </button>
               ))}
             </div>
 
-            {/* Top 3 Podium */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-blue-900 mb-6 text-center">
-                🏆 Hall of Fame
-              </h2>
-              <div className="flex items-end justify-center space-x-4 mb-6">
-                {/* 2nd Place */}
-                <div className="text-center">
-                  <div className="bg-gray-100 rounded-xl p-4 mb-2 relative">
-                    <div className="text-4xl mb-2">
-                      {globalLeaders[1].avatar}
-                    </div>
-                    <IoMedal className="w-8 h-8 text-gray-400 mx-auto absolute -top-2 -right-2" />
-                  </div>
-                  <p className="font-semibold text-blue-900">
-                    {globalLeaders[1].name}
-                  </p>
-                  <p className="text-sm text-blue-600">
-                    Level {globalLeaders[1].level}
-                  </p>
-                  <p className="text-xs text-blue-500">
-                    {globalLeaders[1].xp.toLocaleString()} XP
-                  </p>
-                </div>
-
-                {/* 1st Place */}
-                <div className="text-center">
-                  <div className="bg-yellow-50 rounded-xl p-6 mb-2 relative border-2 border-yellow-300">
-                    <div className="text-5xl mb-2">
-                      {globalLeaders[0].avatar}
-                    </div>
-                    <IoTrophy className="w-10 h-10 text-yellow-500 mx-auto absolute -top-3 -right-3" />
-                  </div>
-                  <p className="font-bold text-blue-900 text-lg">
-                    {globalLeaders[0].name}
-                  </p>
-                  <p className="text-blue-600">
-                    Level {globalLeaders[0].level}
-                  </p>
-                  <p className="text-sm text-blue-500">
-                    {globalLeaders[0].xp.toLocaleString()} XP
-                  </p>
-                  <div className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs mt-2">
-                    👑 Champion
-                  </div>
-                </div>
-
-                {/* 3rd Place */}
-                <div className="text-center">
-                  <div className="bg-amber-50 rounded-xl p-4 mb-2 relative">
-                    <div className="text-4xl mb-2">
-                      {globalLeaders[2].avatar}
-                    </div>
-                    <IoMedal className="w-8 h-8 text-amber-600 mx-auto absolute -top-2 -right-2" />
-                  </div>
-                  <p className="font-semibold text-blue-900">
-                    {globalLeaders[2].name}
-                  </p>
-                  <p className="text-sm text-blue-600">
-                    Level {globalLeaders[2].level}
-                  </p>
-                  <p className="text-xs text-blue-500">
-                    {globalLeaders[2].xp.toLocaleString()} XP
-                  </p>
-                </div>
+            <div className="rounded-2xl bg-white p-6 shadow-md">
+              <div className="mb-6 text-center">
+                <h2 className="text-xl font-semibold text-blue-900">
+                  Hall of Fame
+                </h2>
+                <p className="text-sm text-blue-500">
+                  Top creators for {periodLabelLower}
+                </p>
               </div>
+              {loadingGlobal ? (
+                <div className="flex items-center justify-center py-12 text-blue-500">
+                  Loading leaderboard…
+                </div>
+              ) : podium.length > 0 ? (
+                <div className="flex flex-col items-center gap-4 md:flex-row md:items-end md:justify-center">
+                  {podium.map((entry, index) => {
+                    const cardStyles =
+                      index === 0
+                        ? "md:order-2"
+                        : index === 1
+                        ? "md:order-1"
+                        : "md:order-3";
+                    return (
+                      <div
+                        key={entry.userId}
+                        className={`w-full max-w-[220px] rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-center shadow-sm ${cardStyles}`}
+                      >
+                        <div className="flex justify-center">
+                          <Avatar
+                            profileImage={entry.profileImage}
+                            initials={entry.initials}
+                          />
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-blue-900">
+                          {entry.displayName}
+                        </p>
+                        <p className="text-xs text-blue-500">
+                          Level {entry.level}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-blue-600">
+                          {formatNumber(entry.xp)} XP
+                        </p>
+                        <div className="mt-3 flex items-center justify-center gap-2 text-xs text-blue-500">
+                          <RankIcon rank={entry.rank} />
+                          <span>#{entry.rank}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-center text-sm text-blue-500">
+                  No activity yet. Start writing to appear on the board!
+                </p>
+              )}
             </div>
 
-            {/* Full Rankings */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="p-4 bg-blue-600 text-white">
-                <h3 className="text-lg font-semibold">
-                  Global Writer Rankings
-                </h3>
+            <div className="overflow-hidden rounded-2xl bg-white shadow-md">
+              <div className="bg-blue-600 px-4 py-3 text-white">
+                <h3 className="text-lg font-semibold">Global Rankings</h3>
+                <p className="text-xs opacity-80">
+                  Updated{" "}
+                  {globalData?.generatedAt
+                    ? new Date(globalData.generatedAt).toLocaleString()
+                    : "just now"}
+                </p>
               </div>
-              <div className="divide-y divide-blue-100">
-                {globalLeaders.map((leader, index) => (
-                  <div
-                    key={index}
-                    className="p-4 hover:bg-blue-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          {getRankIcon(leader.rank)}
-                        </div>
-                        <div className="text-3xl">{leader.avatar}</div>
+              {loadingGlobal ? (
+                <div className="flex items-center justify-center py-12 text-blue-500">
+                  Loading leaderboard…
+                </div>
+              ) : (
+                <ul className="divide-y divide-blue-100">
+                  {rankings.length === 0 && podium.length === 0 && (
+                    <li className="py-8 text-center text-sm text-blue-500">
+                      No rankings yet. Create entries or posts to earn XP.
+                    </li>
+                  )}
+                  {[...podium.slice(0, 0), ...rankings].map((entry) => (
+                    <li
+                      key={entry.userId}
+                      className="flex flex-col gap-4 px-4 py-5 transition hover:bg-blue-50/60 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="flex items-start gap-3 md:items-center">
+                        <RankIcon rank={entry.rank} />
+                        <Avatar
+                          profileImage={entry.profileImage}
+                          initials={entry.initials}
+                        />
                         <div>
                           <p className="font-semibold text-blue-900">
-                            {leader.name}
+                            {entry.displayName}
                           </p>
-                          <div className="flex items-center space-x-4 text-sm text-blue-600">
-                            <span>Level {leader.level}</span>
-                            <span className="flex items-center space-x-1">
-                              <IoPencil className="w-4 h-4" />
-                              <span>{leader.entries}</span>
+                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-blue-500">
+                            <span className="flex items-center gap-1">
+                              <IoPencil className="h-4 w-4" />
+                              {formatNumber(entry.breakdown.diaryEntries)} diary
+                              entries
                             </span>
-                            <span className="flex items-center space-x-1">
-                              <IoFlame className="w-4 h-4" />
-                              <span>{leader.streak}</span>
+                            <span className="flex items-center gap-1">
+                              <IoSparkles className="h-4 w-4" />
+                              {formatNumber(
+                                entry.breakdown.communityPosts
+                              )}{" "}
+                              community posts
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <IoHeart className="h-4 w-4" />
+                              {formatNumber(entry.breakdown.likesReceived)}{" "}
+                              likes received
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <IoChatbubble className="h-4 w-4" />
+                              {formatNumber(
+                                entry.breakdown.commentsReceived
+                              )}{" "}
+                              comments received
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <IoFlame className="h-4 w-4" />
+                              Streak {formatNumber(entry.breakdown.streak)}
                             </span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-blue-900">
-                          {leader.xp.toLocaleString()} XP
+                        <p className="text-lg font-semibold text-blue-900">
+                          {formatNumber(entry.xp)} XP
                         </p>
-                        <p className="text-xs text-blue-500">{leader.badge}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Theme Masters */}
-        {selectedCategory === "themes" && (
-          <div className="space-y-6">
-            {/* Theme Selector */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {themeCategories.map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={() => setSelectedTheme(theme.id)}
-                  className={`p-4 rounded-xl font-medium transition-all hover:scale-105 ${
-                    selectedTheme === theme.id
-                      ? "bg-blue-600 text-white shadow-lg"
-                      : "bg-white text-blue-600 hover:bg-blue-50 border border-blue-100"
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{theme.emoji}</div>
-                  <p className="text-sm">{theme.name}</p>
-                </button>
-              ))}
-            </div>
-
-            {/* Theme Leaderboard */}
-            <div className="bg-white rounded-2xl shadow-lg">
-              <div className="p-6 border-b border-blue-100">
-                <div className="flex items-center space-x-3">
-                  <div className="text-3xl">
-                    {themeCategories.find((t) => t.id === selectedTheme)?.emoji}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-blue-900">
-                      {
-                        themeCategories.find((t) => t.id === selectedTheme)
-                          ?.name
-                      }{" "}
-                      Champions
-                    </h3>
-                    <p className="text-blue-600">Masters of themed writing</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <div className="space-y-4">
-                  {themeLeaders[selectedTheme]?.map((leader, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors"
-                    >
-                      <div className="flex items-center space-x-4">
-                        {getRankIcon(leader.rank)}
-                        <div className="text-2xl">{leader.avatar}</div>
-                        <div>
-                          <p className="font-semibold text-blue-900">
-                            {leader.name}
-                          </p>
-                          <p className="text-sm text-blue-600">
-                            {leader.specialty}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-blue-900">
-                          {leader.entries} entries
-                        </p>
-                        <p className="text-sm text-blue-600">
-                          {leader.xp.toLocaleString()} XP
+                        <p className="text-xs text-blue-500">
+                          Level {entry.level}
                         </p>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              )}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Seasonal Contest */}
         {selectedCategory === "seasonal" && (
-          <div className="space-y-6">
-            {/* Contest Info */}
-            <div className="bg-gradient-to-r from-orange-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
-              <div className="flex items-center justify-between mb-4">
+          <section className="space-y-6">
+            <div className="overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white shadow-md">
+              <div className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h3 className="text-2xl font-bold">
-                    {seasonalContest.title}
-                  </h3>
-                  <p className="opacity-90">{seasonalContest.description}</p>
+                  <p className="text-sm uppercase tracking-wide text-white/70">
+                    Seasonal Challenge
+                  </p>
+                  <h2 className="text-2xl font-bold">
+                    {seasonalData?.contest?.title || "Seasonal Contest"}
+                  </h2>
+                  <p className="mt-1 text-sm text-white/80">
+                    {seasonalData?.contest?.description ||
+                      "Earn bonus XP by keeping your creativity flowing."}
+                  </p>
                 </div>
-                <div className="text-right">
-                  <div className="bg-white bg-opacity-20 rounded-lg p-3">
-                    <IoTime className="w-6 h-6 mx-auto mb-1" />
+                <div className="flex gap-3">
+                  <div className="rounded-xl bg-white/15 px-4 py-3 text-center">
+                    <IoTime className="mx-auto h-5 w-5" />
+                    <p className="mt-1 text-xs uppercase tracking-wide text-white/80">
+                      Time left
+                    </p>
                     <p className="text-sm font-semibold">
-                      {seasonalContest.timeLeft}
+                      {seasonalData?.contest?.timeLeft || "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white/15 px-4 py-3 text-center">
+                    <IoRocket className="mx-auto h-5 w-5" />
+                    <p className="mt-1 text-xs uppercase tracking-wide text-white/80">
+                      Prize
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {seasonalData?.contest?.prize || "Exclusive rewards"}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <p className="text-lg">🏆 Prize: {seasonalContest.prize}</p>
-                <p className="text-sm">
-                  👥 {seasonalContest.participants.toLocaleString()}{" "}
-                  participants
-                </p>
-              </div>
             </div>
 
-            {/* Contest Leaderboard */}
-            <div className="bg-white rounded-2xl shadow-lg">
-              <div className="p-6 border-b border-blue-100">
-                <h3 className="text-xl font-semibold text-blue-900">
-                  Current Rankings
+            <div className="flex flex-wrap gap-2">
+              {SEASONAL_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setSeasonalTab(tab.id)}
+                  className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                    seasonalTab === tab.id
+                      ? "bg-blue-600 text-white shadow"
+                      : "bg-white text-blue-600 hover:bg-blue-50"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-hidden rounded-2xl bg-white shadow-md">
+              <div className="border-b border-blue-100 px-4 py-4">
+                <h3 className="text-lg font-semibold text-blue-900">
+                  {SEASONAL_TABS.find((tab) => tab.id === seasonalTab)?.label ||
+                    "Seasonal Rankings"}
                 </h3>
-                <p className="text-blue-600">
-                  Based on community votes and engagement
+                <p className="text-xs text-blue-500">
+                  Seasonal bonus XP is added to your total contest XP.
                 </p>
               </div>
-
-              <div className="p-6">
-                <div className="space-y-4">
-                  {seasonalContest.leaders.map((leader, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 rounded-xl border border-blue-100 hover:bg-blue-50 transition-colors"
+              {loadingSeasonal ? (
+                <div className="flex items-center justify-center py-12 text-blue-500">
+                  Loading seasonal standings…
+                </div>
+              ) : seasonalList.length === 0 ? (
+                <div className="py-10 text-center text-sm text-blue-500">
+                  No contest submissions yet. Share your best work to climb the
+                  seasonal ranks.
+                </div>
+              ) : (
+                <ul className="divide-y divide-blue-100">
+                  {seasonalList.map((entry) => (
+                    <li
+                      key={entry.userId}
+                      className="flex flex-col gap-4 px-4 py-5 transition hover:bg-blue-50/60 md:flex-row md:items-center md:justify-between"
                     >
-                      <div className="flex items-center space-x-4">
-                        {getRankIcon(leader.rank)}
-                        <div className="text-2xl">{leader.avatar}</div>
+                      <div className="flex items-start gap-3 md:items-center">
+                        <RankIcon rank={entry.rank} />
+                        <Avatar
+                          profileImage={entry.profileImage}
+                          initials={entry.initials}
+                        />
                         <div>
                           <p className="font-semibold text-blue-900">
-                            {leader.name}
+                            {entry.displayName}
                           </p>
-                          <p className="text-blue-600">"{leader.entry}"</p>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-blue-500">
+                            <span>{formatNumber(entry.xp)} base XP</span>
+                            <BonusBadge value={entry.bonusXp} />
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-blue-900">
-                          {leader.score} votes
+                        <p className="text-lg font-semibold text-blue-900">
+                          {formatNumber(entry.totalContestXp)} XP
                         </p>
-                        <button className="text-sm text-blue-500 hover:text-blue-700">
-                          View Entry →
-                        </button>
+                        <p className="text-xs text-blue-500">
+                          Level {entry.level}
+                        </p>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
-
-                <div className="mt-6 text-center">
-                  <button className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
-                    Submit Your Entry
-                  </button>
-                </div>
-              </div>
+                </ul>
+              )}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* XP System Info */}
-        <div className="mt-8 bg-white rounded-2xl p-6 shadow-lg">
-          <h3 className="text-xl font-semibold text-blue-900 mb-4">
-            💫 How to Earn XP
+        <section className="rounded-2xl bg-white p-6 shadow-md">
+          <h3 className="text-xl font-semibold text-blue-900">
+            Earn XP faster
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded-xl">
-              <IoPencil className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-blue-900">Write Entry</p>
-              <p className="text-xs text-blue-600">+50 XP</p>
+          <p className="mt-1 text-sm text-blue-500">
+            Mix diary reflections, community posts, and engagement to move up
+            the leaderboard.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl bg-blue-50 p-4 text-center">
+              <IoPencil className="mx-auto h-8 w-8 text-blue-600" />
+              <p className="mt-3 text-sm font-semibold text-blue-900">
+                Publish diary entries
+              </p>
+              <p className="text-xs text-blue-600">+{XP_RULES.diary} XP each</p>
             </div>
-            <div className="text-center p-3 bg-blue-50 rounded-xl">
-              <IoHeart className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-blue-900">Get Liked</p>
-              <p className="text-xs text-blue-600">+10 XP</p>
+            <div className="rounded-2xl bg-blue-50 p-4 text-center">
+              <IoSparkles className="mx-auto h-8 w-8 text-blue-600" />
+              <p className="mt-3 text-sm font-semibold text-blue-900">
+                Share community posts
+              </p>
+              <p className="text-xs text-blue-600">
+                +{XP_RULES.communityPost} XP each
+              </p>
             </div>
-            <div className="text-center p-3 bg-blue-50 rounded-xl">
-              <IoChatbubble className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-blue-900">Comment</p>
-              <p className="text-xs text-blue-600">+15 XP</p>
+            <div className="rounded-2xl bg-blue-50 p-4 text-center">
+              <IoHeart className="mx-auto h-8 w-8 text-blue-600" />
+              <p className="mt-3 text-sm font-semibold text-blue-900">
+                Collect reactions
+              </p>
+              <p className="text-xs text-blue-600">
+                +{XP_RULES.like} XP per like
+              </p>
             </div>
-            <div className="text-center p-3 bg-blue-50 rounded-xl">
-              <IoFlame className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-blue-900">Daily Streak</p>
-              <p className="text-xs text-blue-600">+25 XP</p>
+            <div className="rounded-2xl bg-blue-50 p-4 text-center">
+              <IoFlame className="mx-auto h-8 w-8 text-blue-600" />
+              <p className="mt-3 text-sm font-semibold text-blue-900">
+                Maintain streaks
+              </p>
+              <p className="text-xs text-blue-600">
+                +{XP_RULES.streak} XP daily
+              </p>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
