@@ -34,6 +34,57 @@ export const getAnalyticsOverview = async (period = "month") => {
   return response.data;
 };
 
+// Creator Studio APIs
+export const getCreatorProjects = async () => {
+  const response = await api.get("/creator/projects");
+  return response.data;
+};
+
+export const createCreatorProject = async (payload) => {
+  const response = await api.post("/creator/projects", payload);
+  return response.data;
+};
+
+export const updateCreatorProject = async (projectId, payload) => {
+  const response = await api.put(`/creator/projects/${projectId}`, payload);
+  return response.data;
+};
+
+export const publishCreatorProject = async (projectId, payload) => {
+  const response = await api.post(`/creator/projects/${projectId}/publish`, payload);
+  return response.data;
+};
+
+export const deleteCreatorProject = async (projectId) => {
+  const response = await api.delete(`/creator/projects/${projectId}`);
+  return response.data;
+};
+
+export const generateCreatorPrompt = async (projectId, prompt) => {
+  const response = await api.post(`/creator/projects/${projectId}/prompt`, { prompt });
+  return response.data;
+};
+
+export const markCreatorProjectExported = async (projectId) => {
+  const response = await api.post(`/creator/projects/${projectId}/export`);
+  return response.data;
+};
+
+export const fixGrammar = async (text) => {
+  const response = await api.post("/ai/fix-grammar", { text });
+  return response.data;
+};
+
+export const translateUserText = async (text, targetLanguage) => {
+  const response = await api.post("/ai/translate", { text, targetLanguage });
+  return response.data;
+};
+
+export const improveUserText = async (text) => {
+  const response = await api.post("/ai/improve", { text });
+  return response.data;
+};
+
 // Post APIs
 export const createPost = async (
   content,

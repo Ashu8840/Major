@@ -172,6 +172,13 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
+    creatorProjects: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "CreatorProject",
+      },
+    ],
+
     // Favorites & Bookmarks
     favorites: {
       entries: [

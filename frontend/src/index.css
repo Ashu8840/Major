@@ -43,3 +43,54 @@ body,
 .no-horizontal-scroll {
   overflow-x: hidden;
 }
+
+.creator-editor-root {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: plaintext !important;
+  white-space: pre-wrap !important;
+}
+
+.creator-editor-root img[data-inline-image="true"] {
+  width: 25% !important;
+  max-width: 25% !important;
+  float: left;
+  margin: 0 16px 16px 0;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.creator-editor-root .creator-editor-clear::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.notebook-textarea {
+  width: 100%;
+  min-height: 520px;
+  padding: 3rem 3rem 4rem;
+  font-family: "Playfair Display", "Georgia", serif;
+  font-size: 1.125rem;
+  line-height: 1.9;
+  color: #0f172a;
+  border: none;
+  resize: none;
+  background-color: #f8fafc;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 30px,
+    rgba(148, 163, 184, 0.25) 30px,
+    rgba(148, 163, 184, 0.25) 31px
+  );
+}
+
+.notebook-textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.notebook-textarea::placeholder {
+  color: rgba(100, 116, 139, 0.7);
+}
