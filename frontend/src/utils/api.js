@@ -187,6 +187,74 @@ export const unbookmarkPost = async (postId) => {
   return response.data;
 };
 
+// Marketplace APIs
+export const getMarketplaceBooks = async (params = {}) => {
+  const response = await api.get("/marketplace/books", { params });
+  return response.data;
+};
+
+export const getMarketplaceSellerStatus = async () => {
+  const response = await api.get("/marketplace/seller/status");
+  return response.data;
+};
+
+export const registerMarketplaceSeller = async (payload) => {
+  const response = await api.post("/marketplace/seller/register", payload);
+  return response.data;
+};
+
+export const getMarketplaceSellerBooks = async () => {
+  const response = await api.get("/marketplace/seller/books");
+  return response.data;
+};
+
+export const getMarketplaceBookAccess = async (bookId) => {
+  const response = await api.get(`/marketplace/books/${bookId}/access`);
+  return response.data;
+};
+
+export const createMarketplaceBook = async (formData) => {
+  const response = await api.post("/marketplace/books", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+export const getMarketplaceSellerAnalytics = async () => {
+  const response = await api.get("/marketplace/seller/analytics");
+  return response.data;
+};
+
+export const recordMarketplaceBookView = async (bookId) => {
+  const response = await api.post(`/marketplace/books/${bookId}/view`);
+  return response.data;
+};
+
+export const recordMarketplaceBookDownload = async (bookId) => {
+  const response = await api.post(`/marketplace/books/${bookId}/download`);
+  return response.data;
+};
+
+export const recordMarketplaceBookPurchase = async (bookId) => {
+  const response = await api.post(`/marketplace/books/${bookId}/purchase`);
+  return response.data;
+};
+
+export const getMarketplaceBookReviews = async (bookId, params = {}) => {
+  const response = await api.get(`/marketplace/books/${bookId}/reviews`, {
+    params,
+  });
+  return response.data;
+};
+
+export const submitMarketplaceBookReview = async (bookId, payload) => {
+  const response = await api.post(
+    `/marketplace/books/${bookId}/reviews`,
+    payload
+  );
+  return response.data;
+};
+
 // Comment APIs
 export const addComment = async (postId, text, parentCommentId = null) => {
   const response = await api.post(`/posts/${postId}/comment`, {

@@ -25,6 +25,7 @@ import Social from "./pages/Social";
 import CircleChat from "./pages/CircleChat";
 import CreatorStudio from "./pages/CreatorStudio";
 import Marketplace from "./pages/Marketplace";
+import BookReader from "./pages/BookReader";
 import ReadersLounge from "./pages/ReadersLounge";
 import Settings from "./pages/Settings";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
@@ -203,6 +204,14 @@ function AppContent() {
             element={
               <Private>
                 <Marketplace />
+              </Private>
+            }
+          />
+          <Route
+            path="/marketplace/books/:bookId/read"
+            element={
+              <Private>
+                <BookReader />
               </Private>
             }
           />

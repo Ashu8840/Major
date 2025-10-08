@@ -25,6 +25,7 @@ const chatRoutes = require("./routes/chatRoutes");
 const socialRoutes = require("./routes/socialRoutes");
 const creatorRoutes = require("./routes/creatorRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
+const marketplaceRoutes = require("./routes/marketplaceRoutes");
 
 const parseOrigins = (value) => {
   if (!value) return [];
@@ -81,7 +82,12 @@ app.use(
     credentials: true,
   })
 );
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
@@ -108,6 +114,7 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/social", socialRoutes);
 app.use("/api/creator", creatorRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
 
 app.use("/uploads", express.static("uploads"));
 
