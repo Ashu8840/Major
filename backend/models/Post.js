@@ -7,9 +7,16 @@ const postSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    postType: {
+      type: String,
+      enum: ["text", "image", "poll", "article", "event"],
+      default: "text",
+      index: true,
+    },
     content: {
       type: String,
-      required: true,
+      trim: true,
+      default: "",
     },
     hashtags: [
       {
@@ -67,6 +74,67 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    poll: {
+      question: { type: String, trim: true },
+      allowMultiple: { type: Boolean, default: false },
+      expiresAt: { type: Date },
+      options: [
+        {
+          _id: false,
+          id: { type: String, required: true },
+          text: { type: String, required: true, trim: true },
+          votes: { type: Number, default: 0 },
+          voters: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+          ],
+        },
+      ],
+      totalVotes: { type: Number, default: 0 },
+    },
+    article: {
+      title: { type: String, trim: true },
+      summary: { type: String, trim: true },
+      body: { type: String, trim: true },
+      coverImage: {
+        media: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Media",
+        },
+        url: String,
+      },
+      readTimeMinutes: { type: Number, default: 0 },
+    },
+    event: {
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+      location: { type: String, trim: true },
+      isVirtual: { type: Boolean, default: false },
+      capacity: { type: Number },
+      start: { type: Date },
+      end: { type: Date },
+      banner: {
+        media: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Media",
+        },
+        url: String,
+      },
+      attendees: [
+        {
+          user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          rsvpAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+    },
   },
   {
     timestamps: true,
@@ -77,6 +145,7 @@ const postSchema = new mongoose.Schema(
 postSchema.index({ hashtags: 1 });
 postSchema.index({ createdAt: -1 });
 postSchema.index({ "likes.user": 1 });
+postSchema.index({ "poll.options.id": 1 });
 
 const Post = mongoose.model("Post", postSchema);
 

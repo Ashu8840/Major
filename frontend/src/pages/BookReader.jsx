@@ -27,6 +27,7 @@ import {
   getMarketplaceBookReviews,
   recordMarketplaceBookDownload,
   recordMarketplaceBookView,
+  updateReaderBook,
   submitMarketplaceBookReview,
 } from "../utils/api";
 import { downloadFileFromUrl, sanitizeFilename } from "../utils/fileDownload";
@@ -108,11 +109,62 @@ export default function BookReader() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   const pdfRef = useRef(null);
+  const progressSyncRef = useRef({ lastSent: 0, lastPage: 0, totalPages: 0 });
 
   const progress = useMemo(() => {
     if (!totalPages) return 0;
     return Math.min(100, Math.round((pageNumber / totalPages) * 100));
   }, [pageNumber, totalPages]);
+
+  useEffect(() => {
+    if (!user || !bookId) return undefined;
+    if (!totalPages) return undefined;
+
+    const payload = {
+      progress,
+      lastPage: pageNumber,
+      totalPages,
+      source: "view",
+    };
+
+    const timer = setTimeout(() => {
+      const snapshot = progressSyncRef.current;
+      if (
+        snapshot.lastSent === payload.progress &&
+        snapshot.lastPage === payload.lastPage &&
+        snapshot.totalPages === payload.totalPages
+      ) {
+        return;
+      }
+
+      updateReaderBook(bookId, payload)
+        .then(() => {
+          progressSyncRef.current = {
+            lastSent: payload.progress,
+            lastPage: payload.lastPage,
+            totalPages: payload.totalPages,
+          };
+        })
+        .catch(() => {});
+    }, 600);
+
+    return () => {
+      clearTimeout(timer);
+      const snapshot = progressSyncRef.current;
+      if (
+        snapshot.lastSent !== payload.progress ||
+        snapshot.lastPage !== payload.lastPage ||
+        snapshot.totalPages !== payload.totalPages
+      ) {
+        updateReaderBook(bookId, payload).catch(() => {});
+        progressSyncRef.current = {
+          lastSent: payload.progress,
+          lastPage: payload.lastPage,
+          totalPages: payload.totalPages,
+        };
+      }
+    };
+  }, [bookId, pageNumber, progress, totalPages, user]);
 
   const chapterList = useMemo(() => {
     if (book?.tags?.length) {
@@ -255,6 +307,17 @@ export default function BookReader() {
             initialSummary.ratingsCount ||
             0,
         });
+        progressSyncRef.current = {
+          lastSent: 0,
+          lastPage: 1,
+          totalPages: 0,
+        };
+        updateReaderBook(bookId, {
+          status: "in-progress",
+          progress: 0,
+          lastPage: 1,
+          source: "view",
+        }).catch(() => {});
         await loadPdfDocument(activeViewer);
         recordMarketplaceBookView(bookId).catch(() => {});
         fetchReviews(1);

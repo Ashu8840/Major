@@ -1,6 +1,7 @@
 const path = require("path");
 const MarketplaceSeller = require("../models/MarketplaceSeller");
 const MarketplaceBook = require("../models/MarketplaceBook");
+const ReaderBook = require("../models/ReaderBook");
 const cloudinary = require("../services/cloudinary");
 const mongoose = require("mongoose");
 
@@ -222,6 +223,56 @@ const toReviewPayload = (review) => ({
   user: review.user,
   userSnapshot: review.userSnapshot,
 });
+
+const clampProgress = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  if (number <= 0) return 0;
+  if (number >= 100) return 100;
+  return Math.round(number);
+};
+
+const matchesBookSearch = (book, searchValue) => {
+  if (!searchValue) return true;
+  const haystack = [
+    book?.title,
+    book?.description,
+    Array.isArray(book?.tags) ? book.tags.join(" ") : "",
+    book?.genre,
+    book?.author?.displayName,
+    book?.author?.username,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(searchValue.toLowerCase());
+};
+
+const formatReaderEntry = (entry) => {
+  if (!entry || !entry.book) return null;
+
+  const source =
+    typeof entry.toObject === "function"
+      ? entry.toObject({ virtuals: true })
+      : { ...entry };
+
+  return {
+    id: source._id,
+    status: source.status,
+    progress: source.progress || 0,
+    lastPage: source.lastPage || 0,
+    totalPages: source.totalPages || 0,
+    startedAt: source.startedAt,
+    lastReadAt: source.lastReadAt,
+    completedAt: source.completedAt,
+    wishlistAt: source.wishlistAt,
+    addedAt: source.addedAt,
+    createdAt: source.createdAt,
+    updatedAt: source.updatedAt,
+    source: source.source,
+    book: formatBookResponse(source.book, { includeFile: false }),
+  };
+};
 
 const getSortOption = (sort) => {
   switch (sort) {
@@ -583,6 +634,69 @@ exports.getSellerBooks = async (req, res) => {
   }
 };
 
+const destroyCloudinaryAsset = async (asset) => {
+  if (!asset || !asset.publicId) return;
+
+  const resourceType =
+    asset.resourceType ||
+    (asset.mimeType && asset.mimeType.startsWith("image/") ? "image" : "raw");
+
+  try {
+    await cloudinary.uploader.destroy(asset.publicId, {
+      resource_type: resourceType,
+      invalidate: true,
+    });
+  } catch (error) {
+    console.warn("Failed to remove Cloudinary asset", asset.publicId, error);
+  }
+};
+
+exports.deleteSellerBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const book = await MarketplaceBook.findById(id)
+      .populate("seller", "user status")
+      .populate("author", "_id username");
+
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    const sellerUserId = book.seller?.user;
+    const isAuthor =
+      String(book.author?._id || book.author) === String(req.user._id);
+    const isSellerOwner =
+      sellerUserId && String(sellerUserId) === String(req.user._id);
+
+    if (!isAuthor && !isSellerOwner) {
+      return res.status(403).json({
+        message: "You are not allowed to delete this book",
+      });
+    }
+
+    await ReaderBook.updateMany(
+      { book: book._id, removedAt: null },
+      { removedAt: new Date() }
+    );
+
+    await Promise.all([
+      destroyCloudinaryAsset(book.coverImage),
+      destroyCloudinaryAsset(book.file),
+    ]);
+
+    await book.deleteOne();
+
+    res.json({ message: "Book deleted successfully" });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to delete book");
+  }
+};
+
 exports.createBook = async (req, res) => {
   try {
     const seller = await ensureSeller(req.user._id);
@@ -702,6 +816,10 @@ exports.getSellerAnalytics = async (req, res) => {
         acc.totalViews += stats.views || 0;
         acc.totalDownloads += stats.downloads || 0;
         acc.totalFavorites += stats.favorites || 0;
+        acc.totalRentals += stats.rentals || 0;
+        acc.totalRentalRevenue += stats.rentalRevenue || 0;
+        acc.totalTips += stats.tips || 0;
+        acc.totalTipRevenue += stats.tipRevenue || 0;
         acc.ratingSum += (stats.averageRating || 0) * (stats.ratingsCount || 0);
         acc.ratingCount += stats.ratingsCount || 0;
         acc.totalReviews += stats.ratingsCount || 0;
@@ -716,6 +834,10 @@ exports.getSellerAnalytics = async (req, res) => {
         ratingSum: 0,
         ratingCount: 0,
         totalReviews: 0,
+        totalRentals: 0,
+        totalRentalRevenue: 0,
+        totalTips: 0,
+        totalTipRevenue: 0,
       }
     );
 
@@ -774,6 +896,10 @@ exports.getSellerAnalytics = async (req, res) => {
         booksPublished: books.filter((book) => book.status === "published")
           .length,
         totalReviews: totals.totalReviews,
+        totalRentals: totals.totalRentals,
+        totalRentalRevenue: Number(totals.totalRentalRevenue.toFixed(2)),
+        totalTips: totals.totalTips,
+        totalTipRevenue: Number(totals.totalTipRevenue.toFixed(2)),
       },
       topBooks,
       recentActivity,
@@ -781,6 +907,355 @@ exports.getSellerAnalytics = async (req, res) => {
     });
   } catch (error) {
     return handleControllerError(res, error, "Failed to fetch analytics");
+  }
+};
+
+exports.getReaderBooks = async (req, res) => {
+  try {
+    const category = String(req.query.category || "library").toLowerCase();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 12, 1),
+      50
+    );
+    const searchValue = String(req.query.search || "").trim();
+
+    const filter = {
+      user: req.user._id,
+      removedAt: null,
+    };
+
+    if (category === "reading") {
+      filter.status = "in-progress";
+    } else if (category === "wishlist") {
+      filter.status = "wishlist";
+    } else if (category === "completed") {
+      filter.status = "completed";
+    } else if (category === "library") {
+      filter.status = { $in: ["in-progress", "completed"] };
+    }
+
+    const entries = await ReaderBook.find(filter)
+      .sort({
+        lastReadAt: -1,
+        updatedAt: -1,
+        createdAt: -1,
+      })
+      .populate([
+        {
+          path: "book",
+          populate: [
+            { path: "author", select: "username displayName profileImage" },
+            { path: "seller", select: "storeName status" },
+          ],
+        },
+      ])
+      .lean({ virtuals: true });
+
+    const filtered = entries
+      .filter((entry) => entry.book)
+      .filter((entry) => matchesBookSearch(entry.book, searchValue));
+
+    const total = filtered.length;
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+    const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+    const startIndex = (safePage - 1) * limit;
+
+    const items = filtered
+      .slice(startIndex, startIndex + limit)
+      .map((entry) => formatReaderEntry(entry))
+      .filter(Boolean);
+
+    res.json({
+      items,
+      meta: {
+        total,
+        totalPages,
+        page: totalPages > 0 ? safePage : 1,
+        limit,
+        category,
+      },
+    });
+  } catch (error) {
+    return handleControllerError(
+      res,
+      error,
+      "Failed to load reader lounge collection"
+    );
+  }
+};
+
+exports.updateReaderBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const book = await MarketplaceBook.findById(id)
+      .populate("author", "username displayName profileImage")
+      .populate("seller", "storeName status");
+
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    let entry = await ReaderBook.findOne({ user: req.user._id, book: id });
+    const now = new Date();
+    const source = req.body.source;
+
+    if (!entry) {
+      entry = new ReaderBook({
+        user: req.user._id,
+        book: id,
+        status: "in-progress",
+        addedAt: now,
+      });
+    }
+
+    entry.removedAt = null;
+
+    if (source && ["view", "download", "purchase", "manual"].includes(source)) {
+      entry.source = source;
+    }
+
+    if (typeof req.body.totalPages === "number" && req.body.totalPages >= 0) {
+      entry.totalPages = Math.max(0, Math.round(req.body.totalPages));
+    }
+
+    if (typeof req.body.lastPage === "number" && req.body.lastPage >= 0) {
+      entry.lastPage = Math.max(0, Math.round(req.body.lastPage));
+    }
+
+    const requestedStatus = req.body.status;
+    const hasValidStatus = ["wishlist", "in-progress", "completed"].includes(
+      requestedStatus
+    );
+
+    const progressProvided =
+      typeof req.body.progress === "number" && !Number.isNaN(req.body.progress);
+
+    if (progressProvided) {
+      const clamped = clampProgress(req.body.progress);
+      entry.progress = clamped;
+
+      if (clamped > 0) {
+        entry.startedAt = entry.startedAt || now;
+        entry.lastReadAt = now;
+      }
+
+      if (clamped >= 100) {
+        entry.status = "completed";
+        entry.completedAt = entry.completedAt || now;
+        entry.progress = 100;
+      } else if (entry.status === "wishlist") {
+        entry.status = "in-progress";
+      } else if (entry.status !== "completed") {
+        entry.status = "in-progress";
+        entry.completedAt = null;
+      }
+    }
+
+    if (hasValidStatus) {
+      entry.status = requestedStatus;
+
+      if (requestedStatus === "wishlist") {
+        entry.progress = 0;
+        entry.wishlistAt = now;
+        entry.startedAt = null;
+        entry.lastReadAt = null;
+        entry.completedAt = null;
+      } else if (requestedStatus === "completed") {
+        entry.progress = Math.max(entry.progress || 0, 100);
+        entry.completedAt = entry.completedAt || now;
+      } else if (requestedStatus === "in-progress" && entry.progress >= 100) {
+        entry.progress = 99;
+        entry.completedAt = null;
+      }
+    }
+
+    if (entry.status !== "wishlist") {
+      entry.wishlistAt = null;
+    }
+
+    await entry.save();
+
+    const formattedEntry = formatReaderEntry({
+      ...entry.toObject({ virtuals: true }),
+      book,
+    });
+
+    res.json({ entry: formattedEntry });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to update reader book");
+  }
+};
+
+exports.removeReaderBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const entry = await ReaderBook.findOne({ user: req.user._id, book: id });
+
+    if (!entry) {
+      return res
+        .status(404)
+        .json({ message: "This book is not in your library" });
+    }
+
+    entry.removedAt = new Date();
+    await entry.save();
+
+    res.json({ message: "Book removed from your library" });
+  } catch (error) {
+    return handleControllerError(
+      res,
+      error,
+      "Failed to remove book from library"
+    );
+  }
+};
+
+exports.addBookToWishlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const book = await MarketplaceBook.findById(id)
+      .populate("author", "username displayName profileImage")
+      .populate("seller", "storeName status");
+
+    if (!book || book.status !== "published") {
+      return res.status(404).json({ message: "Book not available" });
+    }
+
+    let entry = await ReaderBook.findOne({ user: req.user._id, book: id });
+    const now = new Date();
+
+    const wasWishlisted = Boolean(
+      entry && entry.status === "wishlist" && !entry.removedAt
+    );
+
+    if (!entry) {
+      entry = new ReaderBook({
+        user: req.user._id,
+        book: id,
+        status: "wishlist",
+        wishlistAt: now,
+        addedAt: now,
+      });
+    } else {
+      entry.status = "wishlist";
+      entry.progress = 0;
+      entry.wishlistAt = now;
+      entry.removedAt = null;
+      entry.startedAt = null;
+      entry.lastReadAt = null;
+      entry.completedAt = null;
+    }
+
+    await entry.save();
+
+    if (!wasWishlisted) {
+      book.stats = book.stats || {};
+      book.stats.favorites = (book.stats.favorites || 0) + 1;
+      await book.save();
+    }
+
+    const formattedEntry = formatReaderEntry({
+      ...entry.toObject({ virtuals: true }),
+      book,
+    });
+
+    res.json({ entry: formattedEntry });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to update wishlist");
+  }
+};
+
+exports.removeBookFromWishlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const entry = await ReaderBook.findOne({ user: req.user._id, book: id });
+
+    if (!entry) {
+      return res.status(404).json({ message: "Book is not in wishlist" });
+    }
+
+    const now = new Date();
+    const hadProgress = (entry.progress || 0) > 0;
+    const wasWishlistActive = entry.status === "wishlist" && !entry.removedAt;
+
+    if (hadProgress) {
+      entry.status = entry.progress >= 100 ? "completed" : "in-progress";
+      entry.wishlistAt = null;
+    } else {
+      entry.status = "wishlist";
+      entry.removedAt = now;
+      entry.wishlistAt = null;
+    }
+
+    await entry.save();
+
+    if (wasWishlistActive) {
+      const book = await MarketplaceBook.findById(id).select("stats");
+      if (book) {
+        book.stats = book.stats || {};
+        book.stats.favorites = Math.max(0, (book.stats.favorites || 0) - 1);
+        await book.save();
+      }
+    }
+
+    res.json({ message: "Book removed from wishlist" });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to update wishlist");
+  }
+};
+
+exports.getReaderBookStatuses = async (req, res) => {
+  try {
+    const { bookIds } = req.body || {};
+
+    if (!Array.isArray(bookIds) || bookIds.length === 0) {
+      return res.json({ statuses: {} });
+    }
+
+    const validIds = bookIds.filter((value) =>
+      mongoose.Types.ObjectId.isValid(String(value))
+    );
+
+    if (!validIds.length) {
+      return res.json({ statuses: {} });
+    }
+
+    const entries = await ReaderBook.find({
+      user: req.user._id,
+      book: { $in: validIds },
+      removedAt: null,
+    })
+      .select("book status progress")
+      .lean();
+
+    const statuses = {};
+    entries.forEach((entry) => {
+      statuses[String(entry.book)] = {
+        status: entry.status,
+        progress: entry.progress || 0,
+      };
+    });
+
+    res.json({ statuses });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to load reader status");
   }
 };
 
@@ -848,6 +1323,139 @@ exports.recordBookDownload = async (req, res) => {
     });
   } catch (error) {
     return handleControllerError(res, error, "Failed to record download");
+  }
+};
+
+const sanitizeCurrencyAmount = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return Number(fallback.toFixed ? fallback.toFixed(2) : fallback);
+  }
+  return Number(parsed.toFixed(2));
+};
+
+exports.recordBookRent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const book = await MarketplaceBook.findById(id);
+
+    if (!book || book.status !== "published") {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    const suggested = (book.price || 0) > 0 ? (book.price || 0) * 0.25 : 0;
+    const rentAmount = sanitizeCurrencyAmount(
+      req.body?.amount,
+      suggested > 0 ? Math.max(suggested, 5) : 0
+    );
+
+    const durationDays = Math.max(
+      1,
+      Math.min(Number.parseInt(req.body?.durationDays, 10) || 7, 90)
+    );
+
+    const now = new Date();
+
+    book.stats.rentals = (book.stats.rentals || 0) + 1;
+    book.stats.rentalRevenue = Number(
+      ((book.stats.rentalRevenue || 0) + rentAmount).toFixed(2)
+    );
+    book.stats.lastRentAt = now;
+
+    book.appendActivity({
+      type: "rent",
+      amount: rentAmount,
+      user: req.user?._id,
+      note: `${durationDays}-day rental`,
+    });
+
+    await book.save();
+
+    let entry = await ReaderBook.findOne({
+      user: req.user._id,
+      book: book._id,
+    });
+
+    if (!entry) {
+      entry = new ReaderBook({
+        user: req.user._id,
+        book: book._id,
+        addedAt: now,
+      });
+    }
+
+    entry.removedAt = null;
+    entry.status = "in-progress";
+    entry.startedAt = entry.startedAt || now;
+    entry.lastReadAt = now;
+    entry.source = entry.source || "manual";
+
+    await entry.save();
+
+    const normalizedFile = normalizeFileField(book.file);
+
+    res.json({
+      stats: book.stats,
+      rental: {
+        amount: rentAmount,
+        durationDays,
+        expiresAt: new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000),
+        viewerUrl: normalizedFile?.secureUrl || normalizedFile?.url,
+        downloadUrl: buildDownloadUrl(normalizedFile),
+      },
+    });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to record rental");
+  }
+};
+
+exports.recordBookTip = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const amount = sanitizeCurrencyAmount(req.body?.amount);
+    if (!amount || amount <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Tip amount must be greater than zero" });
+    }
+
+    const book = await MarketplaceBook.findById(id);
+
+    if (!book || book.status !== "published") {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    const note = (req.body?.note || "").toString().trim().slice(0, 140);
+    const now = new Date();
+
+    book.stats.tips = (book.stats.tips || 0) + 1;
+    book.stats.tipRevenue = Number(
+      ((book.stats.tipRevenue || 0) + amount).toFixed(2)
+    );
+    book.stats.lastTipAt = now;
+
+    book.appendActivity({
+      type: "tip",
+      amount,
+      user: req.user?._id,
+      note: note || "Reader tip",
+    });
+
+    await book.save();
+
+    res.json({
+      stats: book.stats,
+    });
+  } catch (error) {
+    return handleControllerError(res, error, "Failed to record tip");
   }
 };
 

@@ -8,12 +8,21 @@ const {
   getSellerBooks,
   createBook,
   getSellerAnalytics,
+  deleteSellerBook,
   getBookAccess,
   getBookReviews,
   submitBookReview,
   recordBookView,
   recordBookDownload,
   recordBookPurchase,
+  recordBookRent,
+  recordBookTip,
+  getReaderBooks,
+  updateReaderBook,
+  removeReaderBook,
+  addBookToWishlist,
+  removeBookFromWishlist,
+  getReaderBookStatuses,
 } = require("../controllers/marketplaceController");
 const { protect } = require("../middlewares/authMiddleware");
 
@@ -72,6 +81,11 @@ router.get("/seller/status", protect, getSellerStatus);
 router.post("/seller/register", protect, registerSeller);
 router.get("/seller/books", protect, getSellerBooks);
 router.get("/seller/analytics", protect, getSellerAnalytics);
+router.delete("/seller/books/:id", protect, deleteSellerBook);
+router.get("/reader/books", protect, getReaderBooks);
+router.patch("/reader/books/:id", protect, updateReaderBook);
+router.delete("/reader/books/:id", protect, removeReaderBook);
+router.post("/reader/status", protect, getReaderBookStatuses);
 
 router.post(
   "/books",
@@ -86,8 +100,12 @@ router.post(
 router.get("/books/:id/access", protect, getBookAccess);
 router.get("/books/:id/reviews", getBookReviews);
 router.post("/books/:id/reviews", protect, submitBookReview);
+router.post("/books/:id/wishlist", protect, addBookToWishlist);
+router.delete("/books/:id/wishlist", protect, removeBookFromWishlist);
 router.post("/books/:id/view", recordBookView);
 router.post("/books/:id/download", protect, recordBookDownload);
 router.post("/books/:id/purchase", protect, recordBookPurchase);
+router.post("/books/:id/rent", protect, recordBookRent);
+router.post("/books/:id/tip", protect, recordBookTip);
 
 module.exports = router;

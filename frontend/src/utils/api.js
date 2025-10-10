@@ -121,6 +121,11 @@ export const improveUserText = async (text) => {
   return response.data;
 };
 
+export const getDailyPrompt = async () => {
+  const response = await api.get("/ai/prompts");
+  return response.data;
+};
+
 // Post APIs
 export const createPost = async (
   content,
@@ -188,8 +193,11 @@ export const unbookmarkPost = async (postId) => {
 };
 
 // Marketplace APIs
-export const getMarketplaceBooks = async (params = {}) => {
-  const response = await api.get("/marketplace/books", { params });
+export const getMarketplaceBooks = async (params = {}, options = {}) => {
+  const response = await api.get("/marketplace/books", {
+    params,
+    signal: options.signal,
+  });
   return response.data;
 };
 
@@ -203,8 +211,10 @@ export const registerMarketplaceSeller = async (payload) => {
   return response.data;
 };
 
-export const getMarketplaceSellerBooks = async () => {
-  const response = await api.get("/marketplace/seller/books");
+export const getMarketplaceSellerBooks = async (options = {}) => {
+  const response = await api.get("/marketplace/seller/books", {
+    signal: options.signal,
+  });
   return response.data;
 };
 
@@ -225,6 +235,11 @@ export const getMarketplaceSellerAnalytics = async () => {
   return response.data;
 };
 
+export const deleteMarketplaceBook = async (bookId) => {
+  const response = await api.delete(`/marketplace/seller/books/${bookId}`);
+  return response.data;
+};
+
 export const recordMarketplaceBookView = async (bookId) => {
   const response = await api.post(`/marketplace/books/${bookId}/view`);
   return response.data;
@@ -240,6 +255,16 @@ export const recordMarketplaceBookPurchase = async (bookId) => {
   return response.data;
 };
 
+export const rentMarketplaceBook = async (bookId, payload = {}) => {
+  const response = await api.post(`/marketplace/books/${bookId}/rent`, payload);
+  return response.data;
+};
+
+export const tipMarketplaceBook = async (bookId, payload = {}) => {
+  const response = await api.post(`/marketplace/books/${bookId}/tip`, payload);
+  return response.data;
+};
+
 export const getMarketplaceBookReviews = async (bookId, params = {}) => {
   const response = await api.get(`/marketplace/books/${bookId}/reviews`, {
     params,
@@ -252,6 +277,59 @@ export const submitMarketplaceBookReview = async (bookId, payload) => {
     `/marketplace/books/${bookId}/reviews`,
     payload
   );
+  return response.data;
+};
+
+export const getReaderBooks = async (params = {}, options = {}) => {
+  const response = await api.get("/marketplace/reader/books", {
+    params,
+    signal: options.signal,
+  });
+  return response.data;
+};
+
+export const updateReaderBook = async (bookId, payload) => {
+  const response = await api.patch(
+    `/marketplace/reader/books/${bookId}`,
+    payload
+  );
+  return response.data;
+};
+
+export const removeReaderBook = async (bookId) => {
+  const response = await api.delete(`/marketplace/reader/books/${bookId}`);
+  return response.data;
+};
+
+export const addMarketplaceWishlist = async (bookId) => {
+  const response = await api.post(`/marketplace/books/${bookId}/wishlist`);
+  return response.data;
+};
+
+export const removeMarketplaceWishlist = async (bookId) => {
+  const response = await api.delete(`/marketplace/books/${bookId}/wishlist`);
+  return response.data;
+};
+
+export const getReaderBookStatuses = async (bookIds = [], options = {}) => {
+  const response = await api.post(
+    "/marketplace/reader/status",
+    { bookIds },
+    {
+      signal: options.signal,
+    }
+  );
+  return response.data;
+};
+
+// Support APIs
+export const createSupportTicket = async (payload) => {
+  const response = await api.post("/support", payload);
+  return response.data;
+};
+
+export const getUserSupportTickets = async () => {
+  const response = await api.get("/support/mine");
   return response.data;
 };
 
@@ -271,6 +349,31 @@ export const getComments = async (postId) => {
 
 export const likeComment = async (commentId) => {
   const response = await api.post(`/posts/comment/${commentId}/like`);
+  return response.data;
+};
+
+// Community Comment APIs
+export const addCommunityComment = async (
+  postId,
+  text,
+  parentCommentId = null
+) => {
+  const response = await api.post(`/community/post/${postId}/comments`, {
+    text,
+    parentCommentId,
+  });
+  return response.data;
+};
+
+export const getCommunityComments = async (postId, page = 1, limit = 20) => {
+  const response = await api.get(`/community/post/${postId}/comments`, {
+    params: { page, limit },
+  });
+  return response.data;
+};
+
+export const toggleCommunityCommentLike = async (commentId) => {
+  const response = await api.post(`/community/comment/${commentId}/like`);
   return response.data;
 };
 

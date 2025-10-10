@@ -243,14 +243,23 @@ const userSchema = new mongoose.Schema(
     preferences: {
       theme: {
         type: String,
-        enum: ["light", "dark", "auto"],
-        default: "light",
+        default: "default",
       },
       privacy: {
         profileVisibility: {
           type: String,
           enum: ["public", "followers", "private"],
           default: "public",
+        },
+        diaryVisibility: {
+          type: String,
+          enum: ["public", "followers", "private"],
+          default: "followers",
+        },
+        allowMessages: {
+          type: String,
+          enum: ["everyone", "followers", "nobody"],
+          default: "followers",
         },
         showEmail: {
           type: Boolean,
@@ -259,6 +268,14 @@ const userSchema = new mongoose.Schema(
         showAnalytics: {
           type: Boolean,
           default: true,
+        },
+        showOnlineStatus: {
+          type: Boolean,
+          default: true,
+        },
+        indexProfile: {
+          type: Boolean,
+          default: false,
         },
       },
       notifications: {
@@ -270,16 +287,50 @@ const userSchema = new mongoose.Schema(
           type: Boolean,
           default: true,
         },
-        followers: {
+        newFollowers: {
           type: Boolean,
           default: true,
         },
-        comments: {
+        messages: {
           type: Boolean,
           default: true,
+        },
+        purchases: {
+          type: Boolean,
+          default: true,
+        },
+        marketing: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      account: {
+        twoFactor: {
+          type: Boolean,
+          default: false,
+        },
+        backupCodesGenerated: {
+          type: Boolean,
+          default: false,
+        },
+        lastSecurityReview: {
+          type: Date,
         },
       },
     },
+
+    blockedUsers: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        blockedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     social: {
       favoriteFriends: {

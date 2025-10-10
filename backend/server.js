@@ -26,6 +26,7 @@ const socialRoutes = require("./routes/socialRoutes");
 const creatorRoutes = require("./routes/creatorRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
 const marketplaceRoutes = require("./routes/marketplaceRoutes");
+const supportRoutes = require("./routes/supportRoutes");
 
 const parseOrigins = (value) => {
   if (!value) return [];
@@ -115,6 +116,7 @@ app.use("/api/social", socialRoutes);
 app.use("/api/creator", creatorRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use("/api/support", supportRoutes);
 
 app.use("/uploads", express.static("uploads"));
 

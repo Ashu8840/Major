@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "../hooks/useAuth";
 import PostCard from "../components/PostCard";
+import ProfilePreviewCard from "../components/ProfilePreviewCard";
 import api from "../utils/api";
 import { resolveAvatarUrl } from "../utils/socialHelpers";
 import { useNotifications } from "../context/NotificationContext";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   IoAdd,
   IoSearch,
@@ -28,6 +29,7 @@ import {
   IoThumbsUp,
   IoCheckmarkCircle,
   IoTime,
+  IoArrowUpCircle,
 } from "react-icons/io5";
 
 const createComposerState = (overrides = {}) => ({
@@ -103,6 +105,8 @@ const getComposerValidationError = (composer) => {
   }
 };
 
+const FEED_PAGE_SIZE = 10;
+
 const Community = () => {
   const {
     currentUser,
@@ -111,6 +115,7 @@ const Community = () => {
     refreshProfile,
   } = useCurrentUser();
   const location = useLocation();
+  const navigate = useNavigate();
   const { addNotification } = useNotifications();
   const user = authUser;
   const [posts, setPosts] = useState([]);
@@ -135,6 +140,19 @@ const Community = () => {
   });
   const [savedPosts, setSavedPosts] = useState([]);
   const [highlightedPostId, setHighlightedPostId] = useState(null);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalPosts: 0,
+    hasNext: false,
+    hasPrev: false,
+  });
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [profilePreviewVisible, setProfilePreviewVisible] = useState(false);
+  const [profilePreview, setProfilePreview] = useState(null);
+  const [profilePreviewLoading, setProfilePreviewLoading] = useState(false);
+  const [profilePreviewError, setProfilePreviewError] = useState("");
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const highlightTimeoutRef = useRef(null);
   const seenPostIdsRef = useRef(new Set());
   const postsInitializedRef = useRef(false);
@@ -349,13 +367,237 @@ const Community = () => {
   }, [highlightedPostId, posts]);
 
   useEffect(() => {
-    // Debounce API calls to prevent 429 errors
+    if (typeof window === "undefined") return undefined;
+
+    const onScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  const loadCommunityData = useCallback(
+    async ({ page = 1, append = false, silent = false } = {}) => {
+      const isFirstPage = page === 1;
+      let suggestionsCount = 0;
+
+      try {
+        if (append) {
+          setIsLoadingMore(true);
+        } else if (!silent) {
+          setLoading(true);
+        }
+
+        if (!append && isFirstPage) {
+          setError(null);
+        }
+
+        if (isFirstPage) {
+          try {
+            const basicStats = await api.get("/community/stats");
+            setCommunityInsights((prev) => ({
+              ...prev,
+              totalUsers: basicStats.data.totalUsers || 3,
+              totalPosts: basicStats.data.totalPosts || 0,
+            }));
+          } catch (statsError) {
+            console.warn("Basic stats failed, using fallback", statsError);
+          }
+        }
+
+        const postsRequest = api
+          .get("/community/feed", {
+            params: {
+              sort: sortBy,
+              filter: filterBy,
+              page,
+              limit: FEED_PAGE_SIZE,
+            },
+          })
+          .catch(() => ({
+            data: {
+              posts: [],
+              pagination: {
+                currentPage: page,
+                totalPages: Math.max(page, 1),
+                totalPosts: 0,
+                hasNext: false,
+                hasPrev: page > 1,
+              },
+            },
+          }));
+
+        let postsRes;
+        let hashtagsRes;
+        let usersRes;
+
+        if (!append) {
+          [postsRes, hashtagsRes, usersRes] = await Promise.all([
+            postsRequest,
+            api
+              .get("/community/trending", { params: { limit: 5 } })
+              .catch(() => ({ data: [] })),
+            api
+              .get("/community/suggested-users", { params: { limit: 5 } })
+              .catch(() => ({ data: [] })),
+          ]);
+        } else {
+          postsRes = await postsRequest;
+        }
+
+        const fetchedPosts = Array.isArray(postsRes?.data?.posts)
+          ? [...postsRes.data.posts]
+          : [];
+
+        fetchedPosts.sort((a, b) => {
+          const aTime = new Date(a.createdAt || 0).getTime();
+          const bTime = new Date(b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
+
+        const nextPagination = postsRes?.data?.pagination || {
+          currentPage: page,
+          totalPages: Math.max(page, 1),
+          totalPosts: fetchedPosts.length,
+          hasNext: fetchedPosts.length >= FEED_PAGE_SIZE,
+          hasPrev: page > 1,
+        };
+
+        setPagination(nextPagination);
+
+        let combinedPosts = [];
+
+        if (append) {
+          setPosts((prev) => {
+            const existingIds = new Set(prev.map((item) => item._id));
+            const deduped = fetchedPosts.filter(
+              (post) => post?._id && !existingIds.has(post._id)
+            );
+            combinedPosts = [...prev, ...deduped];
+            return combinedPosts;
+          });
+        } else {
+          combinedPosts = fetchedPosts;
+          setPosts(combinedPosts);
+        }
+
+        if (!append) {
+          const hashtagList = Array.isArray(hashtagsRes?.data)
+            ? hashtagsRes.data.slice(0, 5)
+            : [];
+          const suggestionsList = Array.isArray(usersRes?.data)
+            ? usersRes.data.slice(0, 5)
+            : [];
+          suggestionsCount = suggestionsList.length;
+          setTrendingHashtags(hashtagList);
+          setSuggestedUsers(suggestionsList);
+        }
+
+        if (combinedPosts.length > 0) {
+          const postsMap = new Map(
+            combinedPosts
+              .filter((post) => post?._id)
+              .map((post) => [post._id, post])
+          );
+
+          setSavedPosts((prev) =>
+            prev.map((saved) => {
+              const updated = postsMap.get(saved._id);
+              return updated ? { ...updated, savedAt: saved.savedAt } : saved;
+            })
+          );
+        }
+
+        processFeedForNotifications(fetchedPosts);
+
+        if (isFirstPage) {
+          try {
+            const insightsRes = await api.get("/community/insights");
+            if (insightsRes.data) {
+              const nextInsights = { ...insightsRes.data };
+              if (Array.isArray(nextInsights.topUsers)) {
+                nextInsights.topUsers = nextInsights.topUsers.slice(0, 5);
+              }
+              if (Array.isArray(nextInsights.recentActivity)) {
+                nextInsights.recentActivity = nextInsights.recentActivity.slice(
+                  0,
+                  5
+                );
+              }
+              setCommunityInsights(nextInsights);
+            }
+          } catch (insightsError) {
+            console.warn(
+              "Detailed insights failed, using basic stats",
+              insightsError
+            );
+            const likesTotal = combinedPosts.reduce(
+              (total, post) => total + (post.likes?.length || 0),
+              0
+            );
+            const commentsTotal = combinedPosts.reduce(
+              (total, post) => total + (post.comments?.length || 0),
+              0
+            );
+            setCommunityInsights((prev) => ({
+              ...prev,
+              totalLikes: likesTotal,
+              totalComments: commentsTotal,
+              activeUsersToday: suggestionsCount,
+              engagementRate: 0,
+              newUsersToday: 0,
+            }));
+          }
+        }
+
+        if (!append) {
+          setRetryCount(0);
+        }
+      } catch (error) {
+        console.error("Error loading community data:", error);
+        if (append) {
+          toast.error(
+            error.response?.data?.message || "Failed to load more posts"
+          );
+        } else {
+          setError(
+            `Failed to load community data: ${
+              error.response?.status === 401
+                ? "Please log in again"
+                : error.message
+            }`
+          );
+          toast.error("Failed to load community data");
+        }
+      } finally {
+        if (append) {
+          setIsLoadingMore(false);
+        }
+        if (!append && !silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [filterBy, processFeedForNotifications, sortBy]
+  );
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
-      loadCommunityData();
+      setPagination((prev) => ({
+        ...prev,
+        currentPage: 1,
+        hasPrev: false,
+      }));
+      loadCommunityData({ page: 1, append: false, silent: false });
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [sortBy]);
+  }, [filterBy, loadCommunityData, sortBy]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -381,6 +623,23 @@ const Community = () => {
     }
   }, [savedPosts]);
 
+  useEffect(() => {
+    loadCommunityData({ page: 1, append: false, silent: false });
+  }, [loadCommunityData]);
+
+  useEffect(() => {
+    if (!profilePreviewVisible) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeProfilePreview();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [profilePreviewVisible]);
+
   // Cleanup blob URLs when component unmounts or media changes
   useEffect(() => {
     return () => {
@@ -392,106 +651,18 @@ const Community = () => {
       });
     };
   }, [mediaPreviews]);
-
-  const loadCommunityData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // First try to get basic stats to avoid 429 errors
-      try {
-        const basicStats = await api.get("/community/stats");
-        setCommunityInsights((prev) => ({
-          ...prev,
-          totalUsers: basicStats.data.totalUsers || 3,
-          totalPosts: basicStats.data.totalPosts || 0,
-        }));
-      } catch (statsError) {
-        console.warn("Basic stats failed, using fallback", statsError);
-      }
-
-      // Then get other data with individual error handling
-      const [postsRes, hashtagsRes, usersRes] = await Promise.all([
-        api
-          .get(`/community/feed?sort=${sortBy}&limit=20`)
-          .catch(() => ({ data: { posts: [] } })),
-        api.get("/community/trending?limit=5").catch(() => ({ data: [] })),
-        api
-          .get("/community/suggested-users?limit=5")
-          .catch(() => ({ data: [] })),
-      ]);
-
-      const fetchedPosts = Array.isArray(postsRes.data.posts)
-        ? [...postsRes.data.posts]
-        : [];
-
-      fetchedPosts.sort((a, b) => {
-        const aTime = new Date(a.createdAt || 0).getTime();
-        const bTime = new Date(b.createdAt || 0).getTime();
-        return bTime - aTime;
-      });
-
-      // Handle correct response structure from backend
-      setPosts(fetchedPosts);
-      processFeedForNotifications(fetchedPosts);
-      setTrendingHashtags(hashtagsRes.data || []); // Backend returns array directly
-      setSuggestedUsers(usersRes.data || []); // Backend returns array directly
-
-      setSavedPosts((prev) =>
-        prev.map((saved) => {
-          const latest = fetchedPosts.find((post) => post._id === saved._id);
-          if (!latest) return saved;
-          return { ...latest, savedAt: saved.savedAt };
-        })
-      );
-
-      // Try to get detailed insights (optional)
-      try {
-        const insightsRes = await api.get("/community/insights");
-        if (insightsRes.data) {
-          setCommunityInsights(insightsRes.data);
-        }
-      } catch (insightsError) {
-        console.warn(
-          "Detailed insights failed, using basic stats",
-          insightsError
-        );
-        // Keep the basic stats we already set
-        setCommunityInsights((prev) => ({
-          ...prev,
-          totalLikes:
-            fetchedPosts.reduce(
-              (total, post) => total + (post.likes?.length || 0),
-              0
-            ) || 0,
-          totalComments:
-            fetchedPosts.reduce(
-              (total, post) => total + (post.comments?.length || 0),
-              0
-            ) || 0,
-          activeUsersToday: usersRes.data?.length || 0,
-          engagementRate: 0,
-          newUsersToday: 0,
-        }));
-      }
-
-      setRetryCount(0);
-    } catch (error) {
-      console.error("Error loading community data:", error);
-      setError(
-        `Failed to load community data: ${
-          error.response?.status === 401 ? "Please log in again" : error.message
-        }`
-      );
-      toast.error("Failed to load community data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const retryLoadData = () => {
     setRetryCount((prev) => prev + 1);
-    loadCommunityData();
+    loadCommunityData({ page: 1, append: false, silent: false });
+  };
+
+  const handleLoadMore = () => {
+    if (isLoadingMore || !pagination.hasNext) return;
+    const nextPage = Math.min(
+      (pagination.currentPage || 1) + 1,
+      pagination.totalPages || (pagination.currentPage || 1) + 1
+    );
+    loadCommunityData({ page: nextPage, append: true, silent: true });
   };
 
   const handleLikePost = async (postId, payload) => {
@@ -576,9 +747,55 @@ const Community = () => {
         return newSet;
       });
       toast.success(response.data.message || "Follow status updated");
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.author?._id === userId
+            ? {
+                ...post,
+                author: {
+                  ...post.author,
+                  isFollowed: response.data.isFollowing,
+                  isFollowing: response.data.isFollowing,
+                },
+              }
+            : post
+        )
+      );
+
+      setSavedPosts((prev) =>
+        prev.map((post) =>
+          post.author?._id === userId
+            ? {
+                ...post,
+                author: {
+                  ...post.author,
+                  isFollowed: response.data.isFollowing,
+                  isFollowing: response.data.isFollowing,
+                },
+              }
+            : post
+        )
+      );
+
+      setSuggestedUsers((prev) =>
+        prev.map((user) =>
+          user._id === userId
+            ? { ...user, isFollowing: response.data.isFollowing }
+            : user
+        )
+      );
+
+      setProfilePreview((prev) =>
+        prev && prev._id === userId
+          ? { ...prev, isFollowing: response.data.isFollowing }
+          : prev
+      );
+
       if (typeof refreshProfile === "function") {
         await refreshProfile({ silent: true });
       }
+      return response.data;
     } catch (error) {
       console.error("Error following user:", error);
       toast.error(
@@ -588,10 +805,19 @@ const Community = () => {
             : "Try again later"
         }`
       );
+      return null;
     }
   };
 
   const handleSavePost = (postData, shouldSave) => {
+    setPosts((prev) =>
+      prev.map((item) =>
+        item._id === postData._id
+          ? { ...item, isSavedByUser: shouldSave }
+          : item
+      )
+    );
+
     setSavedPosts((prev) => {
       if (shouldSave) {
         const existing = prev.find((item) => item._id === postData._id);
@@ -618,7 +844,7 @@ const Community = () => {
     setPosts((prev) => prev.filter((post) => post._id !== postId));
     setSavedPosts((prev) => prev.filter((post) => post._id !== postId));
     // Refresh community data to get updated stats
-    loadCommunityData();
+    loadCommunityData({ page: 1, append: false, silent: true });
   };
 
   const changeComposerType = (type) => {
@@ -797,7 +1023,7 @@ const Community = () => {
       }
       closeComposer();
       toast.success("Post shared with the community!");
-      await loadCommunityData();
+      await loadCommunityData({ page: 1, append: false, silent: true });
       if (typeof refreshProfile === "function") {
         refreshProfile({ silent: true });
       }
@@ -837,6 +1063,128 @@ const Community = () => {
     });
   };
 
+  const handleAuthorClick = async (author) => {
+    const authorId =
+      author?._id || author?.id || author?.userId || author?.user?._id;
+    if (!authorId) return;
+
+    setProfilePreviewVisible(true);
+    setProfilePreview(null);
+    setProfilePreviewLoading(true);
+    setProfilePreviewError("");
+
+    try {
+      const response = await api.get(`/community/user/${authorId}/preview`);
+      const data = response.data || {};
+      const isFollowing = Boolean(
+        followedUsers.has(authorId) ||
+          author?.isFollowed ||
+          author?.isFollowing ||
+          data.isFollowing
+      );
+
+      setProfilePreview({
+        ...data,
+        isFollowing,
+      });
+    } catch (error) {
+      console.error("Failed to load profile preview", error);
+      setProfilePreviewError(
+        error.response?.data?.message ||
+          "Unable to load this profile preview right now."
+      );
+    } finally {
+      setProfilePreviewLoading(false);
+    }
+  };
+
+  const closeProfilePreview = () => {
+    setProfilePreviewVisible(false);
+    setProfilePreview(null);
+    setProfilePreviewError("");
+  };
+
+  const handlePreviewFollowToggle = async (userId) => {
+    const result = await handleFollowUser(userId);
+    if (!result) return;
+
+    setProfilePreview((prev) => {
+      if (!prev || prev._id !== userId) return prev;
+      const followerDelta = result.isFollowing
+        ? prev.isFollowing
+          ? 0
+          : 1
+        : prev.isFollowing
+        ? -1
+        : 0;
+      return {
+        ...prev,
+        isFollowing: result.isFollowing,
+        followerCount: Math.max((prev.followerCount || 0) + followerDelta, 0),
+      };
+    });
+
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.author?._id === userId
+          ? {
+              ...post,
+              author: {
+                ...post.author,
+                isFollowed: result.isFollowing,
+                isFollowing: result.isFollowing,
+              },
+            }
+          : post
+      )
+    );
+
+    setSavedPosts((prev) =>
+      prev.map((post) =>
+        post.author?._id === userId
+          ? {
+              ...post,
+              author: {
+                ...post.author,
+                isFollowed: result.isFollowing,
+                isFollowing: result.isFollowing,
+              },
+            }
+          : post
+      )
+    );
+
+    setSuggestedUsers((prev) =>
+      prev.map((user) =>
+        user._id === userId
+          ? { ...user, isFollowing: result.isFollowing }
+          : user
+      )
+    );
+  };
+
+  const handlePreviewViewProfile = (profile) => {
+    if (!profile) return;
+    closeProfilePreview();
+    const profileSlug = profile.username || profile._id;
+    if (profileSlug) {
+      navigate(`/profile-preview/${profileSlug}`);
+    }
+  };
+
+  const handlePreviewMessage = (profile) => {
+    toast.success(
+      profile?.displayName
+        ? `Messaging ${profile.displayName} coming soon!`
+        : "Messaging coming soon!"
+    );
+  };
+
+  const scrollToTop = () => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const removeFile = (index) => {
     // Cleanup the specific blob URL
     const urlToRevoke = mediaPreviews[index];
@@ -859,6 +1207,22 @@ const Community = () => {
       return nextState;
     });
     setMediaPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllMedia = () => {
+    setComposer((prev) => ({
+      ...prev,
+      media: [],
+      articleCover: prev.type === "article" ? null : prev.articleCover,
+    }));
+    setMediaPreviews((prev) => {
+      prev.forEach((url) => {
+        if (url?.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      return [];
+    });
   };
 
   return (
@@ -1005,7 +1369,7 @@ const Community = () => {
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
             {activeTab === "posts" && (
-              <>
+              <div className="space-y-6">
                 {/* LinkedIn-Style Post Composer */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
                   <div className="p-4">
@@ -1034,13 +1398,13 @@ const Community = () => {
                     </div>
 
                     {/* Quick Actions */}
-                    <div className="flex items-center justify-around mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mt-4 pt-3 border-t border-gray-100">
                       <button
                         onClick={() => {
                           openComposer("image");
                           // Focus on image upload when modal opens
                         }}
-                        className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="flex flex-1 items-center justify-center gap-2 px-3 py-2 sm:px-4 bg-blue-50/60 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[140px]"
                       >
                         <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
                           <IoImage className="w-4 h-4 text-blue-600" />
@@ -1050,7 +1414,7 @@ const Community = () => {
 
                       <button
                         onClick={() => openComposer("article")}
-                        className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                        className="flex flex-1 items-center justify-center gap-2 px-3 py-2 sm:px-4 bg-orange-50/60 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors min-w-[140px]"
                       >
                         <div className="w-6 h-6 bg-orange-100 rounded flex items-center justify-center">
                           <IoDocument className="w-4 h-4 text-orange-600" />
@@ -1060,7 +1424,7 @@ const Community = () => {
 
                       <button
                         onClick={() => openComposer("poll")}
-                        className="flex items-center gap-2 px-4 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        className="flex flex-1 items-center justify-center gap-2 px-3 py-2 sm:px-4 bg-green-50/60 text-green-600 hover:bg-green-50 rounded-lg transition-colors min-w-[140px]"
                       >
                         <div className="w-6 h-6 bg-green-100 rounded flex items-center justify-center">
                           <span className="text-green-600 text-xs font-bold">
@@ -1072,7 +1436,7 @@ const Community = () => {
 
                       <button
                         onClick={() => openComposer("event")}
-                        className="flex items-center gap-2 px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        className="flex flex-1 items-center justify-center gap-2 px-3 py-2 sm:px-4 bg-purple-50/60 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors min-w-[140px]"
                       >
                         <div className="w-6 h-6 bg-purple-100 rounded flex items-center justify-center">
                           <span className="text-purple-600 text-xs font-bold">
@@ -1447,6 +1811,34 @@ const Community = () => {
                               </div>
                             )}
 
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                              <label className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-300 cursor-pointer transition-colors">
+                                <IoImage className="w-4 h-4 text-blue-500" />
+                                <span>Attach media</span>
+                                <input
+                                  type="file"
+                                  accept="image/*,video/*"
+                                  multiple={composer.type !== "article"}
+                                  onChange={handleFileSelect}
+                                  className="hidden"
+                                />
+                              </label>
+                              <div className="text-xs text-gray-500 flex-1 min-w-[200px]">
+                                {composer.type === "article"
+                                  ? "Add a cover image to make your article pop."
+                                  : "Attach up to four images or short clips."}
+                              </div>
+                              {composer.media.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={clearAllMedia}
+                                  className="px-3 py-1 text-xs font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors"
+                                >
+                                  Clear all
+                                </button>
+                              )}
+                            </div>
+
                             {composer.media.length > 0 && (
                               <div className="space-y-3">
                                 <h4 className="text-sm font-semibold text-gray-700">
@@ -1491,61 +1883,44 @@ const Community = () => {
 
                           {/* Modal Footer */}
                           <div className="border-t border-gray-200 p-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="file"
-                                  accept="image/*,video/*"
-                                  multiple
-                                  onChange={handleFileSelect}
-                                  className="hidden"
-                                  id="composer-media-upload"
-                                />
-                                <label
-                                  htmlFor="composer-media-upload"
-                                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
-                                >
-                                  <IoImage className="w-5 h-5" />
-                                  <span className="text-sm font-medium">
-                                    {composer.type === "article"
-                                      ? "Cover"
-                                      : composer.type === "event"
-                                      ? "Banner"
-                                      : "Media"}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="text-xs sm:text-sm text-gray-500">
+                                {composerValidationError ? (
+                                  <span className="text-red-500 font-medium">
+                                    {composerValidationError}
                                   </span>
-                                </label>
-
+                                ) : (
+                                  "Your update will be visible to the entire community."
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3">
                                 <button
                                   type="button"
-                                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                  onClick={closeComposer}
+                                  className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                  disabled={composerSubmitting}
                                 >
-                                  <span className="text-sm">🎭</span>
-                                  <span className="text-sm font-medium">
-                                    Feeling
-                                  </span>
+                                  Cancel
                                 </button>
-
                                 <button
                                   type="button"
-                                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                  onClick={handleCreatePost}
+                                  disabled={
+                                    composerSubmitting ||
+                                    Boolean(composerValidationError)
+                                  }
+                                  className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                                 >
-                                  <span className="text-sm">📍</span>
-                                  <span className="text-sm font-medium">
-                                    Location
-                                  </span>
+                                  {composerSubmitting ? (
+                                    <>
+                                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                      Posting…
+                                    </>
+                                  ) : (
+                                    "Share now"
+                                  )}
                                 </button>
                               </div>
-
-                              <button
-                                onClick={handleCreatePost}
-                                disabled={
-                                  composerSubmitting ||
-                                  Boolean(composerValidationError)
-                                }
-                                className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                              >
-                                {composerSubmitting ? "Posting..." : "Post"}
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -1555,93 +1930,134 @@ const Community = () => {
                 </div>
 
                 {/* Posts Feed */}
-                <div className="space-y-6">
-                  {loading ? (
-                    <div className="space-y-6">
-                      {[...Array(3)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm animate-pulse"
-                        >
-                          <div className="flex items-start gap-4 mb-4">
-                            <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                            <div className="flex-1">
-                              <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                              <div className="h-3 bg-gray-200 rounded w-24"></div>
-                            </div>
-                          </div>
-                          <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                          <div className="h-48 bg-gray-200 rounded-xl"></div>
-                        </div>
-                      ))}
+                <div className="space-y-4">
+                  {loading && posts.length === 0 ? (
+                    <div className="flex justify-center py-16">
+                      <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                     </div>
                   ) : posts.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-                      <div className="text-6xl mb-4">📝</div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-200 p-12 text-center shadow-inner">
+                      <div className="text-4xl mb-3">📝</div>
+                      <h3 className="text-xl font-semibold text-blue-900 mb-2">
                         No posts yet
                       </h3>
-                      <p className="text-gray-600 mb-4">
-                        Be the first to share something with the community!
+                      <p className="text-blue-500 mb-6">
+                        Start the conversation by sharing something with the
+                        community.
                       </p>
                       <button
+                        type="button"
                         onClick={() => openComposer()}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors font-medium"
+                        className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition-colors"
                       >
-                        Create your first post
+                        <IoAdd className="w-5 h-5" />
+                        Share your first post
                       </button>
                     </div>
                   ) : (
-                    posts.map((post) => (
-                      <PostCard
-                        key={post._id}
-                        post={post}
-                        onLike={handleLikePost}
-                        onComment={() => loadCommunityData()}
-                        onDelete={handleDeletePost}
-                        onSave={handleSavePost}
-                        isSaved={savedPostIds.has(post._id)}
-                        isHighlighted={highlightedPostId === post._id}
-                      />
-                    ))
+                    posts.map((post) => {
+                      const isSaved = savedPostIds.has(post._id);
+                      const isHighlighted = highlightedPostId === post._id;
+                      return (
+                        <PostCard
+                          key={post._id}
+                          post={post}
+                          onLike={handleLikePost}
+                          onSave={handleSavePost}
+                          onDelete={handleDeletePost}
+                          onAuthorClick={handleAuthorClick}
+                          isSaved={isSaved}
+                          isHighlighted={isHighlighted}
+                        />
+                      );
+                    })
                   )}
                 </div>
-              </>
+
+                {pagination.hasNext && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          Loading more
+                        </>
+                      ) : (
+                        "Load more posts"
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === "saved" && (
               <div className="space-y-6">
-                {sortedSavedPosts.length === 0 ? (
-                  <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-                    <div className="text-6xl mb-4">🔖</div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      No saved posts yet
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      Tap the save icon on any community post to keep it here.
-                    </p>
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-200 p-6 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">
+                        Your saved posts
+                      </h3>
+                      <p className="text-sm text-blue-500">
+                        Everything you bookmark is synced here so you can
+                        revisit it later.
+                      </p>
+                    </div>
                     <button
+                      type="button"
                       onClick={() => setActiveTab("posts")}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors font-medium"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
                     >
-                      Explore posts
+                      Back to feed
                     </button>
                   </div>
-                ) : (
-                  sortedSavedPosts.map((post) => (
-                    <PostCard
-                      key={post._id}
-                      post={post}
-                      onLike={handleLikePost}
-                      onComment={() => loadCommunityData()}
-                      onDelete={handleDeletePost}
-                      onSave={handleSavePost}
-                      isSaved
-                      isHighlighted={highlightedPostId === post._id}
-                    />
-                  ))
-                )}
+                </div>
+
+                <div className="space-y-6">
+                  {sortedSavedPosts.length === 0 ? (
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-200 p-12 text-center">
+                      <div className="text-4xl mb-3">🔖</div>
+                      <h3 className="text-xl font-semibold text-blue-900 mb-2">
+                        Nothing saved yet
+                      </h3>
+                      <p className="text-blue-500">
+                        Tap the bookmark icon on any post to keep it here for
+                        quick access.
+                      </p>
+                    </div>
+                  ) : (
+                    sortedSavedPosts.map((post) => {
+                      const savedOn = post.savedAt
+                        ? new Date(post.savedAt).toLocaleString()
+                        : null;
+
+                      return (
+                        <div key={post._id} className="space-y-2">
+                          {savedOn && (
+                            <div className="text-xs text-blue-400 font-medium px-2">
+                              Saved on {savedOn}
+                            </div>
+                          )}
+                          <PostCard
+                            post={post}
+                            onLike={handleLikePost}
+                            onSave={handleSavePost}
+                            onDelete={handleDeletePost}
+                            onAuthorClick={handleAuthorClick}
+                            isSaved
+                            isHighlighted={highlightedPostId === post._id}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 
@@ -1679,7 +2095,7 @@ const Community = () => {
                         </p>
                       </div>
                     ) : (
-                      trendingHashtags.map((hashtag, index) => (
+                      trendingHashtags.slice(0, 5).map((hashtag, index) => (
                         <div
                           key={hashtag.hashtag || index}
                           className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
@@ -1737,57 +2153,91 @@ const Community = () => {
                         </p>
                       </div>
                     ) : (
-                      suggestedUsers.map((user) => {
-                        const avatarUrl =
-                          resolveAvatarUrl(user.profileImage) ||
-                          resolveAvatarUrl(user.avatar) ||
-                          user.profileImageUrl ||
-                          null;
-                        const displayName =
-                          user.displayName || user.username || "Creator";
+                      (() => {
+                        const refinedSuggestions = suggestedUsers
+                          .filter((user) => !followedUsers.has(user._id))
+                          .filter((user) => {
+                            const mutualCount =
+                              user.mutualConnections ||
+                              user.mutualFollowersCount ||
+                              (Array.isArray(user.mutualFollowers)
+                                ? user.mutualFollowers.length
+                                : 0);
+                            return mutualCount > 0;
+                          })
+                          .slice(0, 5);
 
-                        return (
-                          <div
-                            key={user._id}
-                            className="flex items-start gap-3"
-                          >
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg overflow-hidden">
-                              {avatarUrl ? (
-                                <img
-                                  src={avatarUrl}
-                                  alt={displayName}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                displayName.charAt(0).toUpperCase()
-                              )}
+                        if (refinedSuggestions.length === 0) {
+                          return (
+                            <div className="text-center py-4 text-blue-500 text-sm">
+                              No mutual connections to suggest right now.
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-blue-900 truncate">
-                                {displayName}
-                              </div>
-                              <div className="text-sm text-blue-600 line-clamp-2">
-                                {user.bio || "New community member"}
-                              </div>
-                              <div className="text-xs text-blue-400">
-                                {user.followersCount || 0} followers
-                              </div>
-                            </div>
-                            <button
-                              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                                followedUsers.has(user._id)
-                                  ? "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                                  : "bg-blue-600 hover:bg-blue-700 text-white"
-                              }`}
-                              onClick={() => handleFollowUser(user._id)}
+                          );
+                        }
+
+                        return refinedSuggestions.map((user) => {
+                          const avatarUrl =
+                            resolveAvatarUrl(user.profileImage) ||
+                            resolveAvatarUrl(user.avatar) ||
+                            user.profileImageUrl ||
+                            null;
+                          const displayName =
+                            user.displayName || user.username || "Creator";
+                          const mutualCount =
+                            user.mutualConnections ||
+                            user.mutualFollowersCount ||
+                            (Array.isArray(user.mutualFollowers)
+                              ? user.mutualFollowers.length
+                              : 0);
+
+                          return (
+                            <div
+                              key={user._id}
+                              className="flex items-start gap-3"
                             >
-                              {followedUsers.has(user._id)
-                                ? "Following"
-                                : "Follow"}
-                            </button>
-                          </div>
-                        );
-                      })
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg overflow-hidden">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={displayName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  displayName.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-blue-900 truncate">
+                                  {displayName}
+                                </div>
+                                <div className="text-sm text-blue-600 line-clamp-2">
+                                  {user.bio || "New community member"}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-blue-400">
+                                  <span>
+                                    {user.followersCount || 0} followers
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-500 font-medium">
+                                    {mutualCount} mutual
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                                  followedUsers.has(user._id)
+                                    ? "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                                }`}
+                                onClick={() => handleFollowUser(user._id)}
+                              >
+                                {followedUsers.has(user._id)
+                                  ? "Following"
+                                  : "Follow"}
+                              </button>
+                            </div>
+                          );
+                        });
+                      })()
                     )}
                   </div>
                 </div>
@@ -2027,14 +2477,14 @@ const Community = () => {
                   <div className="space-y-3">
                     {(communityInsights.recentActivity &&
                     communityInsights.recentActivity.length > 0
-                      ? communityInsights.recentActivity
+                      ? communityInsights.recentActivity.slice(0, 5)
                       : posts
                           .slice()
                           .sort(
                             (a, b) =>
                               new Date(b.createdAt) - new Date(a.createdAt)
                           )
-                          .slice(0, 10)
+                          .slice(0, 5)
                     ).map((activity) => (
                       <div
                         key={activity._id}
@@ -2074,6 +2524,36 @@ const Community = () => {
           <div className="lg:col-span-1">{/* Space for future widgets */}</div>
         </div>
       </div>
+
+      {profilePreviewVisible && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4 py-6"
+          onClick={closeProfilePreview}
+        >
+          <div onClick={(event) => event.stopPropagation()}>
+            <ProfilePreviewCard
+              profile={profilePreview}
+              loading={profilePreviewLoading}
+              error={profilePreviewError}
+              onClose={closeProfilePreview}
+              onFollowToggle={handlePreviewFollowToggle}
+              onMessage={handlePreviewMessage}
+              onViewProfile={handlePreviewViewProfile}
+            />
+          </div>
+        </div>
+      )}
+
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-3 bg-white/30 backdrop-blur-lg border border-white/40 text-blue-700 font-semibold px-4 py-2 rounded-full shadow-lg hover:bg-white/50 transition-all"
+        >
+          <IoArrowUpCircle className="w-6 h-6 drop-shadow" />
+          Move to top
+        </button>
+      )}
     </div>
   );
 };

@@ -1,103 +1,113 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useCurrentUser } from "../hooks/useAuth";
 import { useNotifications } from "../context/NotificationContext";
+import { useWallet } from "../context/WalletContext";
 import {
+  IoMenuOutline as IoMenu,
+  IoPeople,
+  IoSparkles,
   IoNotificationsOutline as IoNotifications,
-  IoSearch,
-  IoBook,
   IoChevronDown,
-  IoPerson,
   IoSettings,
-  IoExit,
+  IoLogOutOutline,
+  IoChatbubbles,
   IoMoon,
   IoSunny,
-  IoStar,
-  IoMenuOutline as IoMenu,
-  IoCloseOutline as IoClose,
-  IoHomeOutline as IoHome,
-  IoPeople,
-  IoChatbubbles,
-  IoTrophy,
-  IoHeart,
-  IoAnalytics,
-  IoCreate,
-  IoStorefront,
-  IoLibrary,
-  IoFlame,
-  IoCall,
-  IoVideocam,
-  IoShieldCheckmark,
-  IoSparkles,
+  IoWallet,
+  IoPersonCircleOutline,
 } from "react-icons/io5";
 
-export default function Navbar() {
-  const { currentUser, token, logout } = useCurrentUser();
+const NAV_ITEMS = [];
+
+const formatRelativeTime = (value) => {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Just now";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+const formatCurrency = (value) => {
+  const amount = Number(value || 0);
+  try {
+    const formatted = amount.toLocaleString("en-IN", {
+      minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    });
+    return `₹${formatted}`;
+  } catch {
+    return `₹${amount.toFixed(2)}`;
+  }
+};
+
+const getNotificationVisual = (notification) => {
+  switch (notification.type) {
+    case "message":
+      return {
+        icon: <IoChatbubbles className="text-purple-500" />,
+        badge: "Message",
+      };
+    case "streak":
+      return {
+        icon: <IoSparkles className="text-orange-500" />,
+        badge: "Milestone",
+      };
+    case "community":
+      return {
+        icon: <IoPeople className="text-blue-500" />,
+        badge: "Community",
+      };
+    default:
+      return {
+        icon: <IoNotifications className="text-blue-500" />,
+        badge: "Update",
+      };
+  }
+};
+
+export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
   const navigate = useNavigate();
+  const { currentUser, token, logout } = useCurrentUser();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
+  const { balance, maxBalance, topUpAmount, canTopUp, topUp } = useWallet();
+
   const displayName =
-    currentUser?.displayName || currentUser?.username || "User";
+    currentUser?.displayName || currentUser?.username || "Major writer";
   const profileImage = currentUser?.profileImageUrl;
   const initials =
-    currentUser?.initials || displayName[0]?.toUpperCase() || "U";
+    currentUser?.initials || displayName?.charAt(0)?.toUpperCase() || "M";
+
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] =
     useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showWalletDropdown, setShowWalletDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check localStorage or system preference
-    const saved = localStorage.getItem("theme");
-    if (saved) {
+    if (typeof window === "undefined") return false;
+    const saved = window.localStorage?.getItem("theme");
+    if (saved === "dark" || saved === "light") {
       return saved === "dark";
     }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
-  const dropdownRef = useRef(null);
+
+  const profileRef = useRef(null);
   const notificationsRef = useRef(null);
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
-    useNotifications();
+  const walletRef = useRef(null);
 
-  const notificationTone = useMemo(
-    () => ({
-      new_post: {
-        icon: <IoPeople className="text-blue-500" />,
-        badge: "New post",
-      },
-      message: {
-        icon: <IoChatbubbles className="text-purple-500" />,
-        badge: "Message",
-      },
-      streak: {
-        icon: <IoFlame className="text-orange-500" />,
-        badge: "Daily streak",
-      },
-      points: {
-        icon: <IoSparkles className="text-amber-500" />,
-        badge: "Points",
-      },
-      voice_call: {
-        icon: <IoCall className="text-emerald-500" />,
-        badge: "Voice call",
-      },
-      video_call: {
-        icon: <IoVideocam className="text-indigo-500" />,
-        badge: "Video call",
-      },
-      security: {
-        icon: <IoShieldCheckmark className="text-sky-500" />,
-        badge: "Security",
-      },
-      general: {
-        icon: <IoNotifications className="text-blue-500" />,
-        badge: "Update",
-      },
-    }),
-    []
-  );
-
-  // Close dropdowns when clicking outside
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickAway = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfileDropdown(false);
       }
       if (
@@ -106,88 +116,82 @@ export default function Navbar() {
       ) {
         setShowNotificationsDropdown(false);
       }
-      // Close mobile menu when clicking outside
-      if (showMobileMenu && !event.target.closest(".mobile-menu-container")) {
-        setShowMobileMenu(false);
+      if (walletRef.current && !walletRef.current.contains(event.target)) {
+        setShowWalletDropdown(false);
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMobileMenu]);
-  const handleNotificationToggle = () => {
-    setShowNotificationsDropdown((prev) => !prev);
-  };
+    };
 
-  const handleThemeToggle = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    localStorage.setItem("theme", newTheme ? "dark" : "light");
+    document.addEventListener("mousedown", handleClickAway);
+    return () => document.removeEventListener("mousedown", handleClickAway);
+  }, []);
 
-    // Apply theme to document
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  };
-
-  // Apply theme on component mount
   useEffect(() => {
+    if (typeof document === "undefined") return;
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (event) => {
+      const stored = window.localStorage?.getItem("theme");
+      if (!stored) {
+        setIsDarkMode(event.matches);
+      }
+    };
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setShowMobileMenu(false);
+    const handler = () => {
+      setShowWalletDropdown(true);
+      setShowProfileDropdown(false);
+      setShowNotificationsDropdown(false);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("wallet:open", handler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("wallet:open", handler);
       }
     };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const handleProfileClick = () => {
-    setShowProfileDropdown(!showProfileDropdown);
-  };
+  const navLinkClass = useMemo(
+    () =>
+      ({ isActive }) =>
+        `inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+          isActive
+            ? "bg-blue-600 text-white shadow"
+            : "text-blue-900/80 hover:bg-blue-100 hover:text-blue-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        }`,
+    []
+  );
 
-  const handleProfileNavigate = () => {
-    navigate("/profile");
-    setShowProfileDropdown(false);
+  const handleThemeToggle = () => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    if (typeof window !== "undefined") {
+      window.localStorage?.setItem("theme", next ? "dark" : "light");
+    }
   };
 
   const handleLogout = () => {
     logout();
     setShowProfileDropdown(false);
-    window.location.href = "/";
-  };
-  const formatRelativeTime = (value) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const diffMs = Date.now() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    if (diffMinutes < 1) return "Just now";
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
+    navigate("/login");
   };
 
   const handleNotificationSelect = (notification) => {
     if (!notification) return;
     markAsRead(notification.id);
     setShowNotificationsDropdown(false);
-
     if (notification.link) {
       navigate(notification.link, { state: notification.meta || {} });
     } else if (notification.meta?.postId) {
@@ -197,25 +201,49 @@ export default function Navbar() {
     }
   };
 
-  const renderNotificationItem = (notification) => {
-    const visuals =
-      notificationTone[notification.type] || notificationTone.general;
-    const isUnread = !notification.isRead;
+  const handleTopUp = () => {
+    const result = topUp();
+    if (result.success && result.amount > 0) {
+      toast.success(
+        `Added ${formatCurrency(result.amount)}. New balance: ${formatCurrency(
+          balance + result.amount
+        )}`
+      );
+    } else {
+      toast.error(
+        `Wallet limit reached. You can store up to ${formatCurrency(
+          maxBalance
+        )}.`
+      );
+    }
+  };
 
+  const walletProgress = Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round((Number(balance || 0) / Number(maxBalance || 1)) * 100)
+    )
+  );
+
+  const renderNotificationItem = (notification) => {
+    const visuals = getNotificationVisual(notification);
+    const unread = !notification.isRead;
     return (
       <button
         key={notification.id}
+        type="button"
         onClick={() => handleNotificationSelect(notification)}
-        className={`w-full text-left px-4 py-3 flex gap-3 transition-colors ${
-          isUnread ? "bg-blue-50/70 hover:bg-blue-100" : "hover:bg-gray-50"
+        className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${
+          unread ? "bg-blue-50/80 hover:bg-blue-100" : "hover:bg-gray-50"
         }`}
       >
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white shadow-inner flex items-center justify-center">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-inner">
           {visuals.icon}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-sm text-blue-900 truncate">
+            <p className="truncate text-sm font-semibold text-blue-900 dark:text-white">
               {notification.title}
             </p>
             <span className="text-xs text-gray-500">
@@ -223,450 +251,274 @@ export default function Navbar() {
             </span>
           </div>
           {notification.message && (
-            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+            <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
               {notification.message}
             </p>
           )}
           {visuals.badge && (
-            <span className="inline-flex items-center mt-2 text-[11px] uppercase tracking-wide font-semibold text-blue-500 bg-blue-100/80 rounded-full px-2 py-0.5">
+            <span className="mt-2 inline-flex items-center text-[11px] font-semibold uppercase tracking-wide text-blue-500">
               {visuals.badge}
             </span>
           )}
         </div>
-        {isUnread && (
-          <span className="w-2 h-2 rounded-full bg-blue-500 self-center" />
-        )}
+        {unread && <span className="mt-1 h-2 w-2 rounded-full bg-blue-600" />}
       </button>
     );
   };
 
   return (
-    <>
-      <header className="fixed top-0 left-0 right-0 z-40 border-b border-blue-100 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 backdrop-blur transition-colors">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          {/* Logo / Mobile Menu Button */}
-          <div className="flex items-center">
-            {/* Desktop Logo */}
-            <a href="/" className="hidden lg:flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <IoBook className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-blue-900 dark:text-white">
-                DiaryApp
-              </span>
-            </a>
+    <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-blue-100/80 bg-white/90 backdrop-blur-xl dark:border-gray-800/60 dark:bg-gray-900/85">
+      <div className="mx-auto flex h-full max-w-7xl items-center px-4 sm:px-6">
+        <div className="flex w-full items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof onToggleSidebar === "function") {
+                onToggleSidebar();
+              }
+            }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 lg:hidden"
+            aria-label="Toggle navigation"
+            aria-pressed={Boolean(isSidebarOpen)}
+          >
+            <IoMenu className="h-6 w-6" />
+          </button>
 
-            {/* Mobile Menu Button */}
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="flex items-center gap-3"
+          >
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 text-lg font-semibold text-white shadow-lg">
+              M
+            </span>
+            <span className="text-lg font-semibold text-blue-900 dark:text-white">
+              Major
+            </span>
+          </button>
+          {NAV_ITEMS.length > 0 && (
+            <nav className="ml-4 hidden items-center gap-1 rounded-full bg-blue-50/60 px-2 py-1 dark:bg-gray-800/80 lg:flex">
+              {NAV_ITEMS.map((item) => (
+                <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
             <button
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className="lg:hidden flex items-center space-x-2 text-blue-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+              type="button"
+              onClick={handleThemeToggle}
+              className="hidden h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200 lg:inline-flex"
+              aria-label="Toggle theme"
             >
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <IoMenu className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">DiaryApp</span>
+              {isDarkMode ? (
+                <IoSunny className="h-5 w-5" />
+              ) : (
+                <IoMoon className="h-5 w-5" />
+              )}
             </button>
-          </div>
 
-          {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search"
-                className="w-full pl-10 pr-4 py-2 bg-blue-50 dark:bg-gray-700 border border-blue-100 dark:border-gray-600 rounded-lg text-sm text-blue-900 dark:text-gray-100 placeholder-blue-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white dark:focus:bg-gray-600 transition-colors"
-              />
-              <IoSearch className="w-4 h-4 text-blue-400 dark:text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            </div>
-          </div>
+            <div className="relative" ref={walletRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWalletDropdown((prev) => !prev);
+                  setShowProfileDropdown(false);
+                  setShowNotificationsDropdown(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-50/90 px-2 py-1.5 text-sm font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 dark:bg-gray-800/90 dark:text-blue-200"
+                aria-haspopup="true"
+                aria-expanded={showWalletDropdown}
+                aria-label="Wallet menu"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner dark:bg-gray-900 dark:text-blue-200">
+                  <IoWallet className="h-5 w-5" />
+                </span>
+                <span className="hidden whitespace-nowrap lg:inline">
+                  {formatCurrency(balance)}
+                </span>
+              </button>
 
-          {/* Right side */}
-          <div className="flex items-center space-x-4">
-            {token ? (
-              <>
-                {/* Notifications */}
-                <div className="relative" ref={notificationsRef}>
-                  <button
-                    onClick={handleNotificationToggle}
-                    className={`relative p-2 rounded-lg transition-colors ${
-                      showNotificationsDropdown
-                        ? "bg-blue-100 text-blue-700"
-                        : "text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                    }`}
-                    aria-haspopup="true"
-                    aria-expanded={showNotificationsDropdown}
-                  >
-                    <IoNotifications className="w-5 h-5" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {showNotificationsDropdown && (
-                    <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 border border-blue-100 dark:border-gray-700 shadow-2xl rounded-2xl overflow-hidden z-50">
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-blue-100 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-white dark:from-gray-700 dark:to-gray-800">
-                        <div>
-                          <h4 className="text-sm font-semibold text-blue-900 dark:text-white">
-                            Notifications
-                          </h4>
-                          <p className="text-xs text-blue-500 dark:text-gray-300">
-                            Stay up to date with your community
-                          </p>
-                        </div>
-                        {notifications.length > 0 && (
-                          <button
-                            onClick={markAllAsRead}
-                            className="text-xs font-medium text-blue-600 hover:text-blue-500"
-                          >
-                            Mark all read
-                          </button>
-                        )}
-                      </div>
-                      <div className="max-h-80 overflow-y-auto divide-y divide-blue-50 dark:divide-gray-700">
-                        {notifications.length === 0 ? (
-                          <div className="px-4 py-8 text-center text-sm text-blue-500 dark:text-gray-300">
-                            You're all caught up!
-                          </div>
-                        ) : (
-                          notifications.map(renderNotificationItem)
-                        )}
-                      </div>
-                      <div className="px-4 py-3 border-t border-blue-100 dark:border-gray-700 bg-blue-50/60 dark:bg-gray-900/40 text-right">
-                        <button
-                          onClick={() => {
-                            markAllAsRead();
-                            setShowNotificationsDropdown(false);
-                          }}
-                          className="text-sm font-medium text-blue-600 hover:text-blue-500"
-                        >
-                          Close
-                        </button>
-                      </div>
+              {showWalletDropdown && (
+                <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-blue-100/80 bg-white p-4 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900 dark:text-white">
+                        Wallet balance
+                      </p>
+                      <p className="text-xs text-blue-500 dark:text-gray-300">
+                        Limit {formatCurrency(maxBalance)}
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Theme Toggle - Hidden on mobile */}
-                <button
-                  onClick={handleThemeToggle}
-                  className="hidden lg:block p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  aria-label="Toggle theme"
-                >
-                  {isDarkMode ? (
-                    <IoSunny className="w-5 h-5" />
-                  ) : (
-                    <IoMoon className="w-5 h-5" />
-                  )}
-                </button>
-
-                {/* User Profile Dropdown - Hidden on mobile */}
-                <div className="relative hidden lg:block" ref={dropdownRef}>
-                  <button
-                    onClick={handleProfileClick}
-                    className="flex items-center space-x-2 p-2 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    {profileImage ? (
-                      <img
-                        src={profileImage}
-                        alt="Profile"
-                        className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {initials}
-                        </span>
-                      </div>
-                    )}
-                    <span className="font-medium text-blue-900 dark:text-white">
-                      {displayName}
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600 dark:bg-gray-800 dark:text-blue-200">
+                      {walletProgress}% full
                     </span>
-                    <IoChevronDown
-                      className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${
-                        showProfileDropdown ? "rotate-180" : ""
-                      }`}
+                  </div>
+                  <p className="text-3xl font-bold text-blue-900 dark:text-white">
+                    {formatCurrency(balance)}
+                  </p>
+                  <p className="mt-1 text-xs uppercase tracking-wide text-blue-500 dark:text-gray-400">
+                    Available balance
+                  </p>
+                  <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-gray-700">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all"
+                      style={{ width: `${walletProgress}%` }}
                     />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTopUp}
+                    disabled={!canTopUp}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400/60`}
+                  >
+                    Top up {formatCurrency(topUpAmount)}
                   </button>
-
-                  {/* Dropdown Menu */}
-                  {showProfileDropdown && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 z-50">
-                      <div className="py-2">
-                        <button
-                          onClick={handleProfileNavigate}
-                          className="flex items-center gap-3 w-full px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <IoPerson className="w-5 h-5" />
-                          <span className="font-medium">Profile</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigate("/upgrade");
-                            setShowProfileDropdown(false);
-                          }}
-                          className="flex items-center gap-3 w-full px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <IoStar className="w-5 h-5" />
-                          <span className="font-medium">Upgrade to Pro</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigate("/settings");
-                            setShowProfileDropdown(false);
-                          }}
-                          className="flex items-center gap-3 w-full px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <IoSettings className="w-5 h-5" />
-                          <span className="font-medium">Settings</span>
-                        </button>
-                        <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
-                        <button
-                          onClick={handleLogout}
-                          className="flex items-center gap-3 w-full px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors rounded-b-lg"
-                        >
-                          <IoExit className="w-5 h-5" />
-                          <span className="font-medium">Logout</span>
-                        </button>
-                      </div>
-                    </div>
+                  {!canTopUp && (
+                    <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-600 dark:bg-gray-800 dark:text-blue-200">
+                      You've reached the maximum balance. Spend funds to enable
+                      the next top-up.
+                    </p>
                   )}
                 </div>
-              </>
-            ) : (
-              <div className="flex items-center space-x-3">
-                <a
-                  href="/login"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Login
-                </a>
-                <a
-                  href="/signup"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-                >
-                  Sign Up
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile Menu Sidebar Overlay */}
-      <div
-        className={`lg:hidden fixed inset-0 z-50 transition-all duration-300 ${
-          showMobileMenu ? "visible" : "invisible"
-        }`}
-      >
-        {/* Backdrop */}
-        <div
-          className={`fixed inset-0 backdrop-blur-sm bg-white/20 dark:bg-black/20 transition-all duration-300 ${
-            showMobileMenu
-              ? "backdrop-blur-sm bg-opacity-20"
-              : "backdrop-blur-none bg-opacity-0"
-          }`}
-          onClick={() => setShowMobileMenu(false)}
-        ></div>
-
-        {/* Sliding Sidebar */}
-        <div
-          className={`mobile-menu-container fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white dark:bg-gray-800 shadow-2xl transform transition-transform duration-300 ease-out ${
-            showMobileMenu ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          {/* Sidebar Header */}
-          <div className="flex items-center justify-between p-6 border-b border-blue-100 dark:border-gray-700">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <IoBook className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-blue-900 dark:text-white">
-                DiaryApp
-              </span>
-            </div>
-            <button
-              onClick={() => setShowMobileMenu(false)}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <IoClose className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="px-6 py-4 space-y-3 overflow-y-auto h-full pb-20">
-            {/* Mobile Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search"
-                className="w-full pl-10 pr-4 py-2 bg-blue-50 dark:bg-gray-700 border border-blue-100 dark:border-gray-600 rounded-lg text-sm text-blue-900 dark:text-gray-100 placeholder-blue-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <IoSearch className="w-4 h-4 text-blue-400 dark:text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              )}
             </div>
 
-            {/* Mobile Navigation */}
-            {token && (
-              <nav className="space-y-2">
-                <a
-                  href="/"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoHome className="w-5 h-5" />
-                  <span className="font-medium">Home</span>
-                </a>
-                <a
-                  href="/diary"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoBook className="w-5 h-5" />
-                  <span className="font-medium">Diary</span>
-                </a>
-                <a
-                  href="/community"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoPeople className="w-5 h-5" />
-                  <span className="font-medium">Community</span>
-                </a>
-                <a
-                  href="/leaderboard"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoTrophy className="w-5 h-5" />
-                  <span className="font-medium">Leaderboard</span>
-                </a>
-                <a
-                  href="/social"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoHeart className="w-5 h-5" />
-                  <span className="font-medium">Social</span>
-                </a>
-                <a
-                  href="/analytics"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoAnalytics className="w-5 h-5" />
-                  <span className="font-medium">Analytics</span>
-                </a>
-                <a
-                  href="/creator-studio"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoCreate className="w-5 h-5" />
-                  <span className="font-medium">Creator Studio</span>
-                </a>
-                <a
-                  href="/marketplace"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoStorefront className="w-5 h-5" />
-                  <span className="font-medium">Marketplace</span>
-                </a>
-                <a
-                  href="/readers-lounge"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoLibrary className="w-5 h-5" />
-                  <span className="font-medium">Reader's Lounge</span>
-                </a>
-                <a
-                  href="/upgrade"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoStar className="w-5 h-5" />
-                  <span className="font-medium">Upgrade</span>
-                </a>
-                <a
-                  href="/chat"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="flex items-center space-x-3 px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoChatbubbles className="w-5 h-5" />
-                  <span className="font-medium">Connect</span>
-                </a>
-              </nav>
-            )}
-
-            {/* Mobile User Actions */}
-            {token ? (
-              <div className="pt-4 border-t border-blue-100 dark:border-gray-600 space-y-2">
-                <button
-                  onClick={() => {
-                    handleProfileNavigate();
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-3 w-full px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoPerson className="w-5 h-5" />
-                  <span className="font-medium">Profile</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/settings");
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-3 w-full px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <IoSettings className="w-5 h-5" />
-                  <span className="font-medium">Settings</span>
-                </button>
-                <button
-                  onClick={handleThemeToggle}
-                  className="flex items-center space-x-3 w-full px-3 py-3 rounded-lg text-blue-900 dark:text-white hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  {isDarkMode ? (
-                    <IoSunny className="w-5 h-5" />
-                  ) : (
-                    <IoMoon className="w-5 h-5" />
-                  )}
-                  <span className="font-medium">
-                    {isDarkMode ? "Light Mode" : "Dark Mode"}
+            <div className="relative" ref={notificationsRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotificationsDropdown((prev) => !prev);
+                  setShowProfileDropdown(false);
+                  setShowWalletDropdown(false);
+                }}
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
+                aria-label="Notifications"
+              >
+                <IoNotifications className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-semibold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
-                </button>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-3 w-full px-3 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                >
-                  <IoExit className="w-5 h-5" />
-                  <span className="font-medium">Logout</span>
-                </button>
-              </div>
-            ) : (
-              <div className="pt-4 border-t border-blue-100 dark:border-gray-600 space-y-2">
-                <a
-                  href="/login"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="block w-full text-center py-3 text-blue-600 hover:text-blue-800 font-medium border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
-                >
-                  Login
-                </a>
-                <a
-                  href="/signup"
-                  onClick={() => setShowMobileMenu(false)}
-                  className="block w-full text-center py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Sign Up
-                </a>
-              </div>
-            )}
+                )}
+              </button>
+              {showNotificationsDropdown && (
+                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-hidden rounded-2xl border border-blue-100/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                  <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/70">
+                    <span className="text-sm font-semibold text-blue-900 dark:text-white">
+                      Notifications
+                    </span>
+                    <button
+                      type="button"
+                      onClick={markAllAsRead}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-10 text-center text-sm text-blue-500 dark:text-gray-300">
+                        You're all caught up!
+                      </div>
+                    ) : (
+                      notifications.map((notification) =>
+                        renderNotificationItem(notification)
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={profileRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileDropdown((prev) => !prev);
+                  setShowNotificationsDropdown(false);
+                  setShowWalletDropdown(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-1.5 text-blue-900 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-100"
+              >
+                <span className="h-9 w-9 overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-sm font-semibold text-white">
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt={displayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center">
+                      {initials}
+                    </span>
+                  )}
+                </span>
+                <div className="hidden flex-col items-start xl:flex">
+                  <span className="text-sm font-semibold">{displayName}</span>
+                  <span className="text-xs text-blue-500 dark:text-gray-300">
+                    {token ? "Creator" : "Guest"}
+                  </span>
+                </div>
+                <IoChevronDown className="hidden h-4 w-4 text-blue-400 xl:block" />
+              </button>
+              {showProfileDropdown && (
+                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-blue-100/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                  <div className="bg-blue-50/70 px-4 py-3 dark:bg-gray-800/70">
+                    <p className="text-sm font-semibold text-blue-900 dark:text-white">
+                      {displayName}
+                    </p>
+                    {currentUser?.email && (
+                      <p className="truncate text-xs text-blue-500 dark:text-gray-300">
+                        {currentUser.email}
+                      </p>
+                    )}
+                  </div>
+                  <div className="py-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/profile")}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <IoPersonCircleOutline className="h-4 w-4" />
+                      View profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/settings")}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <IoSettings className="h-4 w-4" />
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/chat")}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <IoChatbubbles className="h-4 w-4" />
+                      Messages
+                    </button>
+                  </div>
+                  <div className="border-t border-blue-100 px-4 py-3 dark:border-gray-700">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2 text-sm font-semibold text-rose-600 hover:text-rose-700"
+                    >
+                      <IoLogOutOutline className="h-4 w-4" />
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </>
+    </header>
   );
 }

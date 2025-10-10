@@ -176,16 +176,43 @@ const updateEntry = async (req, res) => {
 };
 
 const deleteEntry = async (req, res) => {
-  const entry = await Entry.findById(req.params.id);
+  try {
+    const entry = await Entry.findById(req.params.id).populate("media");
 
-  if (entry) {
+    if (!entry) {
+      return res.status(404).json({ message: "Entry not found" });
+    }
+
     if (entry.author.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: "Not authorized" });
     }
-    await entry.remove();
+
+    if (Array.isArray(entry.media) && entry.media.length > 0) {
+      await Promise.all(
+        entry.media.map(async (mediaDoc) => {
+          try {
+            if (mediaDoc?.public_id) {
+              await cloudinary.uploader.destroy(mediaDoc.public_id);
+            }
+          } catch (error) {
+            console.warn("Failed to remove media from Cloudinary", error);
+          }
+
+          try {
+            await Media.findByIdAndDelete(mediaDoc._id);
+          } catch (error) {
+            console.warn("Failed to delete media record", error);
+          }
+        })
+      );
+    }
+
+    await Entry.deleteOne({ _id: entry._id });
+
     res.json({ message: "Entry removed" });
-  } else {
-    res.status(404).json({ message: "Entry not found" });
+  } catch (error) {
+    console.error("Delete entry error:", error);
+    res.status(500).json({ message: "Failed to delete entry" });
   }
 };
 

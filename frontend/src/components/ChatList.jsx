@@ -15,7 +15,7 @@ const ChatList = ({ chats, activeChat, onChatSelect, isLoading = false }) => {
   }, [chats, searchTerm]);
 
   return (
-    <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 lg:border-r border-blue-100 dark:border-gray-700 flex flex-col h-full no-scroll">
+    <div className="w-full lg:w-[320px] xl:w-[360px] 2xl:w-[380px] bg-white dark:bg-gray-800 lg:border-r border-blue-100 dark:border-gray-700 flex flex-col h-full no-scroll">
       {/* Header - Hidden on mobile (handled by parent) */}
       <div className="hidden lg:flex items-center justify-between p-4 border-b border-blue-100 dark:border-gray-700 flex-shrink-0">
         <h2 className="text-xl font-semibold text-blue-900 dark:text-white">

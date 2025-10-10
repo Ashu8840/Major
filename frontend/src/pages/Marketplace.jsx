@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -23,8 +30,10 @@ import {
   IoBookOutline,
   IoChatbubbleEllipsesOutline,
   IoStarOutline,
+  IoTrashOutline,
 } from "react-icons/io5";
 import { AuthContext } from "../context/AuthContext";
+import { useWallet } from "../context/WalletContext";
 import {
   API_HOST,
   createMarketplaceBook,
@@ -37,6 +46,11 @@ import {
   recordMarketplaceBookPurchase,
   recordMarketplaceBookView,
   registerMarketplaceSeller,
+  addMarketplaceWishlist,
+  removeMarketplaceWishlist,
+  getReaderBookStatuses,
+  updateReaderBook,
+  deleteMarketplaceBook,
 } from "../utils/api";
 import { downloadFileFromUrl, sanitizeFilename } from "../utils/fileDownload";
 
@@ -196,6 +210,13 @@ export default function Marketplace() {
   const { user, userProfile } = useContext(AuthContext);
   const isAuthenticated = Boolean(user);
   const navigate = useNavigate();
+  const { hasEnough, deduct } = useWallet();
+
+  const requestWalletTopUp = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("wallet:open"));
+    }
+  }, []);
 
   const [activeTab, setActiveTab] = useState("browse");
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,6 +243,9 @@ export default function Marketplace() {
   const [activityPage, setActivityPage] = useState(1);
   const [topBooksPage, setTopBooksPage] = useState(1);
   const [analyticsReviewPage, setAnalyticsReviewPage] = useState(1);
+  const [readerStatuses, setReaderStatuses] = useState({});
+  const [wishlistProcessing, setWishlistProcessing] = useState({});
+  const [deletingBookIds, setDeletingBookIds] = useState({});
 
   const [registrationForm, setRegistrationForm] = useState({
     storeName: userProfile?.displayName || userProfile?.username || "",
@@ -283,9 +307,62 @@ export default function Marketplace() {
     }
   }, [searchQuery, selectedGenre, priceFilter, sortBy]);
 
+  const refreshReaderStatuses = useCallback(
+    async (ids = [], options = {}) => {
+      if (!isAuthenticated) {
+        setReaderStatuses({});
+        return;
+      }
+
+      const targetIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+
+      if (!targetIds.length) {
+        setReaderStatuses({});
+        return;
+      }
+
+      try {
+        const data = await getReaderBookStatuses(targetIds);
+        const incoming = data?.statuses || {};
+        if (options.merge) {
+          setReaderStatuses((prev) => {
+            const next = { ...prev };
+            targetIds.forEach((id) => {
+              if (incoming[id]) {
+                next[id] = incoming[id];
+              } else {
+                delete next[id];
+              }
+            });
+            return next;
+          });
+        } else {
+          setReaderStatuses(incoming);
+        }
+      } catch (error) {
+        setReaderStatuses({});
+      }
+    },
+    [isAuthenticated]
+  );
+
   useEffect(() => {
     fetchBooks();
   }, [fetchBooks]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setReaderStatuses({});
+      return;
+    }
+
+    if (!books.length) {
+      setReaderStatuses({});
+      return;
+    }
+
+    refreshReaderStatuses(books.map((item) => item._id));
+  }, [books, isAuthenticated, refreshReaderStatuses]);
 
   const loadSellerContext = useCallback(async () => {
     if (!isAuthenticated) {
@@ -330,14 +407,116 @@ export default function Marketplace() {
     loadSellerContext();
   }, [loadSellerContext]);
 
+  const sellerApproved = sellerStatus === "approved";
+
+  const deleteToastIdRef = useRef(null);
+
+  const handleDeleteBook = useCallback(
+    async (book, { refreshBrowse = true, refreshSeller = true } = {}) => {
+      if (!book?._id) return;
+
+      const bookId = book._id;
+      setDeletingBookIds((prev) => ({ ...prev, [bookId]: true }));
+
+      try {
+        await deleteMarketplaceBook(bookId);
+        toast.success("Book deleted successfully");
+
+        const tasks = [];
+        if (refreshBrowse) {
+          tasks.push(fetchBooks());
+        }
+        if (refreshSeller && sellerApproved) {
+          tasks.push(loadSellerContext());
+        }
+
+        if (tasks.length) {
+          await Promise.allSettled(tasks);
+        }
+      } catch (error) {
+        const message =
+          error.response?.data?.message || "Unable to delete this book";
+        toast.error(message);
+      } finally {
+        setDeletingBookIds((prev) => {
+          const next = { ...prev };
+          delete next[bookId];
+          return next;
+        });
+        if (deleteToastIdRef.current) {
+          toast.dismiss(deleteToastIdRef.current);
+          deleteToastIdRef.current = null;
+        }
+      }
+    },
+    [fetchBooks, loadSellerContext, sellerApproved]
+  );
+
+  const promptDeleteBook = useCallback(
+    (book, options) => {
+      if (!book?._id) return;
+
+      if (deleteToastIdRef.current) {
+        toast.dismiss(deleteToastIdRef.current);
+      }
+
+      deleteToastIdRef.current = toast.custom(
+        (t) => (
+          <div className="max-w-sm w-full bg-white border border-rose-100 shadow-lg rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-rose-50 text-rose-500">
+                <IoTrashOutline className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-rose-600">
+                  Delete this book?
+                </h3>
+                <p className="text-xs text-rose-500 mt-1">
+                  “{book.title}” will be permanently removed from the
+                  marketplace.
+                </p>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                      deleteToastIdRef.current = null;
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    Keep book
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                      deleteToastIdRef.current = null;
+                      handleDeleteBook(book, options);
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          duration: 60000,
+          id: deleteToastIdRef.current || undefined,
+        }
+      );
+    },
+    [handleDeleteBook]
+  );
+
   useEffect(() => {
     if (!analytics) return;
     setActivityPage(1);
     setTopBooksPage(1);
     setAnalyticsReviewPage(1);
   }, [analytics]);
-
-  const sellerApproved = sellerStatus === "approved";
   const sellerCurrency = "Rs";
 
   const numberFormatter = useMemo(
@@ -448,18 +627,35 @@ export default function Marketplace() {
       return;
     }
 
+    const price = Number(book?.price || 0);
+    if (!book?.isFree && price > 0 && !hasEnough(price)) {
+      toast.error(
+        "Your wallet balance is too low for this purchase. Top up to continue."
+      );
+      requestWalletTopUp();
+      return;
+    }
+
     setActiveActionBookId(book._id);
     setIsProcessingAccess(true);
 
     try {
       let response;
+      let purchaseAmount = 0;
 
       if (book.isFree) {
         response = await getMarketplaceBookAccess(book._id);
-        toast.success("Choose how you'd like to read this title.");
       } else {
         response = await recordMarketplaceBookPurchase(book._id);
-        toast.success("Purchase successful! Choose your next step.");
+        purchaseAmount = Number(
+          response?.transaction?.amount ??
+            response?.book?.price ??
+            book.price ??
+            0
+        );
+        if (!Number.isFinite(purchaseAmount) || purchaseAmount < 0) {
+          purchaseAmount = price > 0 ? price : 0;
+        }
       }
 
       const modalBook = response?.book
@@ -481,12 +677,41 @@ export default function Marketplace() {
         return;
       }
 
+      await updateReaderBook(book._id, {
+        status: "in-progress",
+        progress: 0,
+        source: book.isFree ? "view" : "purchase",
+      }).catch(() => {});
+      await refreshReaderStatuses([book._id], { merge: true });
+
       setAccessModal({
         book: modalBook,
         viewerUrl,
         downloadUrl,
         userReview: userReviewData,
       });
+
+      if (book.isFree) {
+        toast.success("Choose how you'd like to read this title.");
+      } else {
+        if (purchaseAmount > 0) {
+          const deduction = deduct(purchaseAmount);
+          if (deduction.success) {
+            toast.success(
+              `Purchase successful! Remaining wallet balance: ${formatCurrencyValue(
+                deduction.remaining
+              )}`
+            );
+          } else {
+            toast.success("Purchase successful!");
+            toast.error(
+              "Wallet balance couldn't be updated. Please refresh to sync your balance."
+            );
+          }
+        } else {
+          toast.success("Purchase successful! Choose your next step.");
+        }
+      }
 
       await fetchBooks();
       if (sellerApproved) {
@@ -499,6 +724,38 @@ export default function Marketplace() {
     } finally {
       setIsProcessingAccess(false);
       setActiveActionBookId(null);
+    }
+  };
+
+  const handleWishlistToggle = async (book) => {
+    if (!isAuthenticated) {
+      toast.error("Sign in to manage your wishlist");
+      return;
+    }
+
+    const bookId = book._id;
+    if (!bookId) return;
+
+    setWishlistProcessing((prev) => ({ ...prev, [bookId]: true }));
+    const currentStatus = readerStatuses[bookId]?.status;
+    const isWishlisted = currentStatus === "wishlist";
+
+    try {
+      if (isWishlisted) {
+        await removeMarketplaceWishlist(bookId);
+        toast.success("Removed from wishlist");
+      } else {
+        await addMarketplaceWishlist(bookId);
+        toast.success("Added to wishlist");
+      }
+
+      await refreshReaderStatuses([bookId], { merge: true });
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Unable to update wishlist";
+      toast.error(message);
+    } finally {
+      setWishlistProcessing((prev) => ({ ...prev, [bookId]: false }));
     }
   };
 
@@ -844,11 +1101,14 @@ export default function Marketplace() {
       book?.author?.username ||
       "Marketplace Author";
     const isProcessing = isProcessingAccess && activeActionBookId === book._id;
+    const bookStatus = readerStatuses[book._id] || {};
+    const isWishlisted = bookStatus.status === "wishlist";
+    const isWishlistBusy = Boolean(wishlistProcessing[book._id]);
 
     return (
       <div
         key={book._id}
-        className="group bg-white rounded-xl p-6 shadow-sm hover:shadow-lg transition-shadow border border-blue-100"
+        className="group relative bg-white rounded-xl p-6 shadow-sm hover:shadow-lg transition-shadow border border-blue-100"
       >
         <div className="flex items-start gap-4 mb-4">
           <div className="relative w-20 h-28 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-100">
@@ -903,11 +1163,20 @@ export default function Marketplace() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => toast("Wishlist coming soon!")}
-              className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"
-              aria-label="Add to wishlist"
+              onClick={() => handleWishlistToggle(book)}
+              disabled={isWishlistBusy}
+              className={`p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                isWishlisted
+                  ? "text-rose-500 bg-rose-50 hover:bg-rose-100"
+                  : "text-blue-500 hover:bg-blue-100"
+              } ${isWishlistBusy ? "opacity-60 cursor-not-allowed" : ""}`}
+              aria-label={
+                isWishlisted ? "Remove from wishlist" : "Add to wishlist"
+              }
             >
-              <IoHeart className="w-4 h-4" />
+              <IoHeart
+                className={`w-4 h-4 ${isWishlisted ? "fill-current" : ""}`}
+              />
             </button>
             <button
               type="button"
@@ -987,20 +1256,34 @@ export default function Marketplace() {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {myBooks.map((book) => {
           const coverUrl = resolveCoverUrl(book.coverImage);
           const viewerUrl = resolveFileUrl(book.file);
           const downloadUrl = resolveDownloadUrl(book.file);
           const hasFile = Boolean(viewerUrl || downloadUrl);
+          const isDeleting = Boolean(deletingBookIds[book._id]);
 
           return (
             <div
               key={book._id}
-              className="bg-white rounded-xl p-6 shadow-sm border border-blue-100"
+              className="relative flex h-full flex-col bg-white rounded-xl p-6 pt-12 shadow-sm border border-blue-100"
             >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                <div className="flex items-start gap-4">
+              <button
+                type="button"
+                onClick={() => promptDeleteBook(book)}
+                disabled={isDeleting}
+                className={`absolute top-4 right-4 p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400 ${
+                  isDeleting
+                    ? "bg-rose-50 text-rose-300 cursor-not-allowed"
+                    : "text-rose-500 hover:bg-rose-50"
+                }`}
+                aria-label="Delete book"
+              >
+                <IoTrashOutline className="w-4 h-4" />
+              </button>
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                   <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-100">
                     {coverUrl ? (
                       <img
@@ -1016,7 +1299,7 @@ export default function Marketplace() {
                     )}
                   </div>
 
-                  <div>
+                  <div className="flex-1">
                     <h4 className="text-lg font-semibold text-blue-900">
                       {book.title}
                     </h4>
@@ -1089,7 +1372,7 @@ export default function Marketplace() {
                   </div>
                 </div>
 
-                <div className="text-right space-y-2">
+                <div className="border-t pt-4 text-left space-y-2">
                   <div className="text-2xl font-semibold text-green-600">
                     {formatCurrencyValue(book?.stats?.revenue || 0)}
                   </div>

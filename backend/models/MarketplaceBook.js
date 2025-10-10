@@ -19,7 +19,15 @@ const activitySchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["created", "view", "download", "purchase", "review"],
+      enum: [
+        "created",
+        "view",
+        "download",
+        "purchase",
+        "review",
+        "rent",
+        "tip",
+      ],
       required: true,
     },
     amount: {
@@ -162,6 +170,22 @@ const marketplaceBookSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+      rentals: {
+        type: Number,
+        default: 0,
+      },
+      rentalRevenue: {
+        type: Number,
+        default: 0,
+      },
+      tips: {
+        type: Number,
+        default: 0,
+      },
+      tipRevenue: {
+        type: Number,
+        default: 0,
+      },
       averageRating: {
         type: Number,
         default: 0,
@@ -173,6 +197,8 @@ const marketplaceBookSchema = new mongoose.Schema(
       lastViewAt: Date,
       lastDownloadAt: Date,
       lastPurchaseAt: Date,
+      lastRentAt: Date,
+      lastTipAt: Date,
     },
     activity: [activitySchema],
     reviews: [reviewSchema],

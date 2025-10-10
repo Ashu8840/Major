@@ -39,6 +39,73 @@ import {
   IoFlame,
 } from "react-icons/io5";
 
+const DEFAULT_SETTINGS = {
+  profile: {
+    username: "",
+    displayName: "",
+    email: "",
+    bio: "",
+    profileImage: null,
+    coverPhoto: null,
+    uid: "",
+    userId: "",
+  },
+  address: {
+    street: "",
+    city: "",
+    state: "",
+    country: "",
+    zipCode: "",
+  },
+  socialLinks: {
+    website: "",
+    twitter: "",
+    instagram: "",
+    linkedin: "",
+    facebook: "",
+    youtube: "",
+  },
+  privacy: {
+    profileVisibility: "public",
+    diaryVisibility: "followers",
+    allowMessages: "followers",
+    showEmail: false,
+    showAnalytics: true,
+    showOnlineStatus: true,
+    indexProfile: false,
+    blockedUsers: [],
+  },
+  notifications: {
+    email: true,
+    push: true,
+    newFollowers: true,
+    messages: true,
+    purchases: true,
+    marketing: false,
+  },
+  theme: {
+    current: "default",
+  },
+  account: {
+    twoFactor: false,
+    backupCodesGenerated: false,
+    lastSecurityReview: null,
+    profileCompleted: false,
+    firstLogin: false,
+    joinedDate: null,
+  },
+};
+
+const cloneDefaultSettings = () => ({
+  profile: { ...DEFAULT_SETTINGS.profile },
+  address: { ...DEFAULT_SETTINGS.address },
+  socialLinks: { ...DEFAULT_SETTINGS.socialLinks },
+  privacy: { ...DEFAULT_SETTINGS.privacy, blockedUsers: [] },
+  notifications: { ...DEFAULT_SETTINGS.notifications },
+  theme: { ...DEFAULT_SETTINGS.theme },
+  account: { ...DEFAULT_SETTINGS.account },
+});
+
 export default function Settings() {
   const { user, userProfile, logout, fetchUserProfile } =
     useContext(AuthContext);
@@ -58,50 +125,67 @@ export default function Settings() {
   const originalUsernameRef = useRef(null);
 
   // Settings state - will be populated from API
-  const [settings, setSettings] = useState({
-    profile: {
-      username: "",
-      displayName: "",
-      email: "",
-      bio: "",
-      profileImage: null,
-      coverPhoto: null,
-      uid: "",
-      userId: "",
-    },
-    address: {
-      street: "",
-      city: "",
-      state: "",
-      country: "",
-      zipCode: "",
-    },
-    socialLinks: {
-      website: "",
-      twitter: "",
-      instagram: "",
-      linkedin: "",
-      facebook: "",
-      youtube: "",
-    },
-    privacy: {
-      profileVisibility: "public",
-      showEmail: false,
-      showAnalytics: true,
-    },
-    notifications: {
-      email: true,
-      push: true,
-      followers: true,
-      comments: true,
-    },
-    theme: {
-      current: "light",
-    },
-  });
+  const [settings, setSettings] = useState(() => cloneDefaultSettings());
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [privacyDirty, setPrivacyDirty] = useState(false);
+  const [notificationsDirty, setNotificationsDirty] = useState(false);
+  const [accountDirty, setAccountDirty] = useState(false);
+
+  const followersCount = userProfile?.followers?.length || 0;
+  const followingCount = userProfile?.following?.length || 0;
+  const blockedUsersCount = settings.privacy.blockedUsers?.length || 0;
+  const joinedDateLabel = settings.account.joinedDate
+    ? new Date(settings.account.joinedDate).toLocaleDateString()
+    : "Unknown";
+  const lastSecurityReviewLabel = settings.account.lastSecurityReview
+    ? new Date(settings.account.lastSecurityReview).toLocaleDateString()
+    : "Never";
+
+  const normalizeSettings = (incoming = {}) => {
+    const base = cloneDefaultSettings();
+
+    const mergedPrivacy = {
+      ...base.privacy,
+      ...(incoming.privacy || {}),
+    };
+
+    if (!Array.isArray(mergedPrivacy.blockedUsers)) {
+      mergedPrivacy.blockedUsers = [];
+    }
+
+    const incomingNotifications = { ...(incoming.notifications || {}) };
+    if (
+      incomingNotifications.followers !== undefined &&
+      incomingNotifications.newFollowers === undefined
+    ) {
+      incomingNotifications.newFollowers = incomingNotifications.followers;
+    }
+    if (
+      incomingNotifications.comments !== undefined &&
+      incomingNotifications.messages === undefined
+    ) {
+      incomingNotifications.messages = incomingNotifications.comments;
+    }
+
+    return {
+      profile: { ...base.profile, ...(incoming.profile || {}) },
+      address: { ...base.address, ...(incoming.address || {}) },
+      socialLinks: { ...base.socialLinks, ...(incoming.socialLinks || {}) },
+      privacy: mergedPrivacy,
+      notifications: {
+        ...base.notifications,
+        ...incomingNotifications,
+      },
+      theme: { ...base.theme, ...(incoming.theme || {}) },
+      account: { ...base.account, ...(incoming.account || {}) },
+    };
+  };
 
   // Fetch user settings on component mount
   useEffect(() => {
@@ -110,12 +194,16 @@ export default function Settings() {
         setLoading(true);
         const response = await getUserSettings();
         if (response.settings) {
-          setSettings(response.settings);
-          originalUsernameRef.current =
-            response.settings.profile?.username || "";
-          const profileUrl = response.settings.profile?.profileImage?.url;
+          const normalized = normalizeSettings(response.settings);
+          setSettings(normalized);
+          originalUsernameRef.current = normalized.profile?.username || "";
+          const profileUrl = normalized.profile?.profileImage?.url;
           setProfileImagePreview(profileUrl || null);
+          setPreviewTheme(normalized.theme?.current || "default");
           setUsernameStatus({ type: "idle", message: "" });
+          setPrivacyDirty(false);
+          setNotificationsDirty(false);
+          setAccountDirty(false);
         }
       } catch (error) {
         console.error("Failed to fetch settings:", error);
@@ -148,6 +236,13 @@ export default function Settings() {
         },
         address: userProfile.address || prev.address,
         socialLinks: userProfile.socialLinks || prev.socialLinks,
+        account: {
+          ...prev.account,
+          profileCompleted:
+            userProfile.profileCompleted ?? prev.account.profileCompleted,
+          firstLogin: userProfile.firstLogin ?? prev.account.firstLogin,
+          joinedDate: userProfile.createdAt || prev.account.joinedDate,
+        },
       }));
 
       if (!originalUsernameRef.current) {
@@ -324,6 +419,8 @@ export default function Settings() {
     try {
       setSaving(true);
 
+      const { blockedUsers, ...privacyPayload } = settings.privacy;
+
       const updateData = {
         username,
         displayName,
@@ -333,9 +430,13 @@ export default function Settings() {
         socialLinks: settings.socialLinks,
         address: settings.address,
         preferences: {
-          privacy: settings.privacy,
+          privacy: privacyPayload,
           notifications: settings.notifications,
           theme: settings.theme.current,
+          account: {
+            twoFactor: settings.account.twoFactor,
+            backupCodesGenerated: settings.account.backupCodesGenerated,
+          },
         },
       };
 
@@ -345,20 +446,62 @@ export default function Settings() {
       const response = await updateUserSettings(updateData);
 
       if (response.user) {
+        let nextTheme = null;
+
         // Update local state with new data
-        setSettings((prevSettings) => ({
-          ...prevSettings,
-          profile: {
-            ...prevSettings.profile,
-            displayName: response.user.displayName,
-            bio: response.user.bio,
-            username: response.user.username,
-            userId: response.user.userId,
-            uid: response.user.userId,
-            profileImage:
-              response.user.profileImage || prevSettings.profile.profileImage,
-          },
-        }));
+        setSettings((prevSettings) => {
+          const updated = {
+            ...prevSettings,
+            profile: {
+              ...prevSettings.profile,
+              displayName: response.user.displayName,
+              bio: response.user.bio,
+              username: response.user.username,
+              userId: response.user.userId,
+              uid: response.user.userId,
+              profileImage:
+                response.user.profileImage || prevSettings.profile.profileImage,
+            },
+          };
+
+          if (response.user.preferences) {
+            if (response.user.preferences.privacy) {
+              updated.privacy = {
+                ...prevSettings.privacy,
+                ...response.user.preferences.privacy,
+                blockedUsers: prevSettings.privacy.blockedUsers,
+              };
+            }
+
+            if (response.user.preferences.notifications) {
+              updated.notifications = {
+                ...prevSettings.notifications,
+                ...response.user.preferences.notifications,
+              };
+            }
+
+            if (response.user.preferences.theme) {
+              nextTheme = response.user.preferences.theme;
+              updated.theme = {
+                ...prevSettings.theme,
+                current: response.user.preferences.theme,
+              };
+            }
+
+            if (response.user.preferences.account) {
+              updated.account = {
+                ...prevSettings.account,
+                ...response.user.preferences.account,
+              };
+            }
+          }
+
+          return updated;
+        });
+
+        if (nextTheme) {
+          setPreviewTheme(nextTheme);
+        }
 
         originalUsernameRef.current = response.user.username;
 
@@ -461,6 +604,16 @@ export default function Settings() {
     if (section === "profile" && key === "username") {
       setUsernameStatus({ type: "idle", message: "" });
     }
+
+    if (section === "privacy") {
+      setPrivacyDirty(true);
+    }
+    if (section === "notifications") {
+      setNotificationsDirty(true);
+    }
+    if (section === "account") {
+      setAccountDirty(true);
+    }
   };
 
   const handleThemeSelect = (themeId) => {
@@ -469,7 +622,7 @@ export default function Settings() {
 
   const handleThemeSave = async () => {
     try {
-      setSaving(true);
+      setThemeSaving(true);
       await updateThemePreference(previewTheme);
 
       setSettings((prev) => ({
@@ -484,7 +637,76 @@ export default function Settings() {
       console.error("Theme update error:", error);
       toast.error("Failed to update theme");
     } finally {
-      setSaving(false);
+      setThemeSaving(false);
+    }
+  };
+
+  const handlePrivacySave = async () => {
+    try {
+      setSavingPrivacy(true);
+      const { blockedUsers, ...privacyPayload } = settings.privacy;
+      await updatePrivacySettings(privacyPayload);
+      toast.success("Privacy preferences updated");
+      setPrivacyDirty(false);
+      await fetchUserProfile({ silent: true });
+    } catch (error) {
+      console.error("Privacy update error:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update privacy settings"
+      );
+    } finally {
+      setSavingPrivacy(false);
+    }
+  };
+
+  const handleNotificationSave = async () => {
+    try {
+      setSavingNotifications(true);
+      await updateNotificationSettings(settings.notifications);
+      toast.success("Notification preferences updated");
+      setNotificationsDirty(false);
+    } catch (error) {
+      console.error("Notification update error:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Failed to update notification settings"
+      );
+    } finally {
+      setSavingNotifications(false);
+    }
+  };
+
+  const handleAccountSave = async () => {
+    try {
+      setSavingAccount(true);
+      const accountPayload = {
+        twoFactor: settings.account.twoFactor,
+        backupCodesGenerated: settings.account.backupCodesGenerated,
+      };
+
+      if (settings.account.lastSecurityReview) {
+        accountPayload.lastSecurityReview = settings.account.lastSecurityReview;
+      }
+
+      accountPayload.lastSecurityReview =
+        accountPayload.lastSecurityReview || new Date().toISOString();
+
+      await updateUserSettings({
+        preferences: {
+          account: accountPayload,
+        },
+      });
+
+      toast.success("Account security updated");
+      setAccountDirty(false);
+      await fetchUserProfile({ silent: true });
+    } catch (error) {
+      console.error("Account update error:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update account settings"
+      );
+    } finally {
+      setSavingAccount(false);
     }
   };
 
@@ -787,10 +1009,11 @@ export default function Settings() {
                       <div className="flex justify-end">
                         <button
                           onClick={handleThemeSave}
+                          disabled={themeSaving}
                           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                         >
                           <IoSave className="w-4 h-4" />
-                          Apply Theme
+                          {themeSaving ? "Applying..." : "Apply Theme"}
                         </button>
                       </div>
                     </div>
@@ -807,130 +1030,276 @@ export default function Settings() {
                     <div className="space-y-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Diary Entries Visibility
+                          Profile Visibility
                         </label>
-                        <div className="space-y-2">
-                          {["public", "private", "followers"].map((option) => (
-                            <label
-                              key={option}
-                              className="flex items-center gap-3"
-                            >
-                              <input
-                                type="radio"
-                                name="diaryVisibility"
-                                value={option}
-                                checked={
-                                  settings.privacy.diaryVisibility === option
-                                }
-                                onChange={(e) =>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                          {[
+                            {
+                              id: "public",
+                              label: "Public",
+                              description:
+                                "Visible to everyone across Daiaryverse",
+                              icon: IoGlobe,
+                            },
+                            {
+                              id: "followers",
+                              label: "Followers",
+                              description: `Limited to your ${followersCount} followers`,
+                              icon: IoEye,
+                            },
+                            {
+                              id: "private",
+                              label: "Private",
+                              description: "Only you can access full details",
+                              icon: IoEyeOff,
+                            },
+                          ].map((option) => {
+                            const Icon = option.icon;
+                            const isActive =
+                              settings.privacy.profileVisibility === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() =>
                                   handleSettingChange(
                                     "privacy",
-                                    "diaryVisibility",
-                                    e.target.value
+                                    "profileVisibility",
+                                    option.id
                                   )
                                 }
-                                className="w-4 h-4 text-blue-600"
-                              />
-                              <span className="capitalize">{option}</span>
-                            </label>
-                          ))}
+                                className={`flex items-start gap-3 p-4 rounded-xl border transition-colors text-left ${
+                                  isActive
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover:border-gray-300"
+                                }`}
+                              >
+                                <span
+                                  className={`p-2 rounded-full ${
+                                    isActive
+                                      ? "bg-blue-500 text-white"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  <Icon className="w-5 h-5" />
+                                </span>
+                                <span>
+                                  <span className="block font-medium text-gray-900">
+                                    {option.label}
+                                  </span>
+                                  <span className="text-sm text-gray-500">
+                                    {option.description}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Allow Messages From
+                          Diary Entries Visibility
                         </label>
-                        <select
-                          value={settings.privacy.allowMessages}
-                          onChange={(e) =>
-                            handleSettingChange(
-                              "privacy",
-                              "allowMessages",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="everyone">Everyone</option>
-                          <option value="followers">Followers Only</option>
-                          <option value="nobody">Nobody</option>
-                        </select>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {["public", "followers", "private"].map((option) => {
+                            const isActive =
+                              settings.privacy.diaryVisibility === option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  handleSettingChange(
+                                    "privacy",
+                                    "diaryVisibility",
+                                    option
+                                  )
+                                }
+                                className={`p-4 rounded-xl border transition-colors capitalize ${
+                                  isActive
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover:border-gray-300"
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-gray-900">
-                            Show Online Status
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            Let others see when you're active
-                          </p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Direct Messages
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {[
+                            {
+                              id: "everyone",
+                              label: "Everyone",
+                              description: "Open to the entire community",
+                            },
+                            {
+                              id: "followers",
+                              label: "Followers",
+                              description: "Only people you approve",
+                            },
+                            {
+                              id: "nobody",
+                              label: "Nobody",
+                              description: "DMs stay closed",
+                            },
+                          ].map((option) => {
+                            const isActive =
+                              settings.privacy.allowMessages === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() =>
+                                  handleSettingChange(
+                                    "privacy",
+                                    "allowMessages",
+                                    option.id
+                                  )
+                                }
+                                className={`p-4 rounded-xl border transition-colors text-left ${
+                                  isActive
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover-border-gray-300"
+                                }`}
+                              >
+                                <span className="block font-medium text-gray-900">
+                                  {option.label}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  {option.description}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <button
-                          onClick={() =>
-                            handleSettingChange(
-                              "privacy",
-                              "showOnlineStatus",
-                              !settings.privacy.showOnlineStatus
-                            )
-                          }
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            settings.privacy.showOnlineStatus
-                              ? "bg-blue-600"
-                              : "bg-gray-300"
-                          }`}
-                        >
-                          <div
-                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.privacy.showOnlineStatus
-                                ? "translate-x-6"
-                                : ""
-                            }`}
-                          />
-                        </button>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-gray-900">
-                            Index Profile
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            Allow search engines to find your profile
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleSettingChange(
-                              "privacy",
-                              "indexProfile",
-                              !settings.privacy.indexProfile
-                            )
-                          }
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            settings.privacy.indexProfile
-                              ? "bg-blue-600"
-                              : "bg-gray-300"
-                          }`}
-                        >
-                          <div
-                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.privacy.indexProfile
-                                ? "translate-x-6"
-                                : ""
-                            }`}
-                          />
-                        </button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          {
+                            key: "showOnlineStatus",
+                            title: "Show Online Status",
+                            description: "Let others see when you're active",
+                          },
+                          {
+                            key: "indexProfile",
+                            title: "Index Profile",
+                            description: "Allow search engines to find you",
+                          },
+                          {
+                            key: "showEmail",
+                            title: "Display Email",
+                            description: "Share your contact email on profile",
+                          },
+                          {
+                            key: "showAnalytics",
+                            title: "Share Insights",
+                            description: "Show high-level engagement stats",
+                          },
+                        ].map((item) => {
+                          const enabled = settings.privacy[item.key];
+                          return (
+                            <div
+                              key={item.key}
+                              className="flex items-center justify-between gap-3 p-4 border border-gray-200 rounded-xl"
+                            >
+                              <div>
+                                <h3 className="font-medium text-gray-900">
+                                  {item.title}
+                                </h3>
+                                <p className="text-sm text-gray-500">
+                                  {item.description}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleSettingChange(
+                                    "privacy",
+                                    item.key,
+                                    !enabled
+                                  )
+                                }
+                                className={`relative w-12 h-6 rounded-full transition-colors ${
+                                  enabled ? "bg-blue-600" : "bg-gray-300"
+                                }`}
+                              >
+                                <div
+                                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                                    enabled ? "translate-x-6" : ""
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       <div className="pt-4 border-t">
                         <h3 className="font-medium text-gray-900 mb-3">
                           Blocked Users
                         </h3>
-                        <div className="bg-gray-50 rounded-lg p-4 text-center">
-                          <p className="text-gray-500">No blocked users</p>
-                        </div>
+                        {blockedUsersCount > 0 ? (
+                          <ul className="space-y-3">
+                            {settings.privacy.blockedUsers.map(
+                              (entry, index) => (
+                                <li
+                                  key={entry.user || entry._id || index}
+                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                >
+                                  <span className="text-sm text-gray-700">
+                                    {entry.displayName ||
+                                      entry.username ||
+                                      entry.user ||
+                                      "Blocked account"}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {entry.blockedAt
+                                      ? new Date(
+                                          entry.blockedAt
+                                        ).toLocaleDateString()
+                                      : "Unknown date"}
+                                  </span>
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        ) : (
+                          <div className="bg-gray-50 rounded-lg p-4 text-center">
+                            <p className="text-gray-500">
+                              You haven't blocked anyone yet
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t">
+                        <p
+                          className={`text-sm ${
+                            privacyDirty ? "text-gray-600" : "text-gray-400"
+                          }`}
+                        >
+                          {privacyDirty
+                            ? "You have unsaved privacy changes"
+                            : "Settings are synced"}
+                        </p>
+                        <button
+                          onClick={handlePrivacySave}
+                          disabled={!privacyDirty || savingPrivacy}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {savingPrivacy
+                            ? "Saving..."
+                            : "Save privacy preferences"}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -957,19 +1326,19 @@ export default function Settings() {
                           onClick={() =>
                             handleSettingChange(
                               "notifications",
-                              "emailNotifications",
-                              !settings.notifications.emailNotifications
+                              "email",
+                              !settings.notifications.email
                             )
                           }
                           className={`relative w-12 h-6 rounded-full transition-colors ${
-                            settings.notifications.emailNotifications
+                            settings.notifications.email
                               ? "bg-blue-600"
                               : "bg-gray-300"
                           }`}
                         >
                           <div
                             className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.notifications.emailNotifications
+                              settings.notifications.email
                                 ? "translate-x-6"
                                 : ""
                             }`}
@@ -990,21 +1359,19 @@ export default function Settings() {
                           onClick={() =>
                             handleSettingChange(
                               "notifications",
-                              "pushNotifications",
-                              !settings.notifications.pushNotifications
+                              "push",
+                              !settings.notifications.push
                             )
                           }
                           className={`relative w-12 h-6 rounded-full transition-colors ${
-                            settings.notifications.pushNotifications
+                            settings.notifications.push
                               ? "bg-blue-600"
                               : "bg-gray-300"
                           }`}
                         >
                           <div
                             className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.notifications.pushNotifications
-                                ? "translate-x-6"
-                                : ""
+                              settings.notifications.push ? "translate-x-6" : ""
                             }`}
                           />
                         </button>
@@ -1075,6 +1442,29 @@ export default function Settings() {
                           ))}
                         </div>
                       </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t">
+                        <p
+                          className={`text-sm ${
+                            notificationsDirty
+                              ? "text-gray-600"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {notificationsDirty
+                            ? "You have unsaved notification changes"
+                            : "Settings are synced"}
+                        </p>
+                        <button
+                          onClick={handleNotificationSave}
+                          disabled={!notificationsDirty || savingNotifications}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {savingNotifications
+                            ? "Saving..."
+                            : "Save notification settings"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1087,34 +1477,121 @@ export default function Settings() {
                     </h2>
 
                     <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-gray-900">
-                            Two-Factor Authentication
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            Add an extra layer of security
-                          </p>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="flex items-start justify-between gap-4 p-4 border border-gray-200 rounded-xl">
+                          <div>
+                            <h3 className="font-medium text-gray-900">
+                              Two-Factor Authentication
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              Add an extra layer of security when signing in.
+                            </p>
+                            <p className="text-xs text-gray-400 mt-2">
+                              Last reviewed: {lastSecurityReviewLabel}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() =>
+                              handleSettingChange(
+                                "account",
+                                "twoFactor",
+                                !settings.account.twoFactor
+                              )
+                            }
+                            className={`relative w-12 h-6 rounded-full transition-colors ${
+                              settings.account.twoFactor
+                                ? "bg-blue-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
+                            <div
+                              className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                                settings.account.twoFactor
+                                  ? "translate-x-6"
+                                  : ""
+                              }`}
+                            />
+                          </button>
                         </div>
-                        <button
-                          onClick={() =>
-                            handleSettingChange(
-                              "account",
-                              "twoFactor",
-                              !settings.account.twoFactor
-                            )
-                          }
-                          className={`relative w-12 h-6 rounded-full transition-colors ${
-                            settings.account.twoFactor
-                              ? "bg-blue-600"
-                              : "bg-gray-300"
+
+                        <div className="p-4 border border-gray-200 rounded-xl">
+                          <h3 className="font-medium text-gray-900">
+                            Backup Codes
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {settings.account.backupCodesGenerated
+                              ? "Backup codes were generated for account recovery."
+                              : "Generate single-use codes to regain access if you lose your device."}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSettingChange(
+                                "account",
+                                "backupCodesGenerated",
+                                true
+                              )
+                            }
+                            className="mt-3 inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                          >
+                            <IoDownload className="w-4 h-4" />
+                            {settings.account.backupCodesGenerated
+                              ? "Regenerate codes"
+                              : "Generate codes"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="border border-gray-200 rounded-xl p-4">
+                        <h3 className="font-medium text-gray-900 mb-4">
+                          Account Insight
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Joined
+                            </p>
+                            <p className="text-base font-semibold text-gray-900">
+                              {joinedDateLabel}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Followers
+                            </p>
+                            <p className="text-base font-semibold text-gray-900">
+                              {followersCount}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              Following
+                            </p>
+                            <p className="text-base font-semibold text-gray-900">
+                              {followingCount}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t">
+                        <p
+                          className={`text-sm ${
+                            accountDirty ? "text-gray-600" : "text-gray-400"
                           }`}
                         >
-                          <div
-                            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.account.twoFactor ? "translate-x-6" : ""
-                            }`}
-                          />
+                          {accountDirty
+                            ? "You have unsaved security preferences"
+                            : "Security preferences are synced"}
+                        </p>
+                        <button
+                          onClick={handleAccountSave}
+                          disabled={!accountDirty || savingAccount}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {savingAccount
+                            ? "Saving..."
+                            : "Save security settings"}
                         </button>
                       </div>
 

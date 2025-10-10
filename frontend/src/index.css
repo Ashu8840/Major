@@ -27,6 +27,15 @@ body,
   display: none; /* Safari and Chrome */
 }
 
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Allow natural page scrolling with hidden scrollbars */
 .page-scroll {
   overflow-y: auto;

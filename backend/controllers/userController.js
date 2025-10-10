@@ -177,6 +177,19 @@ const updateUserSettings = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (!user.preferences) {
+      user.preferences = {};
+    }
+    if (!user.preferences.privacy) {
+      user.preferences.privacy = {};
+    }
+    if (!user.preferences.notifications) {
+      user.preferences.notifications = {};
+    }
+    if (!user.preferences.account) {
+      user.preferences.account = {};
+    }
+
     // Handle username change
     if (username !== undefined) {
       const sanitizedUsername = username.trim();
@@ -186,12 +199,10 @@ const updateUserSettings = async (req, res) => {
       }
 
       if (!/^[a-zA-Z0-9_]+$/.test(sanitizedUsername)) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "Username can only contain letters, numbers, and underscores",
-          });
+        return res.status(400).json({
+          message:
+            "Username can only contain letters, numbers, and underscores",
+        });
       }
 
       if (sanitizedUsername.toLowerCase() !== user.username?.toLowerCase()) {
@@ -217,11 +228,9 @@ const updateUserSettings = async (req, res) => {
       }
 
       if (!/^[A-Z0-9\-]+$/i.test(sanitizedUserId)) {
-        return res
-          .status(400)
-          .json({
-            message: "User ID can only contain letters, numbers, and hyphens",
-          });
+        return res.status(400).json({
+          message: "User ID can only contain letters, numbers, and hyphens",
+        });
       }
 
       if (sanitizedUserId !== user.userId) {
@@ -254,15 +263,32 @@ const updateUserSettings = async (req, res) => {
 
     // Update preferences
     if (preferences) {
-      user.preferences = {
-        ...user.preferences,
-        ...preferences,
-        privacy: { ...user.preferences.privacy, ...preferences.privacy },
-        notifications: {
+      const { theme, privacy, notifications, account } = preferences;
+
+      if (theme !== undefined) {
+        user.preferences.theme = theme;
+      }
+
+      if (privacy) {
+        user.preferences.privacy = {
+          ...user.preferences.privacy,
+          ...privacy,
+        };
+      }
+
+      if (notifications) {
+        user.preferences.notifications = {
           ...user.preferences.notifications,
-          ...preferences.notifications,
-        },
-      };
+          ...notifications,
+        };
+      }
+
+      if (account) {
+        user.preferences.account = {
+          ...user.preferences.account,
+          ...account,
+        };
+      }
     }
 
     // Mark profile as completed if displayName is provided
@@ -292,7 +318,7 @@ const getUserSettings = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId).select(
-      "username email displayName bio profileImage coverPhoto address socialLinks preferences stats achievements profileCompleted firstLogin userId"
+      "username email displayName bio profileImage coverPhoto address socialLinks preferences stats achievements profileCompleted firstLogin userId blockedUsers createdAt"
     );
 
     if (!user) {
@@ -318,22 +344,35 @@ const getUserSettings = async (req, res) => {
       privacy: {
         profileVisibility:
           user.preferences?.privacy?.profileVisibility || "public",
-        showEmail: user.preferences?.privacy?.showEmail || false,
-        showAnalytics: user.preferences?.privacy?.showAnalytics || true,
+        diaryVisibility:
+          user.preferences?.privacy?.diaryVisibility || "followers",
+        allowMessages: user.preferences?.privacy?.allowMessages || "followers",
+        showEmail: user.preferences?.privacy?.showEmail ?? false,
+        showAnalytics: user.preferences?.privacy?.showAnalytics ?? true,
+        showOnlineStatus: user.preferences?.privacy?.showOnlineStatus ?? true,
+        indexProfile: user.preferences?.privacy?.indexProfile ?? false,
+        blockedUsers: user.blockedUsers || [],
       },
       notifications: {
-        email: user.preferences?.notifications?.email || true,
-        push: user.preferences?.notifications?.push || true,
-        followers: user.preferences?.notifications?.followers || true,
-        comments: user.preferences?.notifications?.comments || true,
+        email: user.preferences?.notifications?.email ?? true,
+        push: user.preferences?.notifications?.push ?? true,
+        newFollowers: user.preferences?.notifications?.newFollowers ?? true,
+        messages: user.preferences?.notifications?.messages ?? true,
+        purchases: user.preferences?.notifications?.purchases ?? true,
+        marketing: user.preferences?.notifications?.marketing ?? false,
       },
       theme: {
-        current: user.preferences?.theme || "light",
+        current: user.preferences?.theme || "default",
       },
       account: {
         profileCompleted: user.profileCompleted,
         firstLogin: user.firstLogin,
         joinedDate: user.createdAt,
+        twoFactor: user.preferences?.account?.twoFactor ?? false,
+        backupCodesGenerated:
+          user.preferences?.account?.backupCodesGenerated ?? false,
+        lastSecurityReview:
+          user.preferences?.account?.lastSecurityReview || null,
       },
       stats: user.stats,
       achievements: user.achievements || [],
@@ -357,7 +396,54 @@ const updatePrivacySettings = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.preferences.privacy = { ...user.preferences.privacy, ...privacy };
+    const privacyPayload =
+      privacy && typeof privacy === "object" ? privacy : {};
+
+    const visibilityOptions = ["public", "followers", "private"];
+    const messageOptions = ["everyone", "followers", "nobody"];
+    const sanitizedPrivacy = {};
+
+    if (
+      privacyPayload.profileVisibility &&
+      visibilityOptions.includes(privacyPayload.profileVisibility)
+    ) {
+      sanitizedPrivacy.profileVisibility = privacyPayload.profileVisibility;
+    }
+
+    if (
+      privacyPayload.diaryVisibility &&
+      visibilityOptions.includes(privacyPayload.diaryVisibility)
+    ) {
+      sanitizedPrivacy.diaryVisibility = privacyPayload.diaryVisibility;
+    }
+
+    if (
+      privacyPayload.allowMessages &&
+      messageOptions.includes(privacyPayload.allowMessages)
+    ) {
+      sanitizedPrivacy.allowMessages = privacyPayload.allowMessages;
+    }
+
+    ["showEmail", "showAnalytics", "showOnlineStatus", "indexProfile"].forEach(
+      (key) => {
+        if (privacyPayload[key] !== undefined) {
+          sanitizedPrivacy[key] = Boolean(privacyPayload[key]);
+        }
+      }
+    );
+
+    if (!user.preferences) {
+      user.preferences = {};
+    }
+    if (!user.preferences.privacy) {
+      user.preferences.privacy = {};
+    }
+
+    user.preferences.privacy = {
+      ...user.preferences.privacy,
+      ...sanitizedPrivacy,
+    };
+
     await user.save();
 
     res.json({ message: "Privacy settings updated successfully" });
@@ -378,9 +464,38 @@ const updateNotificationSettings = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const notificationsPayload =
+      notifications && typeof notifications === "object" ? notifications : {};
+
+    const allowedNotificationKeys = [
+      "email",
+      "push",
+      "newFollowers",
+      "messages",
+      "purchases",
+      "marketing",
+    ];
+
+    const sanitizedNotifications = allowedNotificationKeys.reduce(
+      (acc, key) => {
+        if (notificationsPayload[key] !== undefined) {
+          acc[key] = Boolean(notificationsPayload[key]);
+        }
+        return acc;
+      },
+      {}
+    );
+
+    if (!user.preferences) {
+      user.preferences = {};
+    }
+    if (!user.preferences.notifications) {
+      user.preferences.notifications = {};
+    }
+
     user.preferences.notifications = {
       ...user.preferences.notifications,
-      ...notifications,
+      ...sanitizedNotifications,
     };
     await user.save();
 
@@ -397,9 +512,17 @@ const updateThemePreference = async (req, res) => {
     const userId = req.user._id;
     const { theme } = req.body;
 
+    if (!theme || typeof theme !== "string") {
+      return res.status(400).json({ message: "Theme must be a valid string" });
+    }
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.preferences) {
+      user.preferences = {};
     }
 
     user.preferences.theme = theme;

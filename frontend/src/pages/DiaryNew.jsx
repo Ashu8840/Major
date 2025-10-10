@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import api from "../utils/api";
 import { AuthContext } from "../context/AuthContext";
 import { IoSearch, IoBook } from "react-icons/io5";
@@ -48,30 +49,58 @@ export default function Diary() {
         title: newTitle,
         content: newContent,
       });
-      setEntries([data, ...entries]);
+      setEntries((prev) => [data, ...prev]);
       setSelectedEntry(data);
       setNewTitle("");
       setNewContent("");
       setShowNewEntryModal(false);
+      toast.success("Entry created successfully");
     } catch (error) {
       console.error("Failed to add entry:", error);
+      toast.error("Failed to add entry. Please try again.");
     }
   };
 
-  const deleteEntry = async (entryId) => {
-    if (!window.confirm("Are you sure you want to delete this entry?")) return;
-
-    try {
-      await api.delete(`/entries/${entryId}`);
-      const updatedEntries = entries.filter((e) => e._id !== entryId);
-      setEntries(updatedEntries);
-
-      if (selectedEntry?._id === entryId) {
-        setSelectedEntry(updatedEntries.length > 0 ? updatedEntries[0] : null);
-      }
-    } catch (error) {
-      console.error("Failed to delete entry:", error);
-    }
+  const deleteEntry = (entryId) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3">
+        <p className="font-medium text-gray-900">Delete this entry?</p>
+        <p className="text-sm text-gray-600">This action cannot be undone.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await api.delete(`/entries/${entryId}`);
+                setEntries((prev) => {
+                  const next = prev.filter((entry) => entry._id !== entryId);
+                  setSelectedEntry((current) => {
+                    if (!current || current._id !== entryId) {
+                      return current;
+                    }
+                    return next.length > 0 ? next[0] : null;
+                  });
+                  return next;
+                });
+                toast.success("Entry deleted successfully");
+              } catch (error) {
+                console.error("Failed to delete entry:", error);
+                toast.error("Failed to delete entry. Please try again.");
+              }
+            }}
+            className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white transition-colors hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="rounded-lg bg-gray-200 px-3 py-1 text-sm text-gray-700 transition-colors hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ));
   };
 
   const updateEntry = async (e) => {
@@ -90,8 +119,10 @@ export default function Diary() {
       setEntries(updatedEntries);
       setSelectedEntry(data);
       setIsEditing(false);
+      toast.success("Entry updated successfully");
     } catch (error) {
       console.error("Failed to update entry:", error);
+      toast.error("Failed to update entry. Please try again.");
     }
   };
 

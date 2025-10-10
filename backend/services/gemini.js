@@ -1,7 +1,36 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash-latest";
+
 // Initialize Gemini AI with error handling
-let genAI, model;
+let genAI;
+let model;
+
+const ensureModel = () => {
+  if (!process.env.GEMINI_API_KEY) {
+    return null;
+  }
+
+  try {
+    if (!genAI) {
+      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    }
+
+    if (!model) {
+      model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
+      console.log(
+        `Gemini model "${DEFAULT_MODEL}" hydrated and ready for requests`
+      );
+    }
+
+    return model;
+  } catch (error) {
+    console.error("Failed to hydrate Gemini model:", error.message);
+    model = null;
+    genAI = null;
+    return null;
+  }
+};
 
 try {
   if (!process.env.GEMINI_API_KEY) {
@@ -9,13 +38,13 @@ try {
       "GEMINI_API_KEY not found. AI features will use fallback methods."
     );
   } else {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    console.log("Gemini AI initialized successfully");
+    ensureModel();
   }
 } catch (error) {
   console.error("Failed to initialize Gemini AI:", error.message);
   console.log("AI features will use fallback methods.");
+  genAI = null;
+  model = null;
 }
 
 // Fallback text processing functions
@@ -96,7 +125,8 @@ const fallbackImproveContent = (text) => {
 
 const fixGrammar = async (text) => {
   try {
-    if (!model) {
+    const activeModel = ensureModel();
+    if (!activeModel) {
       console.log("Gemini API not available, using fallback grammar fix...");
       return fallbackFixGrammar(text);
     }
@@ -107,7 +137,7 @@ const fixGrammar = async (text) => {
 
 "${text}"`;
 
-    const result = await model.generateContent(prompt);
+    const result = await activeModel.generateContent(prompt);
     const response = await result.response;
     const correctedText = response.text().trim();
 
@@ -116,13 +146,15 @@ const fixGrammar = async (text) => {
   } catch (error) {
     console.error("Gemini API grammar fix failed:", error.message);
     console.log("Using fallback grammar fix...");
+    model = null;
     return fallbackFixGrammar(text);
   }
 };
 
 const translateText = async (text, targetLanguage) => {
   try {
-    if (!model) {
+    const activeModel = ensureModel();
+    if (!activeModel) {
       console.log("Gemini API not available, using fallback translation...");
       return fallbackTranslate(text, targetLanguage);
     }
@@ -135,7 +167,7 @@ const translateText = async (text, targetLanguage) => {
 
 "${text}"`;
 
-    const result = await model.generateContent(prompt);
+    const result = await activeModel.generateContent(prompt);
     const response = await result.response;
     const translatedText = response.text().trim();
 
@@ -144,13 +176,15 @@ const translateText = async (text, targetLanguage) => {
   } catch (error) {
     console.error("Gemini API translation failed:", error.message);
     console.log(`Using fallback translation to ${targetLanguage}...`);
+    model = null;
     return fallbackTranslate(text, targetLanguage);
   }
 };
 
 const improveContent = async (text) => {
   try {
-    if (!model) {
+    const activeModel = ensureModel();
+    if (!activeModel) {
       console.log(
         "Gemini API not available, using fallback content improvement..."
       );
@@ -163,7 +197,7 @@ const improveContent = async (text) => {
 
 "${text}"`;
 
-    const result = await model.generateContent(prompt);
+    const result = await activeModel.generateContent(prompt);
     const response = await result.response;
     const improvedText = response.text().trim();
 
@@ -172,6 +206,7 @@ const improveContent = async (text) => {
   } catch (error) {
     console.error("Gemini API content improvement failed:", error.message);
     console.log("Using fallback content improvement...");
+    model = null;
     return fallbackImproveContent(text);
   }
 };
@@ -180,4 +215,5 @@ module.exports = {
   fixGrammar,
   translateText,
   improveContent,
+  isGeminiOperational: () => Boolean(model),
 };

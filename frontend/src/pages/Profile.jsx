@@ -10,7 +10,6 @@ import {
   IoFlame,
   IoBook,
   IoAnalytics,
-  IoBookmark,
   IoAdd,
   IoTime,
   IoEye,
@@ -19,6 +18,7 @@ import {
   IoShare,
   IoGrid,
   IoList,
+  IoTrash,
   IoCheckmarkCircle,
   IoSparkles,
   IoTrendingUp,
@@ -35,20 +35,23 @@ import {
   IoCloudUpload,
 } from "react-icons/io5";
 import {
+  api,
   uploadProfileImage,
   uploadCoverPhoto,
   getProfile,
   getUserContent,
-  getUserFavorites,
   getUserBooks,
   followUser,
   unfollowUser,
 } from "../utils/api";
 
+const CONTENT_PAGE_SIZE = 6;
+
 export default function Profile() {
   const { user, userProfile, fetchUserProfile } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState("posts");
   const [viewMode, setViewMode] = useState("grid");
+  const [contentPage, setContentPage] = useState(1);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadingProfile, setUploadingProfile] = useState(false);
@@ -66,7 +69,6 @@ export default function Profile() {
     stories: [],
     books: [],
   });
-  const [userFavorites, setUserFavorites] = useState([]);
   const [userBooks, setUserBooks] = useState([]);
 
   // File input refs
@@ -263,6 +265,7 @@ export default function Profile() {
         {
           id: "welcome",
           name: "Welcome!",
+
           description: "Welcome to the platform",
           category: "milestone",
         },
@@ -299,11 +302,10 @@ export default function Profile() {
     setLoading(true);
 
     try {
-      const [profileResult, contentResult, favoritesResult, booksResult] =
+      const [profileResult, contentResult, booksResult] =
         await Promise.allSettled([
           getProfile(),
           getUserContent(null, "all", 1, 12),
-          getUserFavorites("all", 1),
           getUserBooks(null, 1, 12),
         ]);
 
@@ -350,12 +352,6 @@ export default function Profile() {
         setUserContent({ entries: [], posts: [], stories: [], books: [] });
       }
 
-      if (favoritesResult.status === "fulfilled" && favoritesResult.value) {
-        setUserFavorites(favoritesResult.value.favorites || []);
-      } else {
-        setUserFavorites([]);
-      }
-
       if (booksResult.status === "fulfilled" && booksResult.value) {
         setUserBooks(booksResult.value.books || []);
       } else if (resolvedProfile?.books) {
@@ -370,7 +366,6 @@ export default function Profile() {
       setProfileStats(getFallbackStats());
       setProfileAnalytics(getFallbackAnalytics());
       setUserContent({ entries: [], posts: [], stories: [], books: [] });
-      setUserFavorites([]);
       setUserBooks([]);
       setIsFollowing(false);
     } finally {
@@ -396,6 +391,12 @@ export default function Profile() {
       setLoading(false);
     }
   }, [userProfile, user, loadProfileData, getFallbackProfileData]);
+
+  useEffect(() => {
+    if (activeTab === "posts") {
+      setContentPage(1);
+    }
+  }, [activeTab]);
 
   const handleImageUpload = async (file, type) => {
     if (!user) {
@@ -477,6 +478,89 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteContent = useCallback(
+    async (content) => {
+      const rawId =
+        content?._id ||
+        content?.id ||
+        content?.entryId ||
+        content?.postId ||
+        null;
+      const idString = rawId ? rawId.toString() : null;
+
+      if (!idString) {
+        toast.error("Unable to identify this item to delete.");
+        return;
+      }
+
+      const contentType = content?.type;
+      if (!["post", "entry"].includes(contentType)) {
+        toast.error("Only posts and entries can be deleted from here.");
+        return;
+      }
+
+      try {
+        if (contentType === "post") {
+          try {
+            await api.delete(`/community/post/${idString}`);
+          } catch (error) {
+            if (error.response?.status !== 404) {
+              throw error;
+            }
+            await api.delete(`/posts/${idString}`);
+          }
+        } else {
+          await api.delete(`/entries/${idString}`);
+        }
+
+        setUserContent((prev) => ({
+          ...prev,
+          posts:
+            contentType === "post"
+              ? (prev.posts || []).filter(
+                  (item) =>
+                    (item?._id || item?.id || "").toString() !== idString
+                )
+              : prev.posts,
+          entries:
+            contentType === "entry"
+              ? (prev.entries || []).filter(
+                  (item) =>
+                    (item?._id || item?.id || "").toString() !== idString
+                )
+              : prev.entries,
+        }));
+
+        setProfileData((prev) => {
+          if (!prev) return prev;
+          if (contentType === "post") {
+            const nextPosts = (prev.posts || []).filter(
+              (item) => (item?._id || item?.id || "").toString() !== idString
+            );
+            return { ...prev, posts: nextPosts };
+          }
+          if (contentType === "entry") {
+            const nextEntries = (prev.entries || []).filter(
+              (item) => (item?._id || item?.id || "").toString() !== idString
+            );
+            return { ...prev, entries: nextEntries };
+          }
+          return prev;
+        });
+
+        toast.success(
+          contentType === "post"
+            ? "Post deleted successfully."
+            : "Entry deleted successfully."
+        );
+      } catch (error) {
+        console.error("Delete content error:", error);
+        toast.error("Unable to delete this item right now.");
+      }
+    },
+    [setProfileData, setUserContent]
+  );
+
   const handleFollow = async () => {
     try {
       if (!user) {
@@ -557,6 +641,12 @@ export default function Profile() {
 
   // Always show profile data (either real or fallback)
   const currentProfileData = profileData || getFallbackProfileData();
+  const isProfileOwner = Boolean(
+    user &&
+      currentProfileData &&
+      ((user.id && user.id === currentProfileData._id) ||
+        (user._id && user._id === currentProfileData._id))
+  );
   const resolvedStats = profileStats || currentProfileData.stats || {};
 
   return (
@@ -826,7 +916,6 @@ export default function Profile() {
                 { id: "posts", label: "Posts & Entries", icon: IoDocument },
                 { id: "books", label: "Books", icon: IoBook },
                 { id: "analytics", label: "Analytics", icon: IoAnalytics },
-                { id: "favorites", label: "Favorites", icon: IoBookmark },
               ].map((tab) => {
                 const IconComponent = tab.icon;
                 return (
@@ -1007,153 +1096,227 @@ export default function Profile() {
                       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
                     );
 
-                    return allContent.length > 0 ? (
-                      allContent.map((content) => (
-                        <div
-                          key={content._id}
-                          className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
-                        >
-                          {content.media && content.media.length > 0 && (
-                            <img
-                              src={content.media[0].url}
-                              alt={content.title}
-                              className="w-full h-48 object-cover"
-                            />
-                          )}
-                          {!content.media?.length &&
-                            content.type === "book" &&
-                            content.coverImage?.url && (
+                    if (allContent.length === 0) {
+                      return (
+                        <div className="col-span-full text-center py-12">
+                          <IoDocument className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500 mb-2">No content yet</p>
+                          <p className="text-sm text-gray-400">
+                            {isProfileOwner
+                              ? "Start by creating your first entry or story!"
+                              : "This user hasn't shared any content yet."}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    const totalPages = Math.max(
+                      1,
+                      Math.ceil(allContent.length / CONTENT_PAGE_SIZE)
+                    );
+                    const activePage = Math.min(contentPage, totalPages);
+                    const startIndex = (activePage - 1) * CONTENT_PAGE_SIZE;
+                    const pageContent = allContent.slice(
+                      startIndex,
+                      startIndex + CONTENT_PAGE_SIZE
+                    );
+
+                    return (
+                      <>
+                        {pageContent.map((content) => (
+                          <div
+                            key={content._id}
+                            className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
+                          >
+                            {content.media && content.media.length > 0 && (
                               <img
-                                src={content.coverImage.url}
+                                src={content.media[0].url || content.media[0]}
                                 alt={content.title}
                                 className="w-full h-48 object-cover"
                               />
                             )}
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-500">
-                                  {formatDate(content.createdAt)}
-                                </span>
-                                <span
-                                  className={`px-2 py-1 text-xs rounded-full ${
-                                    content.type === "entry"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : content.type === "story"
-                                      ? "bg-purple-100 text-purple-800"
-                                      : content.type === "book"
-                                      ? "bg-amber-100 text-amber-800"
-                                      : "bg-green-100 text-green-800"
-                                  }`}
-                                >
-                                  {content.type}
-                                </span>
-                              </div>
-                              {content.visibility === "public" && (
-                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                                  Public
-                                </span>
+                            {!content.media?.length &&
+                              content.type === "book" &&
+                              content.coverImage?.url && (
+                                <img
+                                  src={content.coverImage.url}
+                                  alt={content.title}
+                                  className="w-full h-48 object-cover"
+                                />
                               )}
-                            </div>
-
-                            <h3 className="font-semibold text-gray-900 mb-2">
-                              {content.title}
-                            </h3>
-
-                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                              {content.content}
-                            </p>
-
-                            {/* Show mood for entries */}
-                            {content.type === "entry" && content.mood && (
-                              <div className="mb-2">
-                                <span className="text-sm text-gray-500">
-                                  Mood:{" "}
-                                </span>
-                                <span className="text-sm font-medium text-blue-600">
-                                  {content.mood}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Show genre for stories */}
-                            {content.type === "story" && content.genre && (
-                              <div className="mb-2">
-                                <span className="text-sm text-gray-500">
-                                  Genre:{" "}
-                                </span>
-                                <span className="text-sm font-medium text-purple-600">
-                                  {content.genre}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Show status for books */}
-                            {content.type === "book" && content.status && (
-                              <div className="mb-2">
-                                <span className="text-sm text-gray-500">
-                                  Status:{" "}
-                                </span>
-                                <span className="text-sm font-medium text-amber-600">
-                                  {content.status}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Show tags */}
-                            {content.tags && content.tags.length > 0 && (
-                              <div className="mb-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {content.tags
-                                    .slice(0, 3)
-                                    .map((tag, index) => (
-                                      <span
-                                        key={index}
-                                        className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
-                                      >
-                                        #{tag}
-                                      </span>
-                                    ))}
-                                  {content.tags.length > 3 && (
-                                    <span className="text-xs text-gray-500">
-                                      +{content.tags.length - 3} more
+                            <div className="p-4">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-500">
+                                    {formatDate(content.createdAt)}
+                                  </span>
+                                  <span
+                                    className={`px-2 py-1 text-xs rounded-full ${
+                                      content.type === "entry"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : content.type === "story"
+                                        ? "bg-purple-100 text-purple-800"
+                                        : content.type === "book"
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-green-100 text-green-800"
+                                    }`}
+                                  >
+                                    {content.type}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {content.visibility === "public" && (
+                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                      Public
                                     </span>
                                   )}
+                                  {isProfileOwner &&
+                                    ["post", "entry"].includes(
+                                      content.type
+                                    ) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (
+                                            window.confirm(
+                                              `Delete this ${content.type}?`
+                                            )
+                                          ) {
+                                            handleDeleteContent(content);
+                                          }
+                                        }}
+                                        className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600"
+                                      >
+                                        <IoTrash className="w-4 h-4" />
+                                        Delete
+                                      </button>
+                                    )}
                                 </div>
                               </div>
-                            )}
 
-                            <div className="flex items-center gap-4 text-sm text-gray-500">
-                              <span className="flex items-center gap-1">
-                                <IoHeart className="w-4 h-4" />
-                                {Array.isArray(content.likes)
-                                  ? content.likes.length
-                                  : content.likes?.total || 0}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <IoChatbubble className="w-4 h-4" />
-                                {content.comments?.length || 0}
-                              </span>
-                              {content.views && (
-                                <span className="flex items-center gap-1">
-                                  <IoEye className="w-4 h-4" />
-                                  {content.views}
-                                </span>
+                              <h3 className="font-semibold text-gray-900 mb-2">
+                                {content.title}
+                              </h3>
+
+                              <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                                {content.content}
+                              </p>
+
+                              {/* Show mood for entries */}
+                              {content.type === "entry" && content.mood && (
+                                <div className="mb-2">
+                                  <span className="text-sm text-gray-500">
+                                    Mood:{" "}
+                                  </span>
+                                  <span className="text-sm font-medium text-blue-600">
+                                    {content.mood}
+                                  </span>
+                                </div>
                               )}
+
+                              {/* Show genre for stories */}
+                              {content.type === "story" && content.genre && (
+                                <div className="mb-2">
+                                  <span className="text-sm text-gray-500">
+                                    Genre:{" "}
+                                  </span>
+                                  <span className="text-sm font-medium text-purple-600">
+                                    {content.genre}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Show status for books */}
+                              {content.type === "book" && content.status && (
+                                <div className="mb-2">
+                                  <span className="text-sm text-gray-500">
+                                    Status:{" "}
+                                  </span>
+                                  <span className="text-sm font-medium text-amber-600">
+                                    {content.status}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Show tags */}
+                              {content.tags && content.tags.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {content.tags
+                                      .slice(0, 3)
+                                      .map((tag, index) => (
+                                        <span
+                                          key={index}
+                                          className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
+                                        >
+                                          #{tag}
+                                        </span>
+                                      ))}
+                                    {content.tags.length > 3 && (
+                                      <span className="text-xs text-gray-500">
+                                        +{content.tags.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <IoHeart className="w-4 h-4" />
+                                  {Array.isArray(content.likes)
+                                    ? content.likes.length
+                                    : content.likes?.total || 0}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <IoChatbubble className="w-4 h-4" />
+                                  {content.comments?.length || 0}
+                                </span>
+                                {content.views && (
+                                  <span className="flex items-center gap-1">
+                                    <IoEye className="w-4 h-4" />
+                                    {content.views}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="col-span-full text-center py-12">
-                        <IoDocument className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-2">No content yet</p>
-                        <p className="text-sm text-gray-400">
-                          {user && user.id === currentProfileData._id
-                            ? "Start by creating your first entry or story!"
-                            : "This user hasn't shared any content yet."}
-                        </p>
-                      </div>
+                        ))}
+
+                        {totalPages > 1 && (
+                          <div
+                            className={`flex items-center justify-between gap-4 pt-4 ${
+                              viewMode === "grid" ? "col-span-full" : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setContentPage(Math.max(1, activePage - 1))
+                              }
+                              disabled={activePage <= 1}
+                              className="px-4 py-2 rounded-full border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Previous
+                            </button>
+                            <span className="text-sm text-gray-500">
+                              Page {activePage} of {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setContentPage(
+                                  Math.min(totalPages, activePage + 1)
+                                )
+                              }
+                              disabled={activePage >= totalPages}
+                              className="px-4 py-2 rounded-full border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </>
                     );
                   })()}
                 </div>
@@ -1408,159 +1571,6 @@ export default function Profile() {
                       Profile completeness
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "favorites" && (
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  Saved Favorites
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {user?.bookmarks && user.bookmarks.length > 0 ? (
-                    user.bookmarks.map((bookmark, index) => (
-                      <div
-                        key={bookmark._id || bookmark.id || index}
-                        className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
-                      >
-                        {bookmark.media && bookmark.media.length > 0 ? (
-                          <img
-                            src={bookmark.media[0].url}
-                            alt={bookmark.title || "Bookmarked Content"}
-                            className="w-full h-48 object-cover"
-                          />
-                        ) : bookmark.image?.url ? (
-                          <img
-                            src={bookmark.image.url}
-                            alt={bookmark.title || "Bookmarked Content"}
-                            className="w-full h-48 object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                            <IoBookmark className="w-12 h-12 text-blue-500" />
-                          </div>
-                        )}
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span
-                              className={`px-2 py-1 text-xs rounded-full ${
-                                bookmark.type === "entry"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : bookmark.type === "story"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : bookmark.type === "post"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {bookmark.type || "bookmark"}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {bookmark.bookmarkedAt
-                                ? new Date(
-                                    bookmark.bookmarkedAt
-                                  ).toLocaleDateString()
-                                : bookmark.createdAt
-                                ? formatDate(bookmark.createdAt)
-                                : "Recently saved"}
-                            </span>
-                          </div>
-
-                          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                            {bookmark.title || "Untitled"}
-                          </h3>
-
-                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                            {bookmark.content ||
-                              bookmark.description ||
-                              bookmark.text ||
-                              "No description available"}
-                          </p>
-
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            {bookmark.author?.username && (
-                              <>
-                                <span>By @{bookmark.author.username}</span>
-                                <span>•</span>
-                              </>
-                            )}
-                            {bookmark.category && (
-                              <span className="text-blue-600">
-                                {bookmark.category}
-                              </span>
-                            )}
-                          </div>
-
-                          {bookmark.tags && bookmark.tags.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {bookmark.tags
-                                .slice(0, 3)
-                                .map((tag, tagIndex) => (
-                                  <span
-                                    key={tagIndex}
-                                    className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
-                                  >
-                                    #{tag}
-                                  </span>
-                                ))}
-                              {bookmark.tags.length > 3 && (
-                                <span className="text-xs text-gray-500">
-                                  +{bookmark.tags.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : user?.favorites && user.favorites.length > 0 ? (
-                    user.favorites.map((favorite, index) => (
-                      <div
-                        key={favorite._id || favorite.id || index}
-                        className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
-                      >
-                        <img
-                          src={
-                            favorite.media?.[0]?.url ||
-                            favorite.image?.url ||
-                            "/api/placeholder/300/200"
-                          }
-                          alt={favorite.title || "Favorite"}
-                          className="w-full h-48 object-cover"
-                        />
-                        <div className="p-4">
-                          <h3 className="font-semibold text-gray-900 mb-2">
-                            {favorite.title || "Untitled"}
-                          </h3>
-                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                            {favorite.content ||
-                              favorite.text ||
-                              "No description available"}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>
-                              By @{favorite.author?.username || "unknown"}
-                            </span>
-                            <span>•</span>
-                            <span>{formatDate(favorite.createdAt)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full text-center py-12">
-                      <IoBookmark className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 mb-2">
-                        No favorites saved yet
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        {user && user.id === currentProfileData._id
-                          ? "Start bookmarking content you love!"
-                          : "This user hasn't saved any favorites yet."}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
