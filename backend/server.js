@@ -55,6 +55,11 @@ const envOrigins = parseOrigins(process.env.CLIENT_ORIGINS);
 const singleClientOrigin = parseOrigins(process.env.CLIENT_URL);
 const deploymentOrigins = parseOrigins(process.env.DEPLOYMENT_CLIENT_ORIGINS);
 
+const normalizeOrigin = (origin) => {
+  if (!origin || typeof origin !== "string") return origin;
+  return origin.replace(/\/$/, "");
+};
+
 const allowedOrigins = [
   ...envOrigins,
   ...singleClientOrigin,
@@ -65,7 +70,9 @@ const allowedOrigins = [
   "https://major-five.vercel.app",
 ].filter(Boolean);
 
-const uniqueAllowedOrigins = [...new Set(allowedOrigins)];
+const uniqueAllowedOrigins = [...new Set(allowedOrigins.map(normalizeOrigin))];
+
+console.log("Allowed CORS origins:", uniqueAllowedOrigins);
 
 const ORIGIN_REGEX_ALLOW_LIST = [/^https:\/\/[a-z0-9-]+\.vercel\.app$/i];
 
@@ -74,11 +81,21 @@ const isOriginAllowed = (origin) => {
     return true;
   }
 
-  if (uniqueAllowedOrigins.includes(origin)) {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (uniqueAllowedOrigins.includes(normalizedOrigin)) {
     return true;
   }
 
-  return ORIGIN_REGEX_ALLOW_LIST.some((pattern) => pattern.test(origin));
+  const matchesPattern = ORIGIN_REGEX_ALLOW_LIST.some((pattern) =>
+    pattern.test(normalizedOrigin)
+  );
+
+  if (!matchesPattern) {
+    console.warn(`Rejected origin: ${origin}`);
+  }
+
+  return matchesPattern;
 };
 
 const buildCorsOriginValidator = () => (origin, callback) => {
@@ -106,6 +123,13 @@ const io = new Server(server, {
 app.set("io", io);
 
 app.use(
+  cors({
+    origin: corsOriginValidator,
+    credentials: true,
+  })
+);
+app.options(
+  "*",
   cors({
     origin: corsOriginValidator,
     credentials: true,
