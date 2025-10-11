@@ -256,15 +256,16 @@ function AppContent() {
   };
 
   // Check if current page is authentication page
-  const isAuthPage =
-    location.pathname === "/login" || location.pathname === "/signup";
+  const currentPath = location.pathname;
+  const isAuthPage = currentPath === "/login" || currentPath === "/signup";
+  const isChatRoute = currentPath === "/chat";
 
   // Don't show chat button on login/signup pages or chat page itself
   const showChatButton =
     token && !isAuthPage && location.pathname !== "/chat" && !isChatOpen;
 
   // Hide navbar and sidebar on auth pages
-  const showSidebar = !isAuthPage && location.pathname !== "/chat";
+  const showSidebar = !isAuthPage && (!isChatRoute || isMobile);
   const showNavbar = !isAuthPage;
 
   useEffect(() => {
@@ -288,7 +289,7 @@ function AppContent() {
 
   const effectiveSidebarOpen = showSidebar
     ? !isMobile
-      ? true
+      ? !isChatRoute
       : isSidebarOpen
     : false;
 

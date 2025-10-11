@@ -1,0 +1,1261 @@
+================================================================================
+                    DAIRY - PERSONAL JOURNAL & COMMUNITY PLATFORM
+                           4TH YEAR MAJOR PROJECT
+================================================================================
+
+PROJECT OVERVIEW:
+-----------------
+Dairy is a full-stack web application that combines personal journaling with 
+social networking features. It allows users to maintain private diary entries 
+while also engaging with a community through posts, comments, and connections.
+
+The platform provides a dual experience:
+1. Private Space: Personal diary entries with mood tracking and media support
+2. Social Space: Community posts with likes, comments, followers, and real-time chat
+
+TARGET USERS: Individuals seeking a private journaling space with optional 
+social interaction, content creators, and community enthusiasts.
+
+
+================================================================================
+                            TECHNOLOGY STACK
+================================================================================
+
+FRONTEND (Client-Side):
+-----------------------
+Framework & Build Tools:
+  • React 19.1.1 - Modern component-based UI library with hooks
+  • Vite 7.1.2 - Lightning-fast build tool and dev server
+  • React Router DOM 7.8.2 - Client-side routing and navigation
+
+Styling & UI:
+  • Tailwind CSS 4.1.13 - Utility-first CSS framework
+  • React Icons 5.5.0 - Icon library for UI elements
+  • React Hot Toast 2.6.0 - Toast notifications
+  • React RND 10.5.2 - Draggable and resizable components
+
+Additional Libraries:
+  • Axios 1.11.0 - HTTP client for API requests
+  • Socket.io-client 4.8.1 - Real-time bidirectional communication
+  • Quill 2.0.3 - Rich text editor for content creation
+  • jsPDF 2.5.1 - PDF generation
+  • html2canvas 1.4.1 - Screenshot/image capture
+  • pdfjs-dist 4.10.38 - PDF viewing and rendering
+
+Code Quality:
+  • ESLint 9.33.0 - JavaScript linting
+  • PropTypes 15.8.1 - Runtime type checking
+
+
+BACKEND (Server-Side):
+----------------------
+Runtime & Framework:
+  • Node.js - JavaScript runtime environment
+  • Express.js 5.1.0 - Web application framework
+  • Socket.io 4.8.1 - Real-time WebSocket communication
+
+Database:
+  • MongoDB - NoSQL document database
+  • Mongoose 8.18.0 - MongoDB ODM (Object Data Modeling)
+
+Authentication & Security:
+  • JWT (JSON Web Tokens) 9.0.2 - Stateless authentication
+  • bcrypt 6.0.0 - Password hashing
+  • Helmet 8.1.0 - HTTP security headers
+  • Express Rate Limit 8.1.0 - Rate limiting middleware
+  • mongo-sanitize 1.1.0 - Input sanitization
+  • Express Validator 7.2.1 - Request validation
+
+Cloud Services:
+  • Cloudinary 2.7.0 - Image/video storage and CDN
+  • Multer 2.0.2 - File upload handling
+
+AI Integration:
+  • Google Generative AI 0.24.1 - AI-powered features
+
+Utilities:
+  • Axios 1.11.0 - HTTP client
+  • date-fns 4.1.0 - Date manipulation
+  • dotenv 17.2.2 - Environment variable management
+  • CORS 2.8.5 - Cross-Origin Resource Sharing
+
+Development:
+  • Nodemon 3.1.10 - Auto-restart on file changes
+
+
+================================================================================
+                            PROJECT ARCHITECTURE
+================================================================================
+
+FOLDER STRUCTURE:
+-----------------
+
+Major/
+├── backend/                    # Server-side application
+│   ├── config/                 # Configuration files
+│   │   └── db.js              # MongoDB connection setup
+│   ├── controllers/           # Business logic handlers
+│   │   ├── aiController.js    # AI features (grammar check, suggestions)
+│   │   ├── analyticsController.js  # User analytics and insights
+│   │   ├── communityController.js  # Social features (posts, comments)
+│   │   ├── entryController.js # Diary entry management
+│   │   ├── leaderboardController.js # User ranking system
+│   │   ├── postController.js  # Post CRUD operations
+│   │   ├── uploadController.js # File upload handling
+│   │   └── userController.js  # User management and authentication
+│   ├── middlewares/           # Express middlewares
+│   │   ├── authMiddleware.js  # JWT verification
+│   │   ├── errorMiddleware.js # Error handling
+│   │   └── validationMiddleware.js # Input validation
+│   ├── models/                # Database schemas
+│   │   ├── User.js            # User profile and authentication
+│   │   ├── Entry.js           # Diary entries
+│   │   ├── Post.js            # Community posts
+│   │   ├── Comment.js         # Post comments
+│   │   ├── Chat.js            # Chat conversations
+│   │   ├── Message.js         # Chat messages
+│   │   ├── Event.js           # Community events
+│   │   └── Media.js           # Media file metadata
+│   ├── routes/                # API endpoint definitions
+│   │   ├── userRoutes.js      # User operations
+│   │   ├── entryRoutes.js     # Entry operations
+│   │   ├── postRoutes.js      # Post operations
+│   │   ├── communityRoutes.js # Community operations
+│   │   ├── aiRoutes.js        # AI features
+│   │   ├── analyticsRoutes.js # Analytics endpoints
+│   │   ├── leaderboardRoutes.js # Leaderboard data
+│   │   └── uploadRoutes.js    # File upload
+│   ├── services/              # Business logic services
+│   │   └── cloudinary.js      # Cloudinary integration
+│   ├── utils/                 # Utility functions
+│   │   └── generateToken.js   # JWT token generation
+│   ├── server.js              # Application entry point
+│   └── package.json           # Dependencies and scripts
+
+├── frontend/                   # Client-side application
+│   ├── src/
+│   │   ├── assets/            # Static files (images, icons)
+│   │   ├── components/        # Reusable React components
+│   │   │   ├── Navbar.jsx     # Top navigation bar
+│   │   │   ├── Sidebar.jsx    # Side navigation menu
+│   │   │   ├── PostCard.jsx   # Individual post display
+│   │   │   ├── EntryCard.jsx  # Individual entry display
+│   │   │   ├── CommentItem.jsx # Comment with replies
+│   │   │   ├── ChatWindow.jsx # Chat interface
+│   │   │   ├── ChatList.jsx   # Chat conversations list
+│   │   │   ├── ChatHeader.jsx # Chat header
+│   │   │   ├── MessageBubble.jsx # Individual message
+│   │   │   ├── MessageInput.jsx # Message input field
+│   │   │   ├── NewEntryForm.jsx # Entry creation form
+│   │   │   ├── ProtectedRoute.jsx # Route authentication
+│   │   │   └── SplashScreen.jsx # Loading screen
+│   │   ├── context/           # React Context providers
+│   │   │   ├── AuthContext.jsx # Authentication state
+│   │   │   ├── ChatContext.jsx # Chat state management
+│   │   │   └── ThemeContext.jsx # Theme preferences
+│   │   ├── hooks/             # Custom React hooks
+│   │   │   ├── useAuth.js     # Authentication hook
+│   │   │   ├── useChat.js     # Chat functionality hook
+│   │   │   └── useTheme.js    # Theme management hook
+│   │   ├── pages/             # Page components
+│   │   │   ├── Home.jsx       # Landing/dashboard
+│   │   │   ├── Login.jsx      # User login
+│   │   │   ├── Signup.jsx     # User registration
+│   │   │   ├── Profile.jsx    # User profile with posts/entries
+│   │   │   ├── Diary.jsx      # Private diary entries list
+│   │   │   ├── DiaryNew.jsx   # Alternative diary view
+│   │   │   ├── NewEntry.jsx   # Create new entry
+│   │   │   ├── Community.jsx  # Social feed
+│   │   │   ├── AllPosts.jsx   # All community posts
+│   │   │   ├── NewPost.jsx    # Create new post
+│   │   │   ├── Chat.jsx       # Messaging interface
+│   │   │   ├── Discover.jsx   # Content discovery
+│   │   │   ├── Trending.jsx   # Trending posts (24hr)
+│   │   │   ├── Following.jsx  # Posts from followed users
+│   │   │   ├── Analytics.jsx  # User statistics
+│   │   │   ├── Leaderboard.jsx # User rankings
+│   │   │   ├── Settings.jsx   # User preferences
+│   │   │   ├── Social.jsx     # Social interactions
+│   │   │   ├── CreatorStudio.jsx # Content creator tools
+│   │   │   ├── ReadersLounge.jsx # Reading space
+│   │   │   ├── Marketplace.jsx # (Future feature)
+│   │   │   └── Upgrade.jsx    # Premium features
+│   │   ├── utils/             # Utility functions
+│   │   │   └── api.js         # API client configuration
+│   │   ├── App.jsx            # Root component with routing
+│   │   ├── App.css            # Global styles
+│   │   ├── main.jsx           # Application entry point
+│   │   └── index.css          # Base styles
+│   ├── index.html             # HTML template
+│   ├── vite.config.js         # Vite configuration
+│   ├── tailwind.config.js     # Tailwind CSS config
+│   ├── postcss.config.js      # PostCSS configuration
+│   ├── eslint.config.js       # ESLint rules
+│   └── package.json           # Dependencies and scripts
+
+└── README.md                   # Project documentation
+
+
+================================================================================
+                         DATABASE SCHEMA DESIGN
+================================================================================
+
+1. USER SCHEMA (User.js):
+--------------------------
+Purpose: Store user account information, profile data, and relationships
+
+Key Fields:
+  • Authentication:
+    - username (String, unique, 3-30 chars)
+    - email (String, unique, lowercase)
+    - passwordHash (String, bcrypt hashed)
+    - userId (String, unique identifier)
+  
+  • Profile Information:
+    - displayName (String, up to 50 chars)
+    - bio (String, up to 500 chars)
+    - address (Object: street, city, state, country, zipCode)
+    - profileImage (Object: url, cloudinaryId)
+    - coverPhoto (Object: url, cloudinaryId)
+  
+  • Social Features:
+    - followers (Array of User references)
+    - following (Array of User references)
+    - blockedUsers (Array of User references)
+  
+  • Engagement Metrics:
+    - totalPosts (Number, default: 0)
+    - totalLikes (Number, default: 0)
+    - totalComments (Number, default: 0)
+    - points (Number, for gamification)
+  
+  • Verification & Status:
+    - isVerified (Boolean)
+    - accountStatus (String: active/suspended/deleted)
+    - lastActive (Date)
+
+  Indexes: username, email, userId, accountStatus
+  Methods: Password hashing, comparison, token generation
+
+
+2. ENTRY SCHEMA (Entry.js):
+----------------------------
+Purpose: Store private/public diary entries
+
+Key Fields:
+  • Core Content:
+    - author (ObjectId reference to User)
+    - title (String, default: "Untitled Entry")
+    - content (String, main entry text)
+    - tags (Array of Strings)
+  
+  • Privacy & Status:
+    - visibility (Enum: private/public)
+    - isDraft (Boolean, default: false)
+  
+  • Media & Enhancements:
+    - media (Array of Media references)
+    - mood (Enum: happy/sad/angry/anxious/excited/calm/grateful/love/
+            neutral/disappointed/frustrated/content/tired/confused/
+            confident/overwhelmed)
+    - aiSummary (String, AI-generated summary)
+  
+  • Metrics:
+    - views (Number, default: 0)
+    - likes (Array of ObjectIds)
+    - comments (Array of ObjectIds)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: author, visibility, createdAt
+
+
+3. POST SCHEMA (Post.js):
+--------------------------
+Purpose: Store community posts with social features
+
+Key Fields:
+  • Core Content:
+    - author (ObjectId reference to User)
+    - postType (Enum: text/image/poll/article/event)
+    - content (String, post text)
+    - hashtags (Array of Strings, lowercase)
+  
+  • Media:
+    - media (Array of Media references)
+  
+  • Engagement:
+    - likes (Array of Objects: user, createdAt)
+    - shares (Array of Objects: user, createdAt)
+    - comments (Array of Comment references)
+  
+  • Visibility & Metrics:
+    - visibility (Enum: public/private/friends)
+    - views (Number, default: 0)
+    - isPinned (Boolean)
+    - isArchived (Boolean)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: author, postType, createdAt, hashtags
+  Virtual: commentCount (computed from comments array)
+
+
+4. COMMENT SCHEMA (Comment.js):
+--------------------------------
+Purpose: Store comments and nested replies on posts
+
+Key Fields:
+  • Content:
+    - author (ObjectId reference to User)
+    - post (ObjectId reference to Post)
+    - content (String, comment text)
+  
+  • Nested Comments:
+    - parentComment (ObjectId reference to Comment, for replies)
+    - replies (Array of Comment references)
+  
+  • Engagement:
+    - likes (Array of Objects: user, createdAt)
+  
+  • Moderation:
+    - isEdited (Boolean)
+    - isDeleted (Boolean)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: post, author, parentComment
+
+
+5. CHAT SCHEMA (Chat.js):
+--------------------------
+Purpose: Store chat conversations between users
+
+Key Fields:
+  • Participants:
+    - participants (Array of User references, max 2 for DM)
+    - chatType (Enum: direct/group)
+  
+  • Chat Info:
+    - chatName (String, for group chats)
+    - chatImage (Object: url, cloudinaryId)
+    - admin (User reference, for group chats)
+  
+  • Messages:
+    - lastMessage (Message reference)
+    - lastMessageTime (Date)
+  
+  • Status:
+    - unreadCount (Map of userId to count)
+    - isActive (Boolean)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: participants, chatType, lastMessageTime
+
+
+6. MESSAGE SCHEMA (Message.js):
+--------------------------------
+Purpose: Store individual chat messages
+
+Key Fields:
+  • Message Content:
+    - chat (ObjectId reference to Chat)
+    - sender (ObjectId reference to User)
+    - content (String, message text)
+    - messageType (Enum: text/image/file/system)
+  
+  • Media:
+    - media (Array of Media references)
+  
+  • Message Status:
+    - readBy (Array of Objects: user, readAt)
+    - isEdited (Boolean)
+    - isDeleted (Boolean)
+    - deletedFor (Array of User references)
+  
+  • Reply Reference:
+    - replyTo (ObjectId reference to Message)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: chat, sender, createdAt
+
+
+7. MEDIA SCHEMA (Media.js):
+----------------------------
+Purpose: Store metadata for uploaded files
+
+Key Fields:
+  • File Information:
+    - uploadedBy (ObjectId reference to User)
+    - fileType (Enum: image/video/document/audio)
+    - mimeType (String)
+    - fileSize (Number, in bytes)
+  
+  • Storage:
+    - url (String, Cloudinary URL)
+    - cloudinaryId (String, Cloudinary public ID)
+    - thumbnailUrl (String, for videos)
+  
+  • Metadata:
+    - originalName (String)
+    - dimensions (Object: width, height)
+    - duration (Number, for audio/video)
+  
+  • References:
+    - associatedModel (String: Post/Entry/Message)
+    - associatedId (ObjectId)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: uploadedBy, fileType, associatedModel
+
+
+8. EVENT SCHEMA (Event.js):
+----------------------------
+Purpose: Store community events and activities
+
+Key Fields:
+  • Event Details:
+    - creator (ObjectId reference to User)
+    - title (String)
+    - description (String)
+    - eventType (Enum: meetup/webinar/workshop/contest)
+  
+  • Timing:
+    - startDate (Date)
+    - endDate (Date)
+    - timezone (String)
+  
+  • Location:
+    - location (Object: address, coordinates)
+    - isVirtual (Boolean)
+    - virtualLink (String)
+  
+  • Participation:
+    - attendees (Array of User references)
+    - maxAttendees (Number)
+    - isPublic (Boolean)
+
+  Timestamps: createdAt, updatedAt
+  Indexes: creator, startDate, eventType
+
+
+================================================================================
+                         API ARCHITECTURE & ROUTES
+================================================================================
+
+BASE URL: http://localhost:5000/api
+
+AUTHENTICATION ENDPOINTS:
+-------------------------
+POST   /api/users/register          - Create new user account
+POST   /api/users/login             - User login, returns JWT
+POST   /api/users/logout            - User logout
+GET    /api/users/profile           - Get current user profile
+PUT    /api/users/profile           - Update user profile
+GET    /api/users/:id               - Get user by ID
+GET    /api/users/search            - Search users
+
+
+ENTRY ENDPOINTS (Private Diary):
+---------------------------------
+GET    /api/entries                 - Get all user entries
+POST   /api/entries                 - Create new entry
+GET    /api/entries/:id             - Get specific entry
+PUT    /api/entries/:id             - Update entry
+DELETE /api/entries/:id             - Delete entry
+GET    /api/entries/mood/:mood      - Filter entries by mood
+GET    /api/entries/public          - Get public entries
+
+
+POST ENDPOINTS (Community):
+----------------------------
+GET    /api/posts                   - Get all posts (paginated)
+POST   /api/posts                   - Create new post
+GET    /api/posts/:id               - Get specific post
+PUT    /api/posts/:id               - Update post
+DELETE /api/posts/:id               - Delete post
+POST   /api/posts/:id/like          - Like/unlike post
+POST   /api/posts/:id/comment       - Add comment to post
+GET    /api/posts/trending          - Get trending posts (24hr)
+GET    /api/posts/following         - Get posts from followed users
+
+
+COMMUNITY ENDPOINTS:
+--------------------
+POST   /api/community/post/:id/comments      - Add comment
+GET    /api/community/post/:id/comments      - Get comments (paginated)
+POST   /api/community/comment/:id/like       - Like/unlike comment
+POST   /api/community/comment/:id/reply      - Reply to comment
+POST   /api/community/:userId/follow         - Follow user
+DELETE /api/community/:userId/unfollow       - Unfollow user
+GET    /api/community/:userId/followers      - Get followers list
+GET    /api/community/:userId/following      - Get following list
+
+
+AI ENDPOINTS:
+-------------
+POST   /api/ai/grammar-check        - Check grammar and spelling
+POST   /api/ai/improve-writing      - Get writing suggestions
+POST   /api/ai/generate-summary     - Generate content summary
+
+
+ANALYTICS ENDPOINTS:
+--------------------
+GET    /api/analytics/dashboard     - Get user analytics dashboard
+GET    /api/analytics/mood-trends   - Get mood tracking data
+GET    /api/analytics/engagement    - Get engagement metrics
+
+
+LEADERBOARD ENDPOINTS:
+----------------------
+GET    /api/leaderboard             - Get top users by points
+GET    /api/leaderboard/:period     - Get leaderboard by period
+
+
+UPLOAD ENDPOINTS:
+-----------------
+POST   /api/upload/image            - Upload image file
+POST   /api/upload/video            - Upload video file
+POST   /api/upload/document         - Upload document
+DELETE /api/upload/:id              - Delete uploaded file
+
+
+MIDDLEWARE CHAIN:
+-----------------
+1. CORS - Enable cross-origin requests
+2. Helmet - Security headers
+3. Rate Limiting - Prevent abuse (100 requests/15 min)
+4. Body Parser - Parse JSON requests
+5. Authentication - Verify JWT token
+6. Validation - Validate request data
+7. Error Handler - Centralized error handling
+
+
+================================================================================
+                        UI/UX DESIGN PRINCIPLES
+================================================================================
+
+DESIGN PHILOSOPHY:
+------------------
+• Clean and Minimalist: Focus on content without distractions
+• Dual Personality: Private diary feel + social media vibes
+• Mobile-First: Responsive design for all screen sizes
+• Accessibility: WCAG 2.1 compliant, keyboard navigation
+• Performance: Fast load times, optimized images, lazy loading
+
+
+COLOR SCHEME:
+-------------
+Primary Colors:
+  • Blue (#3B82F6) - Primary actions, links
+  • Purple (#8B5CF6) - Stories, creative content
+  • Green (#10B981) - Success states, public visibility
+  • Amber (#F59E0B) - Books, warnings
+
+Neutral Colors:
+  • Gray Scale - Background, text, borders
+  • White (#FFFFFF) - Cards, containers
+  • Black (#000000) - Primary text
+
+Semantic Colors:
+  • Red (#EF4444) - Errors, delete actions
+  • Yellow (#FBBF24) - Warnings
+  • Teal (#14B8A6) - Info messages
+
+
+TYPOGRAPHY:
+-----------
+• Primary Font: System UI fonts (Inter, Roboto, SF Pro)
+• Font Sizes:
+  - Headings: 2xl (24px), xl (20px), lg (18px)
+  - Body: base (16px), sm (14px)
+  - Small: xs (12px)
+• Line Height: 1.5 for body, 1.2 for headings
+• Font Weights: 400 (normal), 500 (medium), 600 (semibold), 700 (bold)
+
+
+LAYOUT STRUCTURE:
+-----------------
+1. Navigation Bar (Top):
+   - Logo/Brand name
+   - Search bar (center)
+   - User profile, notifications (right)
+   - Fixed position for easy access
+
+2. Sidebar (Left):
+   - Main navigation links
+   - Quick actions
+   - Collapsible on mobile
+   - Icons + text labels
+
+3. Main Content Area (Center):
+   - Dynamic content based on route
+   - Scrollable with pagination
+   - Maximum width for readability
+
+4. Right Sidebar (Optional):
+   - Suggestions, trending topics
+   - Advertisements
+   - Hidden on mobile
+
+5. Bottom Navigation (Mobile):
+   - Home, Diary, Create, Community, Profile
+   - Fixed position for thumb access
+
+
+COMPONENT DESIGN PATTERNS:
+---------------------------
+1. Cards:
+   - Rounded corners (12px)
+   - Subtle shadows
+   - Hover effects
+   - White background
+
+2. Buttons:
+   - Primary: Filled background, white text
+   - Secondary: Outlined, colored border
+   - Ghost: Transparent, colored text
+   - Disabled: 50% opacity
+
+3. Forms:
+   - Label above input
+   - Clear placeholder text
+   - Validation messages below field
+   - Submit button at bottom
+
+4. Modals:
+   - Centered overlay
+   - Backdrop blur
+   - Close button (top-right)
+   - Action buttons (bottom)
+
+5. Lists:
+   - Alternating row colors (tables)
+   - Hover effects
+   - Loading skeletons
+   - Empty states
+
+6. Images:
+   - Lazy loading
+   - Placeholder while loading
+   - Aspect ratio maintained
+   - Rounded corners
+
+
+RESPONSIVE BREAKPOINTS:
+-----------------------
+• Mobile: < 640px (sm)
+• Tablet: 640px - 1024px (md, lg)
+• Desktop: > 1024px (xl, 2xl)
+
+Mobile Optimizations:
+  • Stack columns vertically
+  • Larger touch targets (48px minimum)
+  • Bottom navigation instead of sidebar
+  • Simplified layouts
+  • Swipe gestures
+
+
+INTERACTION PATTERNS:
+---------------------
+1. Loading States:
+   - Skeleton screens
+   - Spinner for quick actions
+   - Progress bars for uploads
+
+2. Feedback:
+   - Toast notifications (success, error, info)
+   - Inline validation messages
+   - Confirmation dialogs for destructive actions
+
+3. Animations:
+   - Smooth transitions (300ms)
+   - Fade in/out for modals
+   - Slide animations for sidebars
+   - Micro-interactions for buttons
+
+4. Gestures:
+   - Pull to refresh (mobile)
+   - Swipe to delete (mobile)
+   - Long press for context menu
+   - Drag and drop for reordering
+
+
+USER FLOWS:
+-----------
+1. New User Onboarding:
+   Landing → Sign Up → Profile Setup → Tutorial → Dashboard
+
+2. Creating Entry:
+   Dashboard → New Entry → Write Content → Add Media → Set Privacy → Save
+
+3. Social Interaction:
+   Community → View Post → Like/Comment → View Profile → Follow
+
+4. Chat Conversation:
+   Profile → Message Button → Chat Window → Send Message
+
+5. Content Discovery:
+   Discover → Filter/Search → View Results → Read Content → Engage
+
+
+ACCESSIBILITY FEATURES:
+-----------------------
+• Keyboard Navigation: Tab through all interactive elements
+• Screen Reader Support: ARIA labels, semantic HTML
+• Color Contrast: WCAG AA compliance (4.5:1 for text)
+• Focus Indicators: Visible focus states
+• Alt Text: Descriptive text for all images
+• Form Labels: Clear labels for all inputs
+• Error Messages: Descriptive and helpful
+
+
+================================================================================
+                        KEY FEATURES & FUNCTIONALITY
+================================================================================
+
+1. AUTHENTICATION & AUTHORIZATION:
+-----------------------------------
+• JWT-based stateless authentication
+• Secure password hashing with bcrypt (10 salt rounds)
+• Token expiration and refresh mechanism
+• Protected routes requiring authentication
+• Role-based access control (future: admin, moderator)
+• Session management across devices
+
+
+2. PERSONAL DIARY:
+------------------
+• Create private or public entries
+• Rich text editor with formatting
+• Mood tracking with 16+ emotions
+• Media attachment (images, videos)
+• Tag-based organization
+• Draft saving
+• Entry search and filtering
+• Mood analytics and trends
+• AI-powered writing assistance
+• Export entries as PDF
+
+
+3. COMMUNITY FEATURES:
+----------------------
+• Create text/image/poll/article posts
+• Like and share posts
+• Nested comments with replies
+• User following system
+• Real-time notifications
+• Trending posts (24-hour window)
+• Discover new content
+• Hashtag support
+• Search posts by content/tags/users
+• User profiles with follower counts
+
+
+4. MESSAGING SYSTEM:
+--------------------
+• Real-time chat with Socket.io
+• One-on-one direct messages
+• Group chats (future feature)
+• Read receipts
+• Typing indicators
+• Message editing and deletion
+• Media sharing in chat
+• Chat history persistence
+• Unread message counts
+• Draggable chat window (mobile)
+
+
+5. MEDIA MANAGEMENT:
+--------------------
+• Cloudinary integration for storage
+• Image upload with preview
+• Video upload support
+• Automatic image optimization
+• Thumbnail generation
+• File size validation
+• Supported formats: JPEG, PNG, GIF, MP4
+• Maximum file size: 10MB
+
+
+6. ANALYTICS & INSIGHTS:
+------------------------
+• User engagement metrics
+• Mood tracking over time
+• Post performance statistics
+• Follower growth charts
+• Content reach and impressions
+• Activity heatmaps
+• Personal writing trends
+• Most active times
+
+
+7. GAMIFICATION:
+----------------
+• User points system
+• Leaderboard rankings
+• Badges and achievements (future)
+• Daily streaks for writing
+• Engagement rewards
+• Level progression
+
+
+8. SEARCH & DISCOVERY:
+----------------------
+• Full-text search for posts
+• User search with filters
+• Tag-based discovery
+• Trending topics
+• Recommended users
+• Content recommendations
+• Advanced filters (date, type, mood)
+
+
+9. PRIVACY & SECURITY:
+----------------------
+• Private/public content toggle
+• Block users functionality
+• Report content mechanism (future)
+• Data encryption in transit (HTTPS)
+• Input sanitization
+• Rate limiting to prevent abuse
+• CORS protection
+• XSS prevention
+
+
+10. RESPONSIVE DESIGN:
+----------------------
+• Mobile-first approach
+• Touch-friendly interface
+• Bottom navigation on mobile
+• Collapsible sidebar
+• Adaptive layouts
+• Swipe gestures
+• Optimized images for different screens
+
+
+================================================================================
+                        TECHNICAL IMPLEMENTATION
+================================================================================
+
+STATE MANAGEMENT:
+-----------------
+• React Context API for global state
+• AuthContext: User authentication state
+• ChatContext: Real-time chat state
+• ThemeContext: UI theme preferences
+• Local state with useState for component-specific data
+• useEffect for side effects and API calls
+• Custom hooks for reusable logic
+
+
+API COMMUNICATION:
+------------------
+• Axios for HTTP requests
+• Centralized API configuration in utils/api.js
+• Request/response interceptors
+• Error handling and retries
+• Token injection in headers
+• Base URL configuration
+• Timeout management
+
+
+REAL-TIME FEATURES:
+-------------------
+• Socket.io for WebSocket connections
+• Event-driven architecture
+• Real-time message delivery
+• Online status tracking
+• Typing indicators
+• Live notifications
+• Connection state management
+
+
+FILE UPLOADS:
+-------------
+• Multer middleware for file handling
+• Cloudinary SDK for cloud storage
+• Client-side file validation
+• Progress tracking
+• Image compression before upload
+• Automatic format conversion
+• CDN delivery for fast loading
+
+
+AUTHENTICATION FLOW:
+--------------------
+1. User submits login credentials
+2. Server validates and hashes password
+3. JWT token generated with user payload
+4. Token sent to client and stored in localStorage
+5. Client includes token in Authorization header
+6. Server middleware verifies token on protected routes
+7. Token refresh on expiration
+
+
+DATABASE OPERATIONS:
+--------------------
+• Mongoose for schema definition
+• Virtuals for computed properties
+• Pre/post hooks for middleware
+• Indexing for query optimization
+• Population for referenced documents
+• Aggregation pipelines for analytics
+• Transaction support for critical operations
+
+
+ERROR HANDLING:
+---------------
+• Centralized error middleware
+• Custom error classes
+• Detailed error messages in development
+• Generic messages in production
+• HTTP status codes
+• Error logging (future: external service)
+• Client-side error boundaries
+
+
+SECURITY MEASURES:
+------------------
+• Password hashing with bcrypt
+• JWT for stateless auth
+• HTTPS enforcement
+• CORS configuration
+• Helmet for security headers
+• Rate limiting (100 req/15 min)
+• Input sanitization
+• SQL injection prevention (NoSQL)
+• XSS protection
+
+
+PERFORMANCE OPTIMIZATION:
+-------------------------
+• Code splitting with React.lazy
+• Image lazy loading
+• Pagination for large datasets
+• Database query optimization
+• CDN for static assets
+• Compression middleware
+• Caching strategies
+• Debouncing for search inputs
+
+
+================================================================================
+                      DEPLOYMENT & ENVIRONMENT SETUP
+================================================================================
+
+DEVELOPMENT ENVIRONMENT:
+------------------------
+• Node.js v14+ installed
+• MongoDB local instance or Atlas cluster
+• Cloudinary account for media storage
+• Environment variables in .env file:
+  - PORT=5000
+  - MONGODB_URI=your_mongodb_connection_string
+  - JWT_SECRET=your_secret_key
+  - CLOUDINARY_CLOUD_NAME=your_cloud_name
+  - CLOUDINARY_API_KEY=your_api_key
+  - CLOUDINARY_API_SECRET=your_api_secret
+  - GOOGLE_AI_API_KEY=your_google_ai_key
+
+
+RUNNING THE PROJECT:
+--------------------
+Backend:
+  cd backend
+  npm install
+  npm run server (with nodemon)
+  npm start (production)
+
+Frontend:
+  cd frontend
+  npm install
+  npm run dev (development on port 5173)
+  npm run build (production build)
+  npm run preview (preview production build)
+
+
+PRODUCTION DEPLOYMENT:
+----------------------
+• Backend: Deploy to Heroku, AWS, DigitalOcean, or Railway
+• Frontend: Deploy to Vercel, Netlify, or AWS S3 + CloudFront
+• Database: MongoDB Atlas for managed database
+• Media Storage: Cloudinary for images/videos
+• Environment: Set production environment variables
+• SSL: Enable HTTPS with Let's Encrypt or cloud provider
+• Monitoring: Set up logging and error tracking
+
+
+================================================================================
+                      POTENTIAL INTERVIEW QUESTIONS
+================================================================================
+
+TECHNICAL QUESTIONS:
+--------------------
+
+Q1: Why did you choose MERN stack for this project?
+A: MERN stack provides a full JavaScript ecosystem, enabling code reuse 
+   between frontend and backend. React offers component-based architecture 
+   for scalable UI, Express provides flexible API routing, MongoDB's 
+   document model fits our nested comment structure and flexible schema 
+   needs, and Node.js enables real-time features with Socket.io.
+
+Q2: How do you handle authentication and security?
+A: We use JWT for stateless authentication. Passwords are hashed with 
+   bcrypt (10 salt rounds) before storage. Protected routes use middleware 
+   to verify JWT tokens. We implement rate limiting (100 req/15 min), 
+   input sanitization, CORS protection, Helmet for security headers, and 
+   HTTPS enforcement.
+
+Q3: Explain your database schema design for nested comments.
+A: Comments have a parentComment field referencing another comment ID for 
+   replies. The Comment schema includes a replies array for bidirectional 
+   navigation. We use Mongoose population to fetch nested comment trees. 
+   This allows infinite reply depth while maintaining query performance.
+
+Q4: How do you handle real-time messaging?
+A: Socket.io establishes WebSocket connections for real-time communication. 
+   When users send messages, the server emits events to connected clients. 
+   We maintain active socket connections mapped to user IDs, enabling 
+   targeted message delivery. Messages persist in MongoDB for history.
+
+Q5: What strategies did you use for performance optimization?
+A: Frontend: Code splitting with React.lazy, image lazy loading, debounced 
+   search. Backend: Database indexing on frequently queried fields, 
+   pagination for large datasets, Cloudinary CDN for media. Both: 
+   Compression, caching strategies, optimized queries with lean() for 
+   read-only data.
+
+Q6: How do you manage application state in React?
+A: We use Context API for global state (Auth, Chat, Theme) and useState 
+   for local component state. Custom hooks encapsulate reusable logic. 
+   This avoids prop drilling while keeping state management simple without 
+   additional libraries like Redux.
+
+Q7: Explain your file upload process.
+A: Client validates file type/size, then sends multipart/form-data. Multer 
+   middleware processes the upload on the server. We upload to Cloudinary 
+   which returns a URL and public ID. Metadata (URL, type, size) is stored 
+   in MongoDB's Media model. Images are optimized and delivered via CDN.
+
+Q8: How do you handle errors in the application?
+A: Backend uses centralized error middleware catching all errors. Custom 
+   error classes provide structured error info. We send appropriate HTTP 
+   status codes with descriptive messages. Frontend uses try-catch blocks, 
+   toast notifications for user feedback, and error boundaries for React 
+   component errors.
+
+Q9: What is your approach to API design?
+A: RESTful principles with resource-based URLs. Consistent naming 
+   conventions (plural nouns). HTTP methods match operations (GET, POST, 
+   PUT, DELETE). Proper status codes (200, 201, 400, 401, 404, 500). 
+   Pagination for list endpoints. Versioning readiness (/api/v1/). Clear 
+   request/response formats.
+
+Q10: How do you implement the mood tracking feature?
+A: The Entry schema has a mood field with 16+ predefined emotions. Users 
+   select mood when creating entries. Analytics controller aggregates mood 
+   data over time using MongoDB aggregation pipelines. Frontend displays 
+   mood trends with charts, helping users identify emotional patterns.
+
+
+ARCHITECTURE & DESIGN:
+----------------------
+
+Q11: Why separate private entries and community posts?
+A: This addresses different user needs—private journaling vs. social 
+   sharing. Separate schemas allow different privacy controls, visibility 
+   settings, and feature sets. Posts have social features (likes, shares, 
+   comments) while entries focus on personal reflection with mood tracking.
+
+Q12: How does your application scale?
+A: Horizontal scaling: Stateless backend allows multiple server instances 
+   behind a load balancer. Database: MongoDB sharding for data distribution. 
+   Media: Cloudinary CDN handles increased media traffic. Caching: Redis 
+   can cache frequently accessed data. Queue: Message queues for async 
+   operations like notifications.
+
+Q13: Explain your folder structure and why you organized it that way.
+A: Backend follows MVC pattern: models (data), controllers (logic), routes 
+   (endpoints). Middlewares separate concerns. Services handle external APIs. 
+   Frontend separates components (reusable UI), pages (routes), context 
+   (state), hooks (logic), and utils (helpers). This promotes modularity, 
+   testability, and maintainability.
+
+Q14: How do you handle different user roles?
+A: User schema includes role field (currently unused but prepared). 
+   Middleware can check roles for protected routes. Future implementation 
+   will differentiate regular users, verified users, moderators, and admins 
+   with varying permissions for content moderation and administration.
+
+
+FEATURES & FUNCTIONALITY:
+-------------------------
+
+Q15: Walk through the flow of creating and publishing a post.
+A: User clicks "Create Post" → Opens NewPost form → Enters content, 
+   selects type, adds hashtags → Optional media upload to Cloudinary → 
+   Form submission to POST /api/posts → Server validates, saves to MongoDB 
+   → Returns created post → Frontend redirects to Community feed → Post 
+   appears in followers' feeds.
+
+Q16: How does the trending algorithm work?
+A: We query posts created in the last 24 hours, calculate engagement score 
+   (likes + comments * 2 + shares * 3), sort by score descending, and 
+   return top N posts. The algorithm favors recent engagement, giving users 
+   fresh trending content.
+
+Q17: Explain the following system you implemented.
+A: User schema has followers (users who follow me) and following (users I 
+   follow) arrays. Follow action adds current user to target's followers 
+   and target to current user's following. Unfollow removes entries. 
+   Community feed filters posts where author is in current user's following 
+   array.
+
+Q18: How do you prevent spam and abuse?
+A: Express-rate-limit middleware restricts requests (100/15 min per IP). 
+   Input validation with express-validator. Mongo-sanitize prevents NoSQL 
+   injection. Future: Implement content reporting, user blocking, 
+   moderation queue, and automated spam detection.
+
+
+CHALLENGES & SOLUTIONS:
+-----------------------
+
+Q19: What was the biggest challenge you faced?
+A: Implementing nested comments with replies was complex. Solution: Used 
+   recursive component rendering in React. Backend populates nested replies 
+   using Mongoose population. Added pagination to avoid loading too many 
+   comments at once. Optimized queries with lean() and select() for 
+   performance.
+
+Q20: How did you debug a difficult bug?
+A: [Prepare a specific example from your development, such as fixing real-
+   time chat synchronization, resolving CORS issues, debugging authentication 
+   token expiration, or solving race conditions in state updates. Include 
+   the problem, your debugging process, and the solution.]
+
+Q21: If you had more time, what would you improve?
+A: • Implement automated testing (Jest, React Testing Library)
+   • Add Progressive Web App features (offline support, push notifications)
+   • Implement full-text search with Elasticsearch
+   • Add video processing and streaming
+   • Create mobile apps with React Native
+   • Implement content recommendation algorithm with ML
+   • Add two-factor authentication
+   • Improve accessibility with better ARIA support
+   • Implement comprehensive analytics dashboard
+
+
+FUTURE ENHANCEMENTS:
+--------------------
+
+Q22: What features would you add next?
+A: • Story feature (24-hour content like Instagram)
+   • Live streaming capabilities
+   • Advanced content editor (rich media, embeds)
+   • Polls and surveys in posts
+   • Event creation and RSVP
+   • Marketplace for user-generated content
+   • Premium subscription tier
+   • Advanced privacy controls
+   • Content scheduling
+   • Multi-language support
+
+
+================================================================================
+                         PROJECT ACHIEVEMENTS
+================================================================================
+
+COMPLETED FEATURES:
+-------------------
+✓ Full-stack MERN application
+✓ JWT-based authentication system
+✓ Private diary with mood tracking
+✓ Community posts with engagement
+✓ Nested comments with replies
+✓ Real-time chat messaging
+✓ User following system
+✓ Media upload to Cloudinary
+✓ Trending posts algorithm
+✓ User search and discovery
+✓ Analytics dashboard
+✓ Leaderboard system
+✓ Responsive mobile design
+✓ AI writing assistance integration
+✓ Rich text editor
+✓ Profile customization
+
+
+TECHNICAL ACCOMPLISHMENTS:
+--------------------------
+✓ Scalable architecture with separation of concerns
+✓ RESTful API design
+✓ Real-time communication with WebSocket
+✓ Secure authentication and authorization
+✓ Database schema design with relationships
+✓ File upload and cloud storage integration
+✓ Performance optimization techniques
+✓ Error handling and validation
+✓ Modern React patterns (hooks, context)
+✓ Responsive UI with Tailwind CSS
+
+
+LEARNING OUTCOMES:
+------------------
+✓ Full-stack development workflow
+✓ Database design and optimization
+✓ Authentication and security best practices
+✓ Real-time application architecture
+✓ Cloud services integration
+✓ API design principles
+✓ State management in React
+✓ Responsive web design
+✓ Version control with Git
+✓ Problem-solving and debugging
+
+
+================================================================================
+                            PROJECT SUMMARY
+================================================================================
+
+This project demonstrates a comprehensive understanding of modern web 
+development practices. It combines personal and social features in a unique 
+way, providing value to users seeking both private journaling and community 
+engagement.
+
+The technical implementation showcases proficiency in:
+• Full-stack JavaScript development (MERN stack)
+• Database design and relationships
+• Authentication and security
+• Real-time communication
+• Cloud services integration
+• Responsive UI/UX design
+• API development and documentation
+• Performance optimization
+• Modern development tools and practices
+
+The project is production-ready and scalable, with a clear path for future 
+enhancements and feature additions.
+
+
+================================================================================
+                         CONTACT & REPOSITORY
+================================================================================
+
+Project Name: Dairy - Personal Journal & Community Platform
+Repository: https://github.com/Ashu8840/Major
+Developer: Ayush Tripathi
+Academic Year: 4th Year
+Project Type: Major Project
+
+Technologies: React, Node.js, Express, MongoDB, Socket.io, Cloudinary, 
+              Tailwind CSS, JWT, Vite
+
+Key Features: Personal Diary, Community Posts, Real-time Chat, Mood Tracking,
+              User Following, Media Upload, Analytics, Leaderboard
+
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
+
+Last Updated: October 10, 2025
+Document Version: 1.0

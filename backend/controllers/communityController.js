@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Post = require("../models/Post");
+const Entry = require("../models/Entry");
 const User = require("../models/User");
 const Comment = require("../models/Comment");
 const TrendingHashtag = require("../models/TrendingHashtag");
@@ -409,15 +410,22 @@ const getSuggestedUsers = async (req, res) => {
 // Lightweight profile preview for community cards
 const getCommunityUserPreview = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { userId: reference } = req.params;
+    const { full } = req.query;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user id" });
-    }
+    const isObjectId = mongoose.Types.ObjectId.isValid(reference);
+    const query = isObjectId
+      ? { _id: reference }
+      : {
+          $or: [
+            { username: reference?.toString().toLowerCase() },
+            { userId: reference },
+          ],
+        };
 
-    const user = await User.findById(userId)
+    const user = await User.findOne(query)
       .select(
-        "username displayName bio profileImage isVerified stats followers following socialLinks achievements joinedDate"
+        "username displayName bio profileImage coverPhoto isVerified stats followers following socialLinks achievements joinedDate preferences address"
       )
       .lean();
 
@@ -433,13 +441,14 @@ const getCommunityUserPreview = async (req, res) => {
       ? user.achievements.slice(0, 3)
       : [];
 
-    const preview = {
+    const baseProfile = {
       _id: user._id,
       username: user.username,
       displayName: user.displayName || user.username,
       bio: user.bio || "",
       isVerified: Boolean(user.isVerified),
       profileImage: user.profileImage || null,
+      coverPhoto: user.coverPhoto || null,
       followerCount,
       followingCount,
       stats: {
@@ -456,9 +465,123 @@ const getCommunityUserPreview = async (req, res) => {
       },
       achievements: topAchievements,
       joinedDate: user.joinedDate,
+      address: user.address || null,
     };
 
-    res.json(preview);
+    const shouldExpand = ["true", "1", "full"].includes(
+      String(full || "")
+        .trim()
+        .toLowerCase()
+    );
+
+    if (!shouldExpand) {
+      return res.json(baseProfile);
+    }
+
+    const followerIds = (user.followers || [])
+      .map((item) => item?.user)
+      .filter(Boolean);
+    const followingIds = (user.following || [])
+      .map((item) => item?.user)
+      .filter(Boolean);
+
+    const followerLimit = 12;
+    const followingLimit = 12;
+    const contentLimit = 6;
+
+    const [followersDetailed, followingDetailed, recentPosts, recentEntries] =
+      await Promise.all([
+        followerIds.length
+          ? User.find({ _id: { $in: followerIds } })
+              .select("username displayName profileImage bio isVerified")
+              .limit(followerLimit)
+              .lean()
+          : [],
+        followingIds.length
+          ? User.find({ _id: { $in: followingIds } })
+              .select("username displayName profileImage bio isVerified")
+              .limit(followingLimit)
+              .lean()
+          : [],
+        Post.find({ author: user._id, visibility: { $ne: "private" } })
+          .sort({ createdAt: -1 })
+          .limit(contentLimit)
+          .select(
+            "content createdAt likes comments media postType hashtags visibility"
+          )
+          .populate("media", "url")
+          .lean(),
+        Entry.find({ author: user._id })
+          .sort({ createdAt: -1 })
+          .limit(contentLimit)
+          .select(
+            "title content mood createdAt visibility tags aiSummary media"
+          )
+          .populate("media", "url")
+          .lean(),
+      ]);
+
+    const formatUserCard = (record) => ({
+      _id: record._id,
+      username: record.username,
+      displayName: record.displayName || record.username,
+      bio: record.bio || "",
+      isVerified: Boolean(record.isVerified),
+      avatar:
+        record.profileImage?.url ||
+        (typeof record.profileImage === "string" ? record.profileImage : null),
+    });
+
+    const formatPostPreview = (post) => ({
+      _id: post._id,
+      content: post.content || "",
+      createdAt: post.createdAt,
+      likesCount: Array.isArray(post.likes) ? post.likes.length : 0,
+      commentsCount: Array.isArray(post.comments) ? post.comments.length : 0,
+      media: Array.isArray(post.media)
+        ? post.media.map((asset) => ({
+            url:
+              asset?.url ||
+              (asset?.media?.url ? asset.media.url : null) ||
+              null,
+          }))
+        : [],
+      postType: post.postType || "text",
+      hashtags: post.hashtags || [],
+      visibility: post.visibility || "public",
+    });
+
+    const formatEntryPreview = (entry) => ({
+      _id: entry._id,
+      title: entry.title || "Untitled Entry",
+      content: entry.content || "",
+      mood: entry.mood || "",
+      createdAt: entry.createdAt,
+      visibility: entry.visibility || "private",
+      tags: entry.tags || [],
+      aiSummary: entry.aiSummary || "",
+      media: Array.isArray(entry.media)
+        ? entry.media.map((asset) => ({
+            url:
+              asset?.url ||
+              (asset?.media?.url ? asset.media.url : null) ||
+              null,
+          }))
+        : [],
+    });
+
+    const responsePayload = {
+      ...baseProfile,
+      achievements: Array.isArray(user.achievements)
+        ? user.achievements
+        : topAchievements,
+      followers: followersDetailed.map(formatUserCard),
+      following: followingDetailed.map(formatUserCard),
+      recentPosts: recentPosts.map(formatPostPreview),
+      recentEntries: recentEntries.map(formatEntryPreview),
+    };
+
+    return res.json(responsePayload);
   } catch (error) {
     console.error("Get community user preview error:", error);
     res.status(500).json({ message: "Failed to fetch profile preview" });

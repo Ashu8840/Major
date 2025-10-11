@@ -304,6 +304,15 @@ const userSchema = new mongoose.Schema(
           default: false,
         },
       },
+      navigation: {
+        menuItems: {
+          type: [String],
+          default: [],
+        },
+        lastUpdated: {
+          type: Date,
+        },
+      },
       account: {
         twoFactor: {
           type: Boolean,

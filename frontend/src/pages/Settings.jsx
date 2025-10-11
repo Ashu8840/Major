@@ -37,7 +37,38 @@ import {
   IoHeart,
   IoRocket,
   IoFlame,
+  IoOptionsOutline as IoOptions,
 } from "react-icons/io5";
+import { NAVIGATION_ITEMS, NAVIGATION_ITEM_IDS } from "../config/navigation";
+
+const DEFAULT_NAVIGATION_SELECTION = [...NAVIGATION_ITEM_IDS];
+const PROTECTED_NAVIGATION_ITEMS = new Set(["settings"]);
+
+const sanitizeNavigationSelection = (selection = []) => {
+  const filtered = selection.filter((id) =>
+    DEFAULT_NAVIGATION_SELECTION.includes(id)
+  );
+  const unique = Array.from(new Set(filtered));
+
+  PROTECTED_NAVIGATION_ITEMS.forEach((requiredId) => {
+    if (
+      DEFAULT_NAVIGATION_SELECTION.includes(requiredId) &&
+      !unique.includes(requiredId)
+    ) {
+      unique.push(requiredId);
+    }
+  });
+
+  if (!unique.length) {
+    return [...DEFAULT_NAVIGATION_SELECTION];
+  }
+
+  return unique.sort(
+    (a, b) =>
+      DEFAULT_NAVIGATION_SELECTION.indexOf(a) -
+      DEFAULT_NAVIGATION_SELECTION.indexOf(b)
+  );
+};
 
 const DEFAULT_SETTINGS = {
   profile: {
@@ -86,6 +117,9 @@ const DEFAULT_SETTINGS = {
   theme: {
     current: "default",
   },
+  navigation: {
+    menuItems: [...DEFAULT_NAVIGATION_SELECTION],
+  },
   account: {
     twoFactor: false,
     backupCodesGenerated: false,
@@ -103,6 +137,9 @@ const cloneDefaultSettings = () => ({
   privacy: { ...DEFAULT_SETTINGS.privacy, blockedUsers: [] },
   notifications: { ...DEFAULT_SETTINGS.notifications },
   theme: { ...DEFAULT_SETTINGS.theme },
+  navigation: {
+    menuItems: [...DEFAULT_NAVIGATION_SELECTION],
+  },
   account: { ...DEFAULT_SETTINGS.account },
 });
 
@@ -132,10 +169,12 @@ export default function Settings() {
   const [themeSaving, setThemeSaving] = useState(false);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [savingNavigation, setSavingNavigation] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
   const [privacyDirty, setPrivacyDirty] = useState(false);
   const [notificationsDirty, setNotificationsDirty] = useState(false);
   const [accountDirty, setAccountDirty] = useState(false);
+  const originalNavigationRef = useRef([...DEFAULT_NAVIGATION_SELECTION]);
 
   const followersCount = userProfile?.followers?.length || 0;
   const followingCount = userProfile?.following?.length || 0;
@@ -146,6 +185,11 @@ export default function Settings() {
   const lastSecurityReviewLabel = settings.account.lastSecurityReview
     ? new Date(settings.account.lastSecurityReview).toLocaleDateString()
     : "Never";
+  const navigationSelection = sanitizeNavigationSelection(
+    settings.navigation?.menuItems?.length
+      ? settings.navigation.menuItems
+      : DEFAULT_NAVIGATION_SELECTION
+  );
 
   const normalizeSettings = (incoming = {}) => {
     const base = cloneDefaultSettings();
@@ -173,6 +217,13 @@ export default function Settings() {
       incomingNotifications.messages = incomingNotifications.comments;
     }
 
+    const incomingNavigation = incoming.navigation || {};
+    const navigationMenuItems = sanitizeNavigationSelection(
+      Array.isArray(incomingNavigation.menuItems)
+        ? incomingNavigation.menuItems
+        : []
+    );
+
     return {
       profile: { ...base.profile, ...(incoming.profile || {}) },
       address: { ...base.address, ...(incoming.address || {}) },
@@ -183,6 +234,9 @@ export default function Settings() {
         ...incomingNotifications,
       },
       theme: { ...base.theme, ...(incoming.theme || {}) },
+      navigation: {
+        menuItems: navigationMenuItems,
+      },
       account: { ...base.account, ...(incoming.account || {}) },
     };
   };
@@ -196,6 +250,7 @@ export default function Settings() {
         if (response.settings) {
           const normalized = normalizeSettings(response.settings);
           setSettings(normalized);
+          originalNavigationRef.current = [...normalized.navigation.menuItems];
           originalUsernameRef.current = normalized.profile?.username || "";
           const profileUrl = normalized.profile?.profileImage?.url;
           setProfileImagePreview(profileUrl || null);
@@ -579,6 +634,7 @@ export default function Settings() {
   const sidebarSections = [
     { id: "general", label: "General", icon: IoSettings },
     { id: "theme", label: "Theme", icon: IoColorPalette },
+    { id: "edit", label: "Edit Sidebar", icon: IoOptions },
     { id: "privacy", label: "Privacy", icon: IoShield },
     { id: "notifications", label: "Notifications", icon: IoNotifications },
     { id: "account", label: "Account", icon: IoPersonCircle },
@@ -707,6 +763,112 @@ export default function Settings() {
       );
     } finally {
       setSavingAccount(false);
+    }
+  };
+
+  const toggleNavigationItem = (itemId) => {
+    if (PROTECTED_NAVIGATION_ITEMS.has(itemId)) {
+      toast("Settings is always available.");
+      return;
+    }
+
+    let allowChange = true;
+    setSettings((prev) => {
+      const currentSelection = prev.navigation?.menuItems?.length
+        ? [...prev.navigation.menuItems]
+        : [...DEFAULT_NAVIGATION_SELECTION];
+      const alreadySelected = currentSelection.includes(itemId);
+
+      if (alreadySelected && currentSelection.length === 1) {
+        allowChange = false;
+        return prev;
+      }
+
+      let nextSelection;
+      if (alreadySelected) {
+        nextSelection = currentSelection.filter((id) => id !== itemId);
+      } else {
+        nextSelection = [...currentSelection, itemId];
+      }
+
+      const sanitizedSelection = sanitizeNavigationSelection(nextSelection);
+
+      return {
+        ...prev,
+        navigation: {
+          ...prev.navigation,
+          menuItems: sanitizedSelection,
+        },
+      };
+    });
+
+    if (!allowChange) {
+      toast.error("Keep at least one page in your sidebar.");
+      return;
+    }
+  };
+
+  const handleNavigationReset = () => {
+    setSettings((prev) => {
+      const current = prev.navigation?.menuItems || [];
+      const defaults = [...DEFAULT_NAVIGATION_SELECTION];
+      const isSame =
+        current.length === defaults.length &&
+        current.every((id, index) => id === defaults[index]);
+
+      if (isSame) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        navigation: {
+          ...prev.navigation,
+          menuItems: sanitizeNavigationSelection(defaults),
+        },
+      };
+    });
+  };
+
+  const arraysEqual = (a = [], b = []) =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
+
+  const hasNavigationChanges = !arraysEqual(
+    navigationSelection,
+    originalNavigationRef.current
+  );
+
+  const handleNavigationSave = async () => {
+    const selection = sanitizeNavigationSelection(
+      settings.navigation?.menuItems?.length
+        ? settings.navigation.menuItems
+        : [...DEFAULT_NAVIGATION_SELECTION]
+    );
+
+    if (!selection.length) {
+      toast.error("Select at least one page for your sidebar.");
+      return;
+    }
+
+    try {
+      setSavingNavigation(true);
+      await updateUserSettings({
+        preferences: {
+          navigation: {
+            menuItems: selection,
+          },
+        },
+      });
+      toast.success("Sidebar updated successfully.");
+      originalNavigationRef.current = [...selection];
+      await fetchUserProfile({ silent: true });
+    } catch (error) {
+      console.error("Navigation update error:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update sidebar layout"
+      );
+    } finally {
+      setSavingNavigation(false);
     }
   };
 
@@ -1016,6 +1178,100 @@ export default function Settings() {
                           {themeSaving ? "Applying..." : "Apply Theme"}
                         </button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSection === "edit" && (
+                  <div className="p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900">
+                          Edit Your Sidebar
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Choose which pages stay visible. Log out will always
+                          remain available.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleNavigationReset}
+                        className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                      >
+                        Reset to defaults
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {NAVIGATION_ITEMS.map((item) => {
+                        const IconComponent = item.icon;
+                        const isSelected = navigationSelection.includes(
+                          item.id
+                        );
+                        const isProtected = PROTECTED_NAVIGATION_ITEMS.has(
+                          item.id
+                        );
+                        const statusText = isProtected
+                          ? "Always visible"
+                          : isSelected
+                          ? "Visible in sidebar"
+                          : "Hidden from sidebar";
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => toggleNavigationItem(item.id)}
+                            aria-pressed={isSelected}
+                            disabled={isProtected}
+                            title={
+                              isProtected
+                                ? "Settings stays pinned for quick access"
+                                : undefined
+                            }
+                            className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
+                              isSelected
+                                ? "border-blue-500 bg-blue-50 text-blue-900"
+                                : "border-gray-200 text-gray-700 hover:border-gray-300"
+                            } disabled:cursor-not-allowed disabled:opacity-70`}
+                          >
+                            <span
+                              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                                isSelected
+                                  ? "bg-blue-500 text-white"
+                                  : "bg-gray-100 text-gray-500"
+                              }`}
+                            >
+                              <IconComponent className="w-5 h-5" />
+                            </span>
+                            <span className="flex-1">
+                              <span className="block font-medium">
+                                {item.label}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {statusText}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-gray-600">
+                        {navigationSelection.length} page
+                        {navigationSelection.length === 1 ? "" : "s"} will
+                        appear in your sidebar.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleNavigationSave}
+                        disabled={!hasNavigationChanges || savingNavigation}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <IoSave className="w-4 h-4" />
+                        {savingNavigation ? "Saving..." : "Save layout"}
+                      </button>
                     </div>
                   </div>
                 )}

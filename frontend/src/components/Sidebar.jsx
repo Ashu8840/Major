@@ -1,101 +1,27 @@
-import {
-  IoHomeOutline as IoHome,
-  IoBook,
-  IoPeople,
-  IoStar,
-  IoChatbubbles,
-  IoAnalytics,
-  IoTrophy,
-  IoHeart,
-  IoCreate,
-  IoStorefront,
-  IoLibrary,
-  IoPersonCircle,
-  IoSettings,
-  IoHelpBuoy,
-  IoCloseOutline as IoClose,
-  IoLogOutOutline,
-} from "react-icons/io5";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { IoCloseOutline as IoClose, IoLogOutOutline } from "react-icons/io5";
+import { NAVIGATION_ITEMS, NAVIGATION_ITEM_IDS } from "../config/navigation";
 import { useCurrentUser } from "../hooks/useAuth";
 
 export default function Sidebar({ isOpen = true, onClose }) {
   const currentPath = window.location.pathname;
   const navigate = useNavigate();
-  const { logout } = useCurrentUser();
+  const { logout, userProfile } = useCurrentUser();
 
-  const menuItems = [
-    {
-      name: "Dashboard",
-      path: "/",
-      icon: <IoHome className="w-5 h-5" />,
-    },
-    {
-      name: "Diary",
-      path: "/diary",
-      icon: <IoBook className="w-5 h-5" />,
-    },
-    {
-      name: "Community",
-      path: "/community",
-      icon: <IoPeople className="w-5 h-5" />,
-    },
-    {
-      name: "Leaderboard",
-      path: "/leaderboard",
-      icon: <IoTrophy className="w-5 h-5" />,
-    },
-    {
-      name: "Social",
-      path: "/social",
-      icon: <IoHeart className="w-5 h-5" />,
-    },
-    {
-      name: "Analytics",
-      path: "/analytics",
-      icon: <IoAnalytics className="w-5 h-5" />,
-    },
-    {
-      name: "Creator Studio",
-      path: "/creator-studio",
-      icon: <IoCreate className="w-5 h-5" />,
-    },
-    {
-      name: "Marketplace",
-      path: "/marketplace",
-      icon: <IoStorefront className="w-5 h-5" />,
-    },
-    {
-      name: "Reader's Lounge",
-      path: "/readers-lounge",
-      icon: <IoLibrary className="w-5 h-5" />,
-    },
-    {
-      name: "Profile",
-      path: "/profile",
-      icon: <IoPersonCircle className="w-5 h-5" />,
-    },
-    {
-      name: "Settings",
-      path: "/settings",
-      icon: <IoSettings className="w-5 h-5" />,
-    },
-    {
-      name: "Contact",
-      path: "/contact",
-      icon: <IoHelpBuoy className="w-5 h-5" />,
-    },
-    {
-      name: "Upgrade",
-      path: "/upgrade",
-      icon: <IoStar className="w-5 h-5" />,
-    },
-    {
-      name: "Connect",
-      path: "/chat",
-      icon: <IoChatbubbles className="w-5 h-5" />,
-    },
-  ];
+  const menuPreference = userProfile?.preferences?.navigation?.menuItems;
+
+  const menuItems = useMemo(() => {
+    const baseOrder = NAVIGATION_ITEM_IDS;
+    const allowedIds =
+      Array.isArray(menuPreference) && menuPreference.length
+        ? menuPreference.filter((id) => baseOrder.includes(id))
+        : [...baseOrder];
+
+    return NAVIGATION_ITEMS.filter((item) => allowedIds.includes(item.id)).sort(
+      (a, b) => allowedIds.indexOf(a.id) - allowedIds.indexOf(b.id)
+    );
+  }, [menuPreference]);
 
   return (
     <aside
@@ -129,9 +55,10 @@ export default function Sidebar({ isOpen = true, onClose }) {
               <nav className="space-y-2">
                 {menuItems.map((item) => {
                   const isActive = currentPath === item.path;
+                  const Icon = item.icon;
                   return (
                     <a
-                      key={item.path}
+                      key={item.id}
                       href={item.path}
                       className={`group relative flex items-center gap-3 rounded-2xl px-4 py-3 pl-5 transition-all duration-200 ${
                         isActive
@@ -152,9 +79,11 @@ export default function Sidebar({ isOpen = true, onClose }) {
                             : "border-blue-200/60 bg-white/80 text-blue-600 group-hover:border-blue-300 group-hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
                         }`}
                       >
-                        {item.icon}
+                        <Icon className="w-5 h-5" />
                       </span>
-                      <span className="text-sm font-semibold">{item.name}</span>
+                      <span className="text-sm font-semibold">
+                        {item.label}
+                      </span>
                     </a>
                   );
                 })}

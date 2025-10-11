@@ -53,23 +53,51 @@ const server = http.createServer(app);
 const DEFAULT_CLIENT_ORIGIN = "http://10.100.246.93:5173";
 const envOrigins = parseOrigins(process.env.CLIENT_ORIGINS);
 const singleClientOrigin = parseOrigins(process.env.CLIENT_URL);
+const deploymentOrigins = parseOrigins(process.env.DEPLOYMENT_CLIENT_ORIGINS);
 
 const allowedOrigins = [
   ...envOrigins,
   ...singleClientOrigin,
+  ...deploymentOrigins,
   "http://localhost:5173",
   "http://localhost:5174",
   DEFAULT_CLIENT_ORIGIN,
+  "https://major-five.vercel.app",
 ].filter(Boolean);
 
 const uniqueAllowedOrigins = [...new Set(allowedOrigins)];
 
+const ORIGIN_REGEX_ALLOW_LIST = [/^https:\/\/[a-z0-9-]+\.vercel\.app$/i];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  if (uniqueAllowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  return ORIGIN_REGEX_ALLOW_LIST.some((pattern) => pattern.test(origin));
+};
+
+const buildCorsOriginValidator = () => (origin, callback) => {
+  if (isOriginAllowed(origin)) {
+    return callback(null, true);
+  }
+
+  console.warn(`Blocked CORS request from origin: ${origin}`);
+  return callback(new Error("Not allowed by CORS"));
+};
+
 const presenceTimers = new Map();
 const PRESENCE_GRACE_PERIOD_MS = 30 * 1000;
 
+const corsOriginValidator = buildCorsOriginValidator();
+
 const io = new Server(server, {
   cors: {
-    origin: uniqueAllowedOrigins,
+    origin: corsOriginValidator,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -79,7 +107,7 @@ app.set("io", io);
 
 app.use(
   cors({
-    origin: uniqueAllowedOrigins,
+    origin: corsOriginValidator,
     credentials: true,
   })
 );

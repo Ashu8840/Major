@@ -1173,11 +1173,19 @@ const Community = () => {
   };
 
   const handlePreviewMessage = (profile) => {
-    toast.success(
-      profile?.displayName
-        ? `Messaging ${profile.displayName} coming soon!`
-        : "Messaging coming soon!"
-    );
+    if (!profile) {
+      toast.error("We couldn't open this conversation.");
+      return;
+    }
+
+    const targetId = profile._id || profile.id;
+    if (!targetId) {
+      toast.error("User information is incomplete.");
+      return;
+    }
+
+    closeProfilePreview();
+    navigate(`/chat?open=${encodeURIComponent(targetId)}`);
   };
 
   const scrollToTop = () => {

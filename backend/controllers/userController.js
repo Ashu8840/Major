@@ -6,6 +6,23 @@ const {
 } = require("../utils/generateToken");
 const cloudinary = require("../services/cloudinary");
 
+const ALLOWED_NAVIGATION_ITEMS = [
+  "dashboard",
+  "diary",
+  "community",
+  "leaderboard",
+  "social",
+  "analytics",
+  "creatorStudio",
+  "marketplace",
+  "readersLounge",
+  "profile",
+  "settings",
+  "contact",
+  "upgrade",
+  "chat",
+];
+
 const registerUser = async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -186,6 +203,11 @@ const updateUserSettings = async (req, res) => {
     if (!user.preferences.notifications) {
       user.preferences.notifications = {};
     }
+    if (!user.preferences.navigation) {
+      user.preferences.navigation = {
+        menuItems: [],
+      };
+    }
     if (!user.preferences.account) {
       user.preferences.account = {};
     }
@@ -263,7 +285,8 @@ const updateUserSettings = async (req, res) => {
 
     // Update preferences
     if (preferences) {
-      const { theme, privacy, notifications, account } = preferences;
+      const { theme, privacy, notifications, account, navigation } =
+        preferences;
 
       if (theme !== undefined) {
         user.preferences.theme = theme;
@@ -288,6 +311,22 @@ const updateUserSettings = async (req, res) => {
           ...user.preferences.account,
           ...account,
         };
+      }
+
+      if (navigation) {
+        const rawMenuItems = Array.isArray(navigation.menuItems)
+          ? navigation.menuItems
+          : [];
+        const sanitizedMenuItems = [
+          ...new Set(
+            rawMenuItems.filter((item) =>
+              ALLOWED_NAVIGATION_ITEMS.includes(item)
+            )
+          ),
+        ];
+
+        user.preferences.navigation.menuItems = sanitizedMenuItems;
+        user.preferences.navigation.lastUpdated = new Date();
       }
     }
 
@@ -324,6 +363,14 @@ const getUserSettings = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    const navigationMenuItems = Array.isArray(
+      user.preferences?.navigation?.menuItems
+    )
+      ? user.preferences.navigation.menuItems.filter((item) =>
+          ALLOWED_NAVIGATION_ITEMS.includes(item)
+        )
+      : [];
 
     // Structure the response to match frontend expectations
     const settings = {
@@ -363,6 +410,9 @@ const getUserSettings = async (req, res) => {
       },
       theme: {
         current: user.preferences?.theme || "default",
+      },
+      navigation: {
+        menuItems: navigationMenuItems,
       },
       account: {
         profileCompleted: user.profileCompleted,

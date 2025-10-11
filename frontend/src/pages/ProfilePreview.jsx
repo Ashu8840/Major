@@ -17,6 +17,14 @@ import {
   IoLink,
   IoPersonAddOutline,
   IoShieldCheckmark,
+  IoPersonCircleOutline,
+  IoChatbubbleOutline,
+  IoBookOutline,
+  IoDocumentTextOutline,
+  IoHeartOutline,
+  IoPricetagOutline,
+  IoHappyOutline,
+  IoGlobeOutline,
 } from "react-icons/io5";
 
 const LIMITED_SOCIAL_KEYS = [
@@ -68,7 +76,9 @@ export default function ProfilePreview() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get(`/community/user/${slug}/preview`);
+      const response = await api.get(`/community/user/${slug}/preview`, {
+        params: { full: true },
+      });
       const data = response.data || {};
       setProfile({ ...FALLBACK_PROFILE, ...data });
       setIsFollowing(Boolean(data.isFollowing));
@@ -95,6 +105,18 @@ export default function ProfilePreview() {
   const joinedLabel = profile?.joinedDate
     ? formatRelativeTime(profile.joinedDate)
     : null;
+  const followersList = Array.isArray(profile?.followers)
+    ? profile.followers
+    : [];
+  const followingList = Array.isArray(profile?.following)
+    ? profile.following
+    : [];
+  const recentPosts = Array.isArray(profile?.recentPosts)
+    ? profile.recentPosts
+    : [];
+  const recentEntries = Array.isArray(profile?.recentEntries)
+    ? profile.recentEntries
+    : [];
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -108,6 +130,20 @@ export default function ProfilePreview() {
     () => currentUser?.id || currentUser?._id || null,
     [currentUser?.id, currentUser?._id]
   );
+
+  const handleStartMessage = useCallback(() => {
+    if (!profileId) {
+      toast.error("Profile information is unavailable.");
+      return;
+    }
+
+    if (viewerId && profileId.toString() === viewerId.toString()) {
+      toast("This is your own profile.");
+      return;
+    }
+
+    navigate(`/chat?open=${encodeURIComponent(profileId)}`);
+  }, [navigate, profileId, viewerId]);
 
   const handleFollowToggle = async () => {
     if (!profileId || actionPending || profileId === viewerId) return;
@@ -262,8 +298,13 @@ export default function ProfilePreview() {
               </button>
               <button
                 type="button"
-                onClick={() => toast.success("Messaging coming soon")}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                onClick={handleStartMessage}
+                disabled={!profileId || profileId === viewerId}
+                className={`flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full font-semibold border ${
+                  !profileId || profileId === viewerId
+                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                }`}
               >
                 <IoPeopleOutline className="w-4 h-4" />
                 Message
@@ -319,16 +360,255 @@ export default function ProfilePreview() {
               </div>
             )}
 
-            <div className="mt-10 grid grid-cols-1 gap-4">
-              <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
-                <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wide mb-2">
-                  About
-                </h3>
+            <div className="mt-10 grid grid-cols-1 gap-6">
+              <section className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
+                <header className="flex items-center gap-2 mb-3">
+                  <IoPersonCircleOutline className="w-5 h-5 text-blue-500" />
+                  <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wide">
+                    About
+                  </h3>
+                </header>
                 <p className="text-sm text-blue-900 leading-relaxed">
                   {profile?.about ||
+                    profile?.bio ||
                     "This user prefers to keep the details light. Follow them to see more updates in your community feed."}
                 </p>
-              </div>
+                {profile?.address && (
+                  <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-blue-800">
+                    {profile.address.city && (
+                      <div className="flex items-center gap-2">
+                        <IoLocationOutline className="w-4 h-4" />
+                        <span>{profile.address.city}</span>
+                      </div>
+                    )}
+                    {profile.address.country && (
+                      <div className="flex items-center gap-2">
+                        <IoGlobeOutline className="w-4 h-4" />
+                        <span>{profile.address.country}</span>
+                      </div>
+                    )}
+                  </dl>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-purple-100 bg-white p-5 shadow-sm">
+                <header className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <IoPeopleOutline className="w-5 h-5 text-purple-500" />
+                    <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-wide">
+                      Community
+                    </h3>
+                  </div>
+                  <span className="text-xs text-purple-500">
+                    Followers & Following
+                  </span>
+                </header>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-2">
+                      Followers ({followersList.length})
+                    </h4>
+                    {followersList.length === 0 ? (
+                      <p className="text-sm text-purple-400">
+                        No followers to show yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2 max-h-48 overflow-auto pr-2">
+                        {followersList.map((follower) => (
+                          <li
+                            key={follower._id}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-purple-50/70"
+                          >
+                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600 overflow-hidden">
+                              {follower.avatar ? (
+                                <img
+                                  src={follower.avatar}
+                                  alt={follower.displayName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                follower.displayName.charAt(0).toUpperCase()
+                              )}
+                            </span>
+                            <div>
+                              <p className="text-sm font-semibold text-purple-900">
+                                {follower.displayName}
+                              </p>
+                              {follower.bio && (
+                                <p className="text-xs text-purple-500 line-clamp-1">
+                                  {follower.bio}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-2">
+                      Following ({followingList.length})
+                    </h4>
+                    {followingList.length === 0 ? (
+                      <p className="text-sm text-purple-400">
+                        Not following anyone yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2 max-h-48 overflow-auto pr-2">
+                        {followingList.map((follow) => (
+                          <li
+                            key={follow._id}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-purple-50/70"
+                          >
+                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600 overflow-hidden">
+                              {follow.avatar ? (
+                                <img
+                                  src={follow.avatar}
+                                  alt={follow.displayName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                follow.displayName.charAt(0).toUpperCase()
+                              )}
+                            </span>
+                            <div>
+                              <p className="text-sm font-semibold text-purple-900">
+                                {follow.displayName}
+                              </p>
+                              {follow.bio && (
+                                <p className="text-xs text-purple-500 line-clamp-1">
+                                  {follow.bio}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm">
+                <header className="flex items-center justify-between mb-4 text-indigo-600">
+                  <div className="flex items-center gap-2">
+                    <IoChatbubbleOutline className="w-5 h-5" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide">
+                      Recent Community Posts
+                    </h3>
+                  </div>
+                  <span className="text-xs text-indigo-400">
+                    Last {recentPosts.length} posts
+                  </span>
+                </header>
+                {recentPosts.length === 0 ? (
+                  <p className="text-sm text-indigo-400">
+                    No public posts to show yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {recentPosts.map((post) => (
+                      <li
+                        key={post._id}
+                        className="rounded-2xl bg-indigo-50/60 border border-indigo-100 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between text-xs text-indigo-500 mb-2">
+                          <span className="inline-flex items-center gap-1">
+                            <IoDocumentTextOutline className="w-3.5 h-3.5" />
+                            {post.postType}
+                          </span>
+                          <time dateTime={post.createdAt}>
+                            {formatRelativeTime(post.createdAt)}
+                          </time>
+                        </div>
+                        <p className="text-sm text-indigo-900 line-clamp-3">
+                          {post.content || "Shared an update."}
+                        </p>
+                        <div className="mt-2 flex items-center gap-4 text-xs text-indigo-500">
+                          <span className="inline-flex items-center gap-1">
+                            <IoHeartOutline className="w-3.5 h-3.5" />
+                            {post.likesCount}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <IoChatbubbleOutline className="w-3.5 h-3.5" />
+                            {post.commentsCount}
+                          </span>
+                          {Array.isArray(post.hashtags) &&
+                            post.hashtags.length > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <IoPricetagOutline className="w-3.5 h-3.5" />
+                                {post.hashtags.slice(0, 2).join(", ")}
+                              </span>
+                            )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-amber-100 bg-white p-5 shadow-sm">
+                <header className="flex items-center justify-between mb-4 text-amber-600">
+                  <div className="flex items-center gap-2">
+                    <IoBookOutline className="w-5 h-5" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide">
+                      Latest Journal Entries
+                    </h3>
+                  </div>
+                  <span className="text-xs text-amber-400">
+                    Recent {recentEntries.length} entries
+                  </span>
+                </header>
+                {recentEntries.length === 0 ? (
+                  <p className="text-sm text-amber-400">
+                    No entries shared yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {recentEntries.map((entry) => (
+                      <li
+                        key={entry._id}
+                        className="rounded-2xl bg-amber-50/60 border border-amber-100 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between text-xs text-amber-500 mb-2">
+                          <span className="inline-flex items-center gap-1">
+                            <IoDocumentTextOutline className="w-3.5 h-3.5" />
+                            {entry.visibility === "public"
+                              ? "Public"
+                              : "Private"}
+                          </span>
+                          <time dateTime={entry.createdAt}>
+                            {formatRelativeTime(entry.createdAt)}
+                          </time>
+                        </div>
+                        <h4 className="text-sm font-semibold text-amber-800 line-clamp-1">
+                          {entry.title}
+                        </h4>
+                        <p className="text-sm text-amber-900 line-clamp-3">
+                          {entry.aiSummary ||
+                            entry.content ||
+                            "Entry details hidden."}
+                        </p>
+                        <div className="mt-2 flex items-center gap-4 text-xs text-amber-500">
+                          {entry.mood && (
+                            <span className="inline-flex items-center gap-1">
+                              <IoHappyOutline className="w-3.5 h-3.5" />
+                              {entry.mood}
+                            </span>
+                          )}
+                          {Array.isArray(entry.tags) &&
+                            entry.tags.length > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <IoPricetagOutline className="w-3.5 h-3.5" />
+                                {entry.tags.slice(0, 2).join(", ")}
+                              </span>
+                            )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </div>
           </div>
         </div>
