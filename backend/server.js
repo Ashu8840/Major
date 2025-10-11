@@ -128,13 +128,6 @@ app.use(
     credentials: true,
   })
 );
-app.options(
-  "*",
-  cors({
-    origin: corsOriginValidator,
-    credentials: true,
-  })
-);
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
