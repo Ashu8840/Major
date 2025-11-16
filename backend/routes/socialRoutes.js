@@ -14,6 +14,7 @@ const {
   getCircleMessages,
   postCircleMessage,
   deleteCircle,
+  togglePinCircle,
 } = require("../controllers/socialController");
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.get("/circles/:circleId", protect, getCircleDetails);
 router.post("/circles/:circleId/join", protect, joinCircle);
 router.post("/circles/:circleId/leave", protect, leaveCircle);
 router.post("/circles/:circleId/transfer", protect, transferCircleOwnership);
+router.post("/circles/:circleId/pin", protect, togglePinCircle);
 router.delete(
   "/circles/:circleId/members/:memberId",
   protect,

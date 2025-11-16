@@ -70,6 +70,22 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    banReason: {
+      type: String,
+      default: null,
+    },
+    bannedAt: {
+      type: Date,
+      default: null,
+    },
+    lastActive: {
+      type: Date,
+      default: Date.now,
+    },
 
     // Social Connections
     followers: [

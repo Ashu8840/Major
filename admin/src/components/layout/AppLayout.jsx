@@ -7,33 +7,36 @@ import TopBar from "./TopBar.jsx";
 const navigationItems = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/users", label: "Users" },
+  { to: "/moderation", label: "Moderation" },
   { to: "/community", label: "Community" },
-  { to: "/marketplace", label: "Marketplace" },
+  { to: "/marketplace-control", label: "Marketplace" },
   { to: "/support", label: "Support" },
-  { to: "/analytics", label: "Analytics" },
+  { to: "/analytics-deep", label: "Analytics" },
+  { to: "/chatbot-training", label: "Chatbot Training" },
+  { to: "/monitoring", label: "Monitoring" },
+  { to: "/admins", label: "Admins" },
+  { to: "/settings", label: "Settings" },
 ];
 
 const AppLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <div className="flex min-h-screen">
-        <Sidebar
-          navigationItems={navigationItems}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
+    <div className="flex h-screen overflow-hidden bg-slate-100">
+      <Sidebar
+        navigationItems={navigationItems}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-        <div className="flex flex-1 flex-col">
-          <TopBar onMenuClick={() => setSidebarOpen((prev) => !prev)} />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <TopBar onMenuClick={() => setSidebarOpen((prev) => !prev)} />
 
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mx-auto w-full max-w-content">
-              <Outlet />
-            </div>
-          </main>
-        </div>
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-content">
+            <Outlet />
+          </div>
+        </main>
       </div>
     </div>
   );

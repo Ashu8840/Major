@@ -4,11 +4,21 @@ const cloudinary = require("../services/cloudinary");
 
 const createEntry = async (req, res) => {
   try {
-    console.log("Create entry request body:", req.body);
+    console.log("=== CREATE ENTRY DEBUG ===");
+    console.log("Request body:", req.body);
     console.log(
-      "Create entry request file:",
-      req.file ? "File present" : "No file"
+      "File info:",
+      req.file
+        ? {
+            fieldname: req.file.fieldname,
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            path: req.file.path,
+          }
+        : "No file"
     );
+    console.log("========================");
 
     const { title, content, tags, visibility, mood, isDraft } = req.body;
 
@@ -53,26 +63,34 @@ const createEntry = async (req, res) => {
     // Handle image upload if provided
     if (req.file) {
       try {
+        console.log("Uploading image to Cloudinary:", req.file.path);
         const result = await cloudinary.uploader.upload(req.file.path, {
           folder: "diary_entries",
           resource_type: "auto",
         });
+        console.log("Cloudinary upload successful:", result.secure_url);
 
         // Create media record
         const media = new Media({
-          owner: req.user._id, // Changed from 'user' to 'owner'
+          owner: req.user._id,
           url: result.secure_url,
           type: result.resource_type,
-          public_id: result.public_id, // This was already correct
+          public_id: result.public_id,
           size: req.file.size,
         });
 
         const savedMedia = await media.save();
+        console.log("Media record saved:", savedMedia._id);
         entryData.media = [savedMedia._id];
       } catch (uploadError) {
         console.error("Image upload failed:", uploadError);
-        return res.status(400).json({ message: "Image upload failed" });
+        return res.status(400).json({
+          message: "Image upload failed",
+          error: uploadError.message,
+        });
       }
+    } else {
+      console.log("No image file in request");
     }
 
     const entry = new Entry(entryData);

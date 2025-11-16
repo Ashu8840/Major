@@ -97,7 +97,13 @@ const MarketplacePage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-3 text-sm text-slate-500">
-                    {book.seller?.name || book.author?.displayName || "Unknown"}
+                    {book.seller?.name ||
+                      book.seller?.displayName ||
+                      book.author?.displayName ||
+                      book.author?.username ||
+                      (typeof book.author === "string" ? book.author : null) ||
+                      (typeof book.seller === "string" ? book.seller : null) ||
+                      "Unknown"}
                   </td>
                   <td className="px-6 py-3 font-semibold text-slate-700">
                     {book.priceFormatted || `₹${book.price ?? 0}`}

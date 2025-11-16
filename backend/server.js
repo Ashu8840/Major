@@ -8,7 +8,9 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("mongo-sanitize");
+const os = require("os");
 const { notFound, errorHandler } = require("./middlewares/errorMiddleware");
+const { trackMetrics } = require("./middlewares/metricsMiddleware");
 const User = require("./models/User");
 const Chat = require("./models/Chat");
 const Circle = require("./models/Circle");
@@ -27,6 +29,16 @@ const creatorRoutes = require("./routes/creatorRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
 const marketplaceRoutes = require("./routes/marketplaceRoutes");
 const supportRoutes = require("./routes/supportRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const monitoringRoutes = require("./routes/monitoringRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const chatbotTrainingRoutes = require("./routes/chatbotTrainingRoutes");
+
+// Import monitoring service
+const {
+  initializeMonitoring,
+  trackRequest,
+} = require("./services/monitoringService");
 
 const parseOrigins = (value) => {
   if (!value) return [];
@@ -35,6 +47,20 @@ const parseOrigins = (value) => {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+// Get local network IP address
+const getNetworkIP = () => {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      // Skip internal (loopback) and non-IPv4 addresses
+      if (iface.family === "IPv4" && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return "localhost";
 };
 
 dotenv.config();
@@ -66,6 +92,15 @@ const allowedOrigins = [
   ...deploymentOrigins,
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:8081",
+  "http://127.0.0.1:8081",
+  "http://localhost:19006",
+  "http://localhost:19000",
+  "http://192.168.1.1:8081",
+  "http://10.0.2.2:8081",
+  "exp://localhost:8081",
+  "exp://192.168.1.1:8081",
+  "exp://10.0.2.2:8081",
   DEFAULT_CLIENT_ORIGIN,
   "https://major-five.vercel.app",
 ].filter(Boolean);
@@ -84,6 +119,21 @@ const isOriginAllowed = (origin) => {
   const normalizedOrigin = normalizeOrigin(origin);
 
   if (uniqueAllowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  // Allow all localhost and local network IPs for development
+  if (
+    normalizedOrigin.includes("localhost") ||
+    normalizedOrigin.includes("127.0.0.1") ||
+    /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(
+      normalizedOrigin
+    ) ||
+    normalizedOrigin.startsWith("exp://") ||
+    /^exp:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(
+      normalizedOrigin
+    )
+  ) {
     return true;
   }
 
@@ -137,9 +187,22 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
+// Rate limiter with exceptions for admin/monitoring
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // Increased from 100 to 500 for admin panel
+  skip: (req) => {
+    // Skip rate limiting for admin and monitoring endpoints
+    return (
+      req.path.startsWith("/api/admin") ||
+      req.path.startsWith("/api/monitoring") ||
+      req.path.startsWith("/api/notifications")
+    );
+  },
+  message: {
+    success: false,
+    message: "Too many requests, please try again later.",
+  },
 });
 app.use(limiter);
 
@@ -147,6 +210,9 @@ app.use((req, res, next) => {
   req.body = mongoSanitize(req.body);
   next();
 });
+
+// Track all requests for monitoring with response time
+app.use(trackMetrics);
 
 app.use("/api/users", userRoutes);
 app.use("/api/entries", entryRoutes);
@@ -162,6 +228,10 @@ app.use("/api/creator", creatorRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/monitoring", monitoringRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/chatbot-training", chatbotTrainingRoutes);
 
 app.use("/uploads", express.static("uploads"));
 
@@ -239,7 +309,10 @@ io.on("connection", (socket) => {
     io.to(message.chatId).emit("receiveMessage", message);
   });
 
-  socket.on("circle:join", async ({ circleId }) => {
+  socket.on("circle:join", async (data) => {
+    // Support both { circleId } and just circleId string
+    const circleId = typeof data === "string" ? data : data?.circleId;
+
     if (!circleId || !socket.userId) return;
 
     try {
@@ -255,14 +328,20 @@ io.on("connection", (socket) => {
       if (!isMember) return;
 
       socket.join(`circle:${circleId}`);
+      console.log(
+        `User ${socket.userId} joined circle room: circle:${circleId}`
+      );
     } catch (error) {
       console.error("Circle join socket error:", error);
     }
   });
 
-  socket.on("circle:leave", ({ circleId }) => {
+  socket.on("circle:leave", (data) => {
+    // Support both { circleId } and just circleId string
+    const circleId = typeof data === "string" ? data : data?.circleId;
     if (!circleId) return;
     socket.leave(`circle:${circleId}`);
+    console.log(`User ${socket.userId} left circle room: circle:${circleId}`);
   });
 
   // WebRTC Signaling
@@ -334,7 +413,19 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+const HOST = "0.0.0.0"; // Listen on all network interfaces
+const NETWORK_IP = getNetworkIP();
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  console.log(`Listening on all network interfaces (${HOST}:${PORT})`);
+  console.log(`Local: http://localhost:${PORT}`);
+  console.log(`Network: http://${NETWORK_IP}:${PORT}`);
+  console.log(`\n📱 For mobile development, update your app/.env file:`);
+  console.log(`   EXPO_PUBLIC_API_URL=http://${NETWORK_IP}:${PORT}/api\n`);
+
+  // Initialize monitoring service
+  console.log("🔍 Initializing system monitoring...");
+  initializeMonitoring();
+  console.log("✅ System monitoring initialized\n");
 });

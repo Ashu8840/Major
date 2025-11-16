@@ -11,16 +11,27 @@ const {
 const { protect } = require("../middlewares/authMiddleware");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 const router = express.Router();
+
+// Ensure uploads directory exists
+const uploadDir = "uploads/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("Created uploads directory");
+}
 
 // Multer configuration for image uploads
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, "uploads/");
+    console.log("Multer destination called for file:", file.originalname);
+    cb(null, uploadDir);
   },
   filename(req, file, cb) {
-    cb(null, `entry-${Date.now()}${path.extname(file.originalname)}`);
+    const filename = `entry-${Date.now()}${path.extname(file.originalname)}`;
+    console.log("Multer filename generated:", filename);
+    cb(null, filename);
   },
 });
 
@@ -38,7 +49,15 @@ function checkFileType(file, cb) {
 
 const upload = multer({
   storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
   fileFilter: function (req, file, cb) {
+    console.log(
+      "Multer fileFilter called for:",
+      file.originalname,
+      file.mimetype
+    );
     checkFileType(file, cb);
   },
 });
@@ -47,9 +66,19 @@ router.route("/").post(
   protect,
   upload.single("image"),
   (req, res, next) => {
-    console.log("Entry route hit - POST /entries");
-    console.log("Request body:", req.body);
-    console.log("File uploaded:", req.file ? "Yes" : "No");
+    console.log("=== ENTRY ROUTE MIDDLEWARE ===");
+    console.log("POST /api/entries");
+    console.log("Body fields:", Object.keys(req.body));
+    console.log("File received:", req.file ? "YES" : "NO");
+    if (req.file) {
+      console.log("File details:", {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      });
+    }
+    console.log("============================");
     next();
   },
   createEntry

@@ -313,10 +313,12 @@ const serialiseCircle = (
     lastActivityAt: circle.lastActivityAt,
     createdAt: circle.createdAt,
     updatedAt: circle.updatedAt,
+    isPinned: membership ? Boolean(membership.isPinned) : false,
     membership: membership
       ? {
           role: membership.role,
           joinedAt: membership.joinedAt,
+          isPinned: Boolean(membership.isPinned),
         }
       : null,
     membersPreview: circle.members
@@ -414,7 +416,6 @@ const listCircles = async (req, res) => {
     const currentUserId = req.user._id;
 
     const circles = await Circle.find({})
-      .sort({ lastActivityAt: -1, updatedAt: -1 })
       .populate("owner", selectUserFields)
       .populate("members.user", selectUserFields)
       .lean({ getters: true });
@@ -434,6 +435,18 @@ const listCircles = async (req, res) => {
     const serialised = circles.map((circle) =>
       serialiseCircle(circle, currentUserId, populateMap)
     );
+
+    // Sort: pinned circles first, then by lastActivityAt
+    serialised.sort((a, b) => {
+      // Pinned circles come first
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      // If both pinned or both not pinned, sort by lastActivityAt
+      const dateA = new Date(a.lastActivityAt || 0).getTime();
+      const dateB = new Date(b.lastActivityAt || 0).getTime();
+      return dateB - dateA;
+    });
 
     res.json({ circles: serialised });
   } catch (error) {
@@ -836,11 +849,15 @@ const postCircleMessage = async (req, res) => {
       system: Boolean(populatedMessage.system),
     };
 
+    // Broadcast to all clients in the circle room via Socket.IO
     const io = req.app.get("io");
     if (io) {
+      // Broadcast to everyone in the room (including sender)
       io.to(`circle:${circleId}`).emit("circle:message", payload);
+      console.log(`Broadcasted message to circle:${circleId}`, payload.id);
     }
 
+    // Return the message to the sender
     res.status(201).json({ message: payload });
   } catch (error) {
     console.error("Post circle message error:", error);
@@ -879,6 +896,48 @@ const deleteCircle = async (req, res) => {
   }
 };
 
+const togglePinCircle = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const { circleId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(circleId)) {
+      return res.status(400).json({ message: "Invalid circle id" });
+    }
+
+    const circle = await Circle.findById(circleId);
+
+    if (!circle) {
+      return res.status(404).json({ message: "Circle not found" });
+    }
+
+    const memberIndex = circle.members.findIndex(
+      (m) => m.user.toString() === currentUserId.toString()
+    );
+
+    if (memberIndex === -1) {
+      return res
+        .status(403)
+        .json({ message: "You are not a member of this circle" });
+    }
+
+    // Toggle pin status
+    circle.members[memberIndex].isPinned =
+      !circle.members[memberIndex].isPinned;
+    await circle.save();
+
+    res.json({
+      message: circle.members[memberIndex].isPinned
+        ? "Circle pinned"
+        : "Circle unpinned",
+      isPinned: circle.members[memberIndex].isPinned,
+    });
+  } catch (error) {
+    console.error("Toggle pin circle error:", error);
+    res.status(500).json({ message: "Failed to toggle pin status" });
+  }
+};
+
 module.exports = {
   getSocialOverview,
   searchUsers,
@@ -893,4 +952,5 @@ module.exports = {
   getCircleMessages,
   postCircleMessage,
   deleteCircle,
+  togglePinCircle,
 };

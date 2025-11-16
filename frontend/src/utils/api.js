@@ -728,4 +728,70 @@ export const uploadProfileAvatar = async (file) => {
   return response.data;
 };
 
+// AI Chatbot APIs
+const BOT_API_URL = "http://localhost:5001";
+
+export const sendChatbotMessage = async (message, userId, options = {}) => {
+  try {
+    const response = await axios.post(
+      `${BOT_API_URL}/chat`,
+      {
+        message,
+        userId,
+        temperature: options.temperature || 0.7,
+        maxLength: options.maxLength || 150,
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Chatbot API error:", error);
+    throw error;
+  }
+};
+
+export const getChatbotHistory = async (userId) => {
+  try {
+    const response = await axios.post(
+      `${BOT_API_URL}/chat/history`,
+      { userId },
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Chatbot history API error:", error);
+    throw error;
+  }
+};
+
+export const resetChatbotConversation = async (userId) => {
+  try {
+    const response = await axios.post(
+      `${BOT_API_URL}/chat/reset`,
+      { userId },
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Chatbot reset API error:", error);
+    throw error;
+  }
+};
+
+export const checkChatbotHealth = async () => {
+  try {
+    const response = await axios.get(`${BOT_API_URL}/health`);
+    return response.data;
+  } catch (error) {
+    console.error("Chatbot health check error:", error);
+    return { status: "offline", model_loaded: false };
+  }
+};
+
 export default api;

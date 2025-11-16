@@ -1,19 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { IoChatbubbles, IoClose, IoPaperPlane, IoHappy } from "react-icons/io5";
+import {
+  IoChatbubbles,
+  IoClose,
+  IoPaperPlane,
+  IoHappy,
+  IoRefresh,
+} from "react-icons/io5";
+import {
+  sendChatbotMessage,
+  checkChatbotHealth,
+  resetChatbotConversation,
+} from "../utils/api";
+import toast from "react-hot-toast";
 
 const INITIAL_MESSAGES = [
   {
     role: "bot",
-    text: "Hey there! I’m Major’s studio assistant. Ask about features, writing tips, or where to find things—happy to help!",
+    text: "Hey there! I'm Major's AI assistant powered by DialoGPT. I can help with diary writing, journaling tips, creative prompts, and more. What would you like to talk about?",
     timestamp: Date.now(),
   },
 ];
 
 const SUGGESTED_PROMPTS = [
-  "How do I start a new diary entry?",
-  "What can I do in the Community tab?",
-  "Any tips to keep my writing streak alive?",
-  "Where do I track my progress?",
+  "How can I start journaling daily?",
+  "Give me a creative writing prompt",
+  "Tips for overcoming writer's block",
+  "How to make my diary entries more meaningful?",
 ];
 
 const FAQ_RESPONSES = [
@@ -100,8 +112,40 @@ const getBotReply = (message) => {
 export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [botStatus, setBotStatus] = useState({ online: false, checking: true });
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Generate a unique user ID for this session
+  const [userId] = useState(() => {
+    const stored = localStorage.getItem("chatbot_user_id");
+    if (stored) return stored;
+    const newId = `user_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    localStorage.setItem("chatbot_user_id", newId);
+    return newId;
+  });
+
+  // Check bot health on mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const health = await checkChatbotHealth();
+        setBotStatus({
+          online: health.status === "healthy" && health.model_loaded,
+          checking: false,
+        });
+      } catch (error) {
+        setBotStatus({ online: false, checking: false });
+      }
+    };
+
+    if (isOpen) {
+      checkHealth();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -152,9 +196,80 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
     return null;
   }
 
-  const handleSend = () => {
+  // Helper function to check if question is about journaling/writing
+  const isJournalingQuestion = (text) => {
+    const keywords = [
+      "journal",
+      "diary",
+      "writing",
+      "write",
+      "entry",
+      "entries",
+      "prompt",
+      "creative",
+      "meaningful",
+      "daily",
+      "habit",
+      "streak",
+      "mood",
+      "feelings",
+      "thoughts",
+      "reflection",
+      "gratitude",
+      "productivity",
+      "goals",
+      "track",
+      "document",
+      "record",
+    ];
+    const lowerText = text.toLowerCase();
+    return keywords.some((keyword) => lowerText.includes(keyword));
+  };
+
+  // Enhanced responses for journaling topics
+  const getEnhancedResponse = (message) => {
+    const lowerMsg = message.toLowerCase();
+
+    // Journaling habits
+    if (lowerMsg.includes("start") && lowerMsg.includes("journal")) {
+      return "Starting a daily journaling habit is easier than you think! Here's my advice:\n\n1. **Start small**: Just 5 minutes a day\n2. **Pick a consistent time**: Morning or before bed works best\n3. **Use prompts**: Questions like 'What am I grateful for?' or 'What did I learn today?'\n4. **Don't worry about perfection**: Your journal is for you, not anyone else\n5. **Use this app**: Track your mood, add photos, and let AI help polish your thoughts!\n\nWhat aspect of journaling interests you most?";
+    }
+
+    // Writing prompts
+    if (lowerMsg.includes("prompt") || lowerMsg.includes("creative")) {
+      const prompts = [
+        "Write about a moment today that made you smile, no matter how small.",
+        "Describe your ideal day 5 years from now. What does it look, feel, and sound like?",
+        "Write a letter to your past self from one year ago. What would you tell them?",
+        "If you could have dinner with anyone, living or dead, who would it be and why?",
+        "Describe a challenge you overcame this week and what it taught you.",
+        "Write about three things you're grateful for today and why they matter.",
+        "Imagine your life as a book. What would this chapter be titled?",
+      ];
+      return prompts[Math.floor(Math.random() * prompts.length)];
+    }
+
+    // Meaningful entries
+    if (lowerMsg.includes("meaningful") || lowerMsg.includes("better")) {
+      return "To make your diary entries more meaningful:\n\n📝 **Be specific**: Instead of 'had a good day', write 'felt energized after morning coffee and finishing that project'\n\n💭 **Add emotions**: Don't just say what happened, describe how you felt\n\n🎯 **Include lessons**: What did you learn? What would you do differently?\n\n📸 **Use media**: Add photos, voice notes, or sketches to capture the full experience\n\n🔄 **Review regularly**: Read past entries to see your growth\n\nWhat would make your entries feel more complete?";
+    }
+
+    // Writer's block
+    if (lowerMsg.includes("block") || lowerMsg.includes("stuck")) {
+      return "Overcoming writer's block:\n\n✨ Try these techniques:\n• Stream of consciousness: Write whatever comes to mind for 5 minutes\n• Answer a random question: 'What made me laugh today?'\n• Describe your surroundings in detail\n• Write about what's blocking you\n• Use voice recording instead of typing\n• Set a tiny goal: Just one sentence\n\nRemember: Any writing is better than no writing!";
+    }
+
+    // General encouragement for journaling questions
+    if (isJournalingQuestion(message)) {
+      return "That's a great journaling question! While I'm learning to give better answers, here are some tips:\n\n• **Be consistent**: Write regularly, even if it's just a few lines\n• **Be honest**: Your journal is your safe space\n• **Experiment**: Try different formats (lists, letters, poems)\n• **Use this app's features**: Mood tracking, AI polish, media attachments\n\nWhat specific aspect would you like to explore?";
+    }
+
+    return null; // Let AI handle non-journaling questions
+  };
+
+  const handleSend = async () => {
     const trimmed = inputValue.trim();
-    if (!trimmed) return;
+    if (!trimmed || isLoading) return;
 
     const userMessage = {
       role: "user",
@@ -162,14 +277,94 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
       timestamp: Date.now(),
     };
 
-    const botMessage = {
-      role: "bot",
-      text: getBotReply(trimmed),
-      timestamp: Date.now() + 1,
-    };
-
-    setMessages((current) => [...current, userMessage, botMessage]);
+    setMessages((current) => [...current, userMessage]);
     setInputValue("");
+    setIsLoading(true);
+
+    try {
+      // Check for enhanced responses first
+      const enhancedResponse = getEnhancedResponse(trimmed);
+
+      if (enhancedResponse) {
+        // Use our curated response for journaling topics
+        const botMessage = {
+          role: "bot",
+          text: enhancedResponse,
+          timestamp: Date.now(),
+        };
+        setMessages((current) => [...current, botMessage]);
+      } else if (botStatus.online) {
+        // Use AI for general conversation
+        try {
+          // Add context to help AI understand it's a journaling assistant
+          const contextualMessage = isJournalingQuestion(trimmed)
+            ? `As a journaling and writing assistant, ${trimmed}`
+            : trimmed;
+
+          const response = await sendChatbotMessage(contextualMessage, userId, {
+            temperature: 0.8,
+            maxLength: 200,
+          });
+
+          const botMessage = {
+            role: "bot",
+            text:
+              response.response ||
+              "I'm here to help with journaling and writing. Could you rephrase that?",
+            timestamp: Date.now(),
+          };
+
+          setMessages((current) => [...current, botMessage]);
+        } catch (apiError) {
+          // If API fails, use enhanced response
+          const fallbackResponse =
+            getEnhancedResponse(trimmed) ||
+            "I'm having trouble connecting right now. Try asking about journaling habits, writing prompts, or making meaningful entries!";
+
+          const botMessage = {
+            role: "bot",
+            text: fallbackResponse,
+            timestamp: Date.now(),
+          };
+          setMessages((current) => [...current, botMessage]);
+        }
+      } else {
+        // Bot offline - use enhanced responses
+        const offlineResponse =
+          getEnhancedResponse(trimmed) ||
+          "The AI server is offline, but I can still help with journaling questions! Try asking about daily habits, writing prompts, or making meaningful entries.";
+
+        const botMessage = {
+          role: "bot",
+          text: offlineResponse,
+          timestamp: Date.now(),
+        };
+        setMessages((current) => [...current, botMessage]);
+      }
+    } catch (error) {
+      console.error("Chatbot error:", error);
+
+      const fallbackMessage = {
+        role: "bot",
+        text: "I'm having trouble right now, but I'm here to help with journaling! Ask me about starting a daily habit, creative prompts, or making entries more meaningful.",
+        timestamp: Date.now(),
+      };
+
+      setMessages((current) => [...current, fallbackMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetConversation = async () => {
+    try {
+      await resetChatbotConversation(userId);
+      setMessages(INITIAL_MESSAGES);
+      toast.success("Conversation reset!");
+    } catch (error) {
+      console.error("Reset error:", error);
+      toast.error("Failed to reset conversation");
+    }
   };
 
   const handlePromptClick = (prompt) => {
@@ -203,26 +398,49 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
       >
         <header className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-500 text-white shadow-lg">
+            <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-500 text-white shadow-lg">
               <IoChatbubbles className="h-5 w-5" />
+              {!botStatus.checking && (
+                <span
+                  className={`absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white ${
+                    botStatus.online ? "bg-green-500" : "bg-red-500"
+                  }`}
+                  title={botStatus.online ? "AI Online" : "AI Offline"}
+                />
+              )}
             </span>
             <div>
               <p className="text-base font-semibold text-blue-900 dark:text-white">
-                Major Assistant
+                Major AI Assistant
               </p>
               <p className="text-xs text-blue-500 dark:text-gray-300">
-                Ask how to navigate, stay motivated, or polish your writing.
+                {botStatus.checking
+                  ? "Checking connection..."
+                  : botStatus.online
+                  ? "Powered by DialoGPT • Ready to chat"
+                  : "Offline • Start bot server on port 5001"}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-200"
-            aria-label="Close chatbot"
-          >
-            <IoClose className="h-5 w-5" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleResetConversation}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-200"
+              aria-label="Reset conversation"
+              title="Reset conversation"
+            >
+              <IoRefresh className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-200"
+              aria-label="Close chatbot"
+            >
+              <IoClose className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <div
@@ -248,6 +466,22 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
                 </div>
               </div>
             ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl bg-blue-50 px-4 py-3 text-sm dark:bg-gray-800">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.3s]"></span>
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.15s]"></span>
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-600"></span>
+                    </div>
+                    <span className="text-xs text-blue-500 dark:text-gray-400">
+                      AI is thinking...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -280,16 +514,26 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
                 onClose();
               }
             }}
-            placeholder="Ask about features, workflows, or tips…"
-            className="min-h-[2.5rem] flex-1 resize-none bg-transparent text-sm text-blue-900 focus:outline-none dark:text-gray-100"
+            placeholder={
+              botStatus.online
+                ? "Ask me anything about journaling, writing, or life..."
+                : "Chatbot is offline..."
+            }
+            disabled={!botStatus.online || isLoading}
+            className="min-h-[2.5rem] flex-1 resize-none bg-transparent text-sm text-blue-900 focus:outline-none disabled:opacity-50 dark:text-gray-100"
           />
           <button
             type="button"
             onClick={handleSend}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700"
+            disabled={!botStatus.online || isLoading || !inputValue.trim()}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Send message"
           >
-            <IoPaperPlane className="h-4 w-4" />
+            {isLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <IoPaperPlane className="h-4 w-4" />
+            )}
           </button>
         </div>
       </div>

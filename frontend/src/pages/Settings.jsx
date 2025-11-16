@@ -437,14 +437,11 @@ export default function Settings() {
     const displayName = settings.profile.displayName?.trim() || "";
     const bio = settings.profile.bio?.trim() || "";
     const username = settings.profile.username?.trim() || "";
-    const userId =
-      settings.profile.userId?.trim() || settings.profile.uid?.trim() || "";
 
     console.log("Saving profile with data:", {
       displayName,
       bio,
       username,
-      userId,
     });
 
     // Validate required fields
@@ -452,16 +449,6 @@ export default function Settings() {
       toast.error(
         "Please complete your profile first! Display name is required."
       );
-      return;
-    }
-
-    if (userId && !/^[a-zA-Z0-9-]+$/.test(userId)) {
-      toast.error("User ID can only contain letters, numbers, and hyphens.");
-      return;
-    }
-
-    if (userId && userId.length < 6) {
-      toast.error("User ID must be at least 6 characters long.");
       return;
     }
 
@@ -480,10 +467,7 @@ export default function Settings() {
         username,
         displayName,
         bio,
-        userId,
         profileImage: settings.profile.profileImage || undefined,
-        socialLinks: settings.socialLinks,
-        address: settings.address,
         preferences: {
           privacy: privacyPayload,
           notifications: settings.notifications,
@@ -981,27 +965,20 @@ export default function Settings() {
                       {/* User ID (Read-only) */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Unique User ID
+                          Unique User ID{" "}
+                          <span className="text-gray-500 text-xs">
+                            (Cannot be changed)
+                          </span>
                         </label>
                         <input
                           type="text"
                           value={
                             settings.profile.userId || settings.profile.uid
                           }
-                          onChange={(e) =>
-                            handleSettingChange(
-                              "profile",
-                              "userId",
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter a unique user ID"
+                          disabled={true}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                          placeholder="User ID will appear here"
                         />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Letters, numbers, and hyphens only, minimum 6
-                          characters. This appears on sharable profile links.
-                        </p>
                       </div>
 
                       {/* Username */}

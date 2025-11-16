@@ -124,20 +124,47 @@ export default function CircleChat() {
   const ensureSocket = useCallback(() => {
     if (!selfId) return null;
 
-    if (!socketRef.current) {
+    if (!socketRef.current || !socketRef.current.connected) {
+      // Clean up existing socket if any
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+
       const socket = io(SOCKET_BASE_URL, {
         transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
       });
 
       socket.on("connect", () => {
+        console.log("Socket connected to server");
         socket.emit("user:register", selfId);
+
+        // If we already know the circleId, rejoin the room on reconnect
+        if (circleId) {
+          socket.emit("circle:join", { circleId });
+          console.log("Rejoined circle room on reconnect:", circleId);
+        }
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("Socket disconnected:", reason);
+      });
+
+      socket.on("reconnect", (attemptNumber) => {
+        console.log("Socket reconnected after", attemptNumber, "attempts");
+      });
+
+      socket.on("error", (error) => {
+        console.error("Socket error:", error);
       });
 
       socketRef.current = socket;
     }
 
     return socketRef.current;
-  }, [selfId]);
+  }, [selfId, circleId]);
 
   const loadCircleList = useCallback(async () => {
     if (!selfId) return;
@@ -278,11 +305,21 @@ export default function CircleChat() {
     if (!socket) return;
 
     const handleIncomingCircleMessage = (payload) => {
-      if (!payload || payload.circleId !== circleId) return;
+      console.log("Received circle message:", payload);
+
+      if (!payload || payload.circleId !== circleId) {
+        console.log("Message not for this circle, ignoring");
+        return;
+      }
+
       const formatted = transformMessage(payload);
 
-      if (messageIdsRef.current.has(formatted.id)) return;
+      if (messageIdsRef.current.has(formatted.id)) {
+        console.log("Message already exists, skipping:", formatted.id);
+        return;
+      }
 
+      console.log("Adding new message:", formatted.id);
       messageIdsRef.current.add(formatted.id);
 
       setMessages((prev) => {
@@ -314,15 +351,18 @@ export default function CircleChat() {
 
     socket.on("circle:message", handleIncomingCircleMessage);
 
-    if (circle?.membership) {
+    // Join the circle room immediately (reconnect case or late join)
+    if (socket.connected) {
       socket.emit("circle:join", { circleId });
+      console.log("Joined circle room (effect):", circleId);
     }
 
     return () => {
       socket.off("circle:message", handleIncomingCircleMessage);
       socket.emit("circle:leave", { circleId });
+      console.log("Left circle room:", circleId);
     };
-  }, [circle?.membership, circleId, ensureSocket, selfId, transformMessage]);
+  }, [circleId, ensureSocket, selfId, transformMessage]);
 
   useEffect(
     () => () => {
@@ -475,29 +515,70 @@ export default function CircleChat() {
     const trimmed = text?.trim();
     if (!trimmed) return;
 
+    const tempId = `temp-${Date.now()}`;
+
+    // Create optimistic message
+    const optimisticMessage = {
+      id: tempId,
+      text: trimmed,
+      createdAt: new Date().toISOString(),
+      media: [],
+      sender: user,
+      senderId: selfId,
+      senderName: user?.displayName || user?.username || "You",
+      status: "sending",
+    };
+
+    // Add to message IDs to prevent duplicate from socket
+    messageIdsRef.current.add(tempId);
+
+    // Add optimistic message
+    setMessages((prev) => [...prev, optimisticMessage]);
+    shouldScrollToEndRef.current = true;
+
     try {
       setSending(true);
       const { message } = await sendCircleMessage(circleId, { text: trimmed });
-      const formatted = transformMessage(message);
-      shouldScrollToEndRef.current = true;
-      setMessages((prev) => [...prev, formatted]);
+
+      // Remove temp message and let socket handle the real one
+      messageIdsRef.current.delete(tempId);
+
+      setMessages((prev) => {
+        // Remove optimistic message
+        const filtered = prev.filter((m) => m.id !== tempId);
+
+        // Add real message if not already there (socket might have added it)
+        if (!messageIdsRef.current.has(message.id)) {
+          messageIdsRef.current.add(message.id);
+          const formatted = transformMessage(message);
+          return [...filtered, formatted];
+        }
+        return filtered;
+      });
+
       setCircle((prev) =>
         prev
           ? {
               ...prev,
-              lastActivityAt: formatted.createdAt,
+              lastActivityAt: message.createdAt,
             }
           : prev
       );
+
       setCircleList((prev) =>
         prev.map((item) =>
           item.id === circleId
-            ? { ...item, lastActivityAt: formatted.createdAt }
+            ? { ...item, lastActivityAt: message.createdAt }
             : item
         )
       );
     } catch (err) {
       console.error("Failed to send message", err);
+
+      // Remove optimistic message on error
+      messageIdsRef.current.delete(tempId);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+
       toast.error(err.response?.data?.message || "Failed to send message");
     } finally {
       setSending(false);

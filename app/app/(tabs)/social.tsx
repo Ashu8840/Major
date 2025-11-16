@@ -1,0 +1,7 @@
+import React from "react";
+
+import SocialScreen from "@/screens/SocialScreen";
+
+export default function SocialTab() {
+  return <SocialScreen />;
+}

@@ -68,6 +68,10 @@ typings/
 .env.test.local
 .env.production.local
 
+# Keep example env files for reference
+!.env.example
+!*.env.example
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -241,3 +245,102 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# ============================================
+# Project-Specific Exclusions
+# ============================================
+
+# Bot/AI Chatbot Directory (contains large ML models and virtual environment)
+Bot/
+bot/
+
+# Python virtual environments
+venv/
+env/
+ENV/
+.venv/
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python ML Models (large files)
+*.pkl
+*.h5
+*.hdf5
+*.pb
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Hugging Face transformers cache
+.cache/
+transformers/
+huggingface/
+
+# Uploaded files (can be large)
+uploads/
+backend/uploads/
+frontend/public/uploads/
+admin/public/uploads/
+
+# Database backups
+*.sql
+*.dump
+*.backup
+
+# Local environment configurations
+.env.local
+.env.*.local
+admin/.env
+frontend/.env
+app/.env
+backend/.env
+
+# Keep example files
+!.env.example
+!*.env.example
+
+# Expo (React Native)
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Android
+app/android/app/build/
+app/android/.gradle/
+app/android/gradle/
+*.apk
+*.aab
+
+# iOS
+app/ios/Pods/
+app/ios/build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Metro bundler cache
+.metro-health-check*
+
+# Temporary files
+*.tmp
+*.temp
+~*
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Documentation build files
+docs/_build/
+site/

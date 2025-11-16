@@ -54,4 +54,7 @@ const admin = (req, res, next) => {
   }
 };
 
-module.exports = { protect, admin };
+// Alias for admin middleware
+const adminOnly = admin;
+
+module.exports = { protect, admin, adminOnly };
