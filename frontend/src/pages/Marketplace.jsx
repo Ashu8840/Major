@@ -296,9 +296,16 @@ export default function Marketplace() {
       if (selectedGenre !== "all") params.genre = selectedGenre;
       if (priceFilter !== "all") params.price = priceFilter;
 
+      console.log("[Marketplace] Fetching books with params:", params);
       const data = await getMarketplaceBooks(params);
-      setBooks(data?.books || []);
+      console.log("[Marketplace] Response data:", data);
+
+      const booksData = data?.books || data || [];
+      console.log("[Marketplace] Books count:", booksData.length);
+      setBooks(booksData);
     } catch (error) {
+      console.error("[Marketplace] Error:", error);
+      console.error("[Marketplace] Error response:", error.response?.data);
       const message =
         error.response?.data?.message || "Unable to load marketplace books";
       setBooksError(message);

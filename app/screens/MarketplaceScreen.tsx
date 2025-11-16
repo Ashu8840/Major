@@ -223,11 +223,23 @@ export const MarketplaceScreen: React.FC = () => {
       if (selectedGenre !== "all") params.genre = selectedGenre;
       if (priceFilter !== "all") params.price = priceFilter;
 
+      console.log("[Marketplace] Fetching books with params:", params);
       const response = await api.get("/marketplace/books", { params });
-      setBooks(response.data.books || []);
+      console.log(
+        "[Marketplace] Response:",
+        JSON.stringify(response.data, null, 2)
+      );
+
+      const booksData = response.data?.books || response.data || [];
+      console.log("[Marketplace] Books count:", booksData.length);
+      setBooks(booksData);
     } catch (error: any) {
-      console.error("Error fetching books:", error);
-      Alert.alert("Error", "Failed to load marketplace books");
+      console.error("[Marketplace] Error fetching books:", error);
+      console.error("[Marketplace] Error response:", error.response?.data);
+      Alert.alert(
+        "Error",
+        error.response?.data?.message || "Failed to load marketplace books"
+      );
     } finally {
       setLoading(false);
     }
@@ -237,10 +249,19 @@ export const MarketplaceScreen: React.FC = () => {
   const fetchSellerBooks = useCallback(async () => {
     if (sellerStatus !== "registered") return;
     try {
+      console.log("[Marketplace] Fetching seller books...");
       const response = await api.get("/marketplace/seller/books");
-      setMyBooks(response.data.books || []);
+      console.log(
+        "[Marketplace] Seller books response:",
+        JSON.stringify(response.data, null, 2)
+      );
+
+      const booksData = response.data?.books || response.data || [];
+      console.log("[Marketplace] Seller books count:", booksData.length);
+      setMyBooks(booksData);
     } catch (error: any) {
-      console.error("Error fetching seller books:", error);
+      console.error("[Marketplace] Error fetching seller books:", error);
+      console.error("[Marketplace] Error response:", error.response?.data);
     }
   }, [sellerStatus]);
 
