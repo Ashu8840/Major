@@ -262,6 +262,10 @@ export default function Marketplace() {
   const [bookFile, setBookFile] = useState(null);
   const [isSubmittingBook, setIsSubmittingBook] = useState(false);
 
+  // Refs for file inputs
+  const coverInputRef = useRef(null);
+  const bookFileInputRef = useRef(null);
+
   useEffect(() => {
     setRegistrationForm((prev) => ({
       ...prev,
@@ -571,12 +575,25 @@ export default function Marketplace() {
   const handleFileChange = (field, files) => {
     const file = files?.[0] || null;
 
+    console.log(
+      `[Marketplace] File change for ${field}:`,
+      file?.name || "No file"
+    );
+
     if (field === "cover") {
       setCoverFile(file);
+      console.log(
+        "[Marketplace] Cover file set:",
+        file ? `${file.name} (${file.size} bytes)` : "null"
+      );
     }
 
     if (field === "file") {
       setBookFile(file);
+      console.log(
+        "[Marketplace] Book file set:",
+        file ? `${file.name} (${file.size} bytes)` : "null"
+      );
     }
   };
 
@@ -2063,7 +2080,10 @@ export default function Marketplace() {
                     <label className="text-sm font-medium text-blue-900">
                       Cover image
                     </label>
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer min-h-40">
+                    <div
+                      onClick={() => coverInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer min-h-40"
+                    >
                       {coverPreview ? (
                         <img
                           src={coverPreview}
@@ -2082,6 +2102,7 @@ export default function Marketplace() {
                         </>
                       )}
                       <input
+                        ref={coverInputRef}
                         type="file"
                         accept="image/*"
                         className="hidden"
@@ -2089,20 +2110,24 @@ export default function Marketplace() {
                           handleFileChange("cover", event.target.files)
                         }
                       />
-                    </label>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-blue-900">
                       Book file *
                     </label>
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                    <div
+                      onClick={() => bookFileInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                    >
                       <IoDocument className="w-12 h-12 text-blue-400 mb-3" />
                       <p className="text-blue-600 font-medium">
                         {bookFile?.name || "Click to upload PDF or EPUB"}
                       </p>
                       <p className="text-xs text-blue-500">Up to 50MB</p>
                       <input
+                        ref={bookFileInputRef}
                         type="file"
                         accept=".pdf,.epub,.doc,.docx,.txt,application/pdf"
                         className="hidden"
@@ -2110,7 +2135,7 @@ export default function Marketplace() {
                           handleFileChange("file", event.target.files)
                         }
                       />
-                    </label>
+                    </div>
                   </div>
 
                   <div className="bg-blue-50 rounded-lg p-4">
