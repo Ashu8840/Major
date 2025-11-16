@@ -309,6 +309,15 @@ export default function Profile() {
           getUserBooks(null, 1, 12),
         ]);
 
+      console.log("[Profile] Books API result:", booksResult);
+      if (booksResult.status === "fulfilled") {
+        console.log("[Profile] Books data structure:", booksResult.value);
+        console.log(
+          "[Profile] Books array:",
+          booksResult.value?.content?.books || booksResult.value?.books
+        );
+      }
+
       const fallbackSource = userProfile || user;
       const resolvedProfile =
         (profileResult.status === "fulfilled" && profileResult.value) ||
@@ -353,7 +362,9 @@ export default function Profile() {
       }
 
       if (booksResult.status === "fulfilled" && booksResult.value) {
-        setUserBooks(booksResult.value.books || []);
+        setUserBooks(
+          booksResult.value.content?.books || booksResult.value.books || []
+        );
       } else if (resolvedProfile?.books) {
         setUserBooks(resolvedProfile.books);
       } else {
