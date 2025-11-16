@@ -112,7 +112,8 @@ console.log("Allowed CORS origins:", uniqueAllowedOrigins);
 const ORIGIN_REGEX_ALLOW_LIST = [/^https:\/\/[a-z0-9-]+\.vercel\.app$/i];
 
 const isOriginAllowed = (origin) => {
-  if (!origin) {
+  // Allow requests with no origin (mobile apps, native requests)
+  if (!origin || origin === "null") {
     return true;
   }
 
@@ -149,6 +150,11 @@ const isOriginAllowed = (origin) => {
 };
 
 const buildCorsOriginValidator = () => (origin, callback) => {
+  // Allow requests with no origin (like mobile apps, Postman, curl)
+  if (!origin) {
+    return callback(null, true);
+  }
+
   if (isOriginAllowed(origin)) {
     return callback(null, true);
   }

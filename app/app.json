@@ -10,12 +10,15 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ashu8840.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to your camera for video calls.",
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice and video calls."
       }
     },
     "android": {
+      "package": "com.ashu8840.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -52,6 +55,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "85ece67d-1d9d-4596-81f1-7f38ba50553f"
+      }
     }
   }
 }
