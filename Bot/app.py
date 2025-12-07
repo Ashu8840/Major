@@ -68,6 +68,24 @@ def lazy_load_advanced():
         advanced_ai = get_advanced_ai()
         logger.info("Advanced AI ready!")
 
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint - API info"""
+    return jsonify({
+        "service": "Diaryverse AI Chatbot API",
+        "version": "1.0.0",
+        "status": "running",
+        "model_loaded": chatbot is not None,
+        "endpoints": {
+            "health": "GET /health",
+            "chat": "POST /chat",
+            "history": "POST /chat/history",
+            "reset": "POST /chat/reset",
+            "models": "GET /models/info"
+        },
+        "documentation": "See README.md for API usage"
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
