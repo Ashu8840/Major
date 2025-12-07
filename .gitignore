@@ -250,10 +250,6 @@ Temporary Items
 # Project-Specific Exclusions
 # ============================================
 
-# Bot/AI Chatbot Directory (contains large ML models and virtual environment)
-Bot/
-bot/
-
 # Python virtual environments
 venv/
 env/
