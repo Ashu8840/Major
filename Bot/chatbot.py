@@ -40,7 +40,10 @@ class DiaryverseAI:
         
         try:
             # Load tokenizer and model (force anonymous access)
+            logger.info("Loading tokenizer...")
             self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=False)
+            
+            logger.info("Loading model... This may take a few minutes on first run.")
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
@@ -59,8 +62,29 @@ class DiaryverseAI:
             self.conversations = {}
             
         except Exception as e:
-            logger.error(f"Error loading model: {e}")
-            raise
+            logger.error(f"Error loading model {model_name}: {e}")
+            # Try fallback to smaller model if medium/large failed
+            if "medium" in model_name or "large" in model_name:
+                logger.info("Attempting fallback to DialoGPT-small...")
+                try:
+                    self.model_name = "microsoft/DialoGPT-small"
+                    self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_auth_token=False)
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_name,
+                        torch_dtype=torch.float32,
+                        low_cpu_mem_usage=True,
+                        use_auth_token=False
+                    )
+                    self.model.to(self.device)
+                    if self.tokenizer.pad_token is None:
+                        self.tokenizer.pad_token = self.tokenizer.eos_token
+                    self.conversations = {}
+                    logger.info("Fallback model loaded successfully!")
+                except Exception as fallback_error:
+                    logger.error(f"Fallback also failed: {fallback_error}")
+                    raise
+            else:
+                raise
     
     def generate_response(
         self, 
