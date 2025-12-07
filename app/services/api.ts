@@ -98,7 +98,10 @@ const detectDefaultHost = () => {
 };
 
 const ENV_API_URL = trimTrailingSlash(
-  process.env.EXPO_PUBLIC_API_URL ?? process.env.API_URL ?? undefined
+  process.env.EXPO_PUBLIC_API_URL ??
+    process.env.API_URL ??
+    Constants.expoConfig?.extra?.apiUrl ??
+    undefined
 );
 const DEFAULT_HOST = detectDefaultHost();
 const DEFAULT_API = `${DEFAULT_HOST}/api`;
@@ -112,7 +115,13 @@ const resolvedApiUrl = ENV_API_URL
 // Socket.IO base URL (without /api suffix)
 export const SOCKET_BASE_URL = ENV_API_URL
   ? ENV_API_URL.replace(/\/api$/, "")
-  : DEFAULT_HOST;
+  : Constants.expoConfig?.extra?.backendHost ?? DEFAULT_HOST;
+
+// Log the resolved URL in development for debugging
+if (__DEV__) {
+  console.log("[API] Resolved API URL:", resolvedApiUrl);
+  console.log("[API] Socket Base URL:", SOCKET_BASE_URL);
+}
 
 let authToken: string | null = null;
 

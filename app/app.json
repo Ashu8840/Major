@@ -33,8 +33,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
-      ],
-      "usesCleartextTraffic": true
+      ]
     },
     "web": {
       "output": "static",
@@ -53,14 +52,25 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser",
+      "./plugins/withCleartextTraffic.js"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "updates": {
+      "url": "https://u.expo.dev/85ece67d-1d9d-4596-81f1-7f38ba50553f"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "router": {},
+      "apiUrl": "https://major-86rr.onrender.com/api",
+      "backendHost": "https://major-86rr.onrender.com",
+      "socketUrl": "https://major-86rr.onrender.com",
       "eas": {
         "projectId": "85ece67d-1d9d-4596-81f1-7f38ba50553f"
       }

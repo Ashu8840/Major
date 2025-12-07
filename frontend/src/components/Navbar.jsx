@@ -293,7 +293,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
               M
             </span>
             <span className="text-lg font-semibold text-blue-900 dark:text-white">
-              Major
+              SoulSpace
             </span>
           </button>
           {NAV_ITEMS.length > 0 && (

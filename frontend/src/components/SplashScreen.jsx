@@ -1,5 +1,5 @@
-import React from 'react';
-import { IoBook, IoSparkles } from 'react-icons/io5';
+import React from "react";
+import { IoBook, IoSparkles } from "react-icons/io5";
 
 const SplashScreen = ({ onComplete }) => {
   React.useEffect(() => {
@@ -19,7 +19,7 @@ const SplashScreen = ({ onComplete }) => {
         <div className="absolute top-1/4 right-20 w-16 h-16 bg-blue-300/20 rounded-full animate-float-medium"></div>
         <div className="absolute bottom-1/4 left-1/4 w-12 h-12 bg-white/15 rounded-full animate-float-fast"></div>
         <div className="absolute bottom-10 right-10 w-24 h-24 bg-blue-200/10 rounded-full animate-float-slow"></div>
-        
+
         {/* Glassmorphism Overlay */}
         <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
       </div>
@@ -37,12 +37,12 @@ const SplashScreen = ({ onComplete }) => {
               <IoSparkles className="w-4 h-4 text-yellow-300 absolute -top-1 -right-1 animate-sparkle" />
             </div>
           </div>
-          
+
           {/* App Name */}
           <h1 className="text-4xl md:text-5xl font-bold mb-3 animate-text-shine">
-            DiaryApp
+            SoulSpace
           </h1>
-          
+
           {/* Tagline */}
           <p className="text-lg md:text-xl text-blue-100 font-light animate-fade-in-delayed">
             Your Thoughts, Your Space, Your Story
@@ -57,7 +57,7 @@ const SplashScreen = ({ onComplete }) => {
             <div className="w-3 h-3 bg-white rounded-full animate-bounce-2"></div>
             <div className="w-3 h-3 bg-white rounded-full animate-bounce-3"></div>
           </div>
-          
+
           {/* Loading Text */}
           <p className="text-sm text-blue-200 animate-pulse">
             Preparing your digital diary...
@@ -69,8 +69,9 @@ const SplashScreen = ({ onComplete }) => {
         <div className="absolute -bottom-10 -right-10 w-32 h-32 border border-white/10 rounded-full animate-rotate-reverse"></div>
       </div>
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         @keyframes gradient-shift {
           0%, 100% { background: linear-gradient(135deg, #1D4ED8 0%, #3B82F6 50%, #8B5CF6 100%); }
           25% { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 50%, #6366F1 100%); }
@@ -186,8 +187,9 @@ const SplashScreen = ({ onComplete }) => {
         .animate-bounce-3 { animation: bounce-3 1.5s ease-in-out 0.4s infinite; }
         .animate-rotate-slow { animation: rotate-slow 20s linear infinite; }
         .animate-rotate-reverse { animation: rotate-reverse 15s linear infinite; }
-        `
-      }} />
+        `,
+        }}
+      />
     </div>
   );
 };
