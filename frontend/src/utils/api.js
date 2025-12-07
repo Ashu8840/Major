@@ -729,7 +729,7 @@ export const uploadProfileAvatar = async (file) => {
 };
 
 // AI Chatbot APIs
-const BOT_API_URL = "http://localhost:5001";
+const BOT_API_URL = "https://major-1-ate0.onrender.com";
 
 export const sendChatbotMessage = async (message, userId, options = {}) => {
   try {

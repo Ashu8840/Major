@@ -418,7 +418,7 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
                   ? "Checking connection..."
                   : botStatus.online
                   ? "Powered by DialoGPT • Ready to chat"
-                  : "Offline • Start bot server on port 5001"}
+                  : "Offline • Connecting to cloud bot..."}
               </p>
             </div>
           </div>
