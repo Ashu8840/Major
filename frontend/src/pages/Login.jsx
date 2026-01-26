@@ -53,22 +53,61 @@ const Login = () => {
     [googleLogin, navigate],
   );
 
-  // Initialize Google One Tap
+  // Initialize Google Sign-In
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || typeof window.google === "undefined") return;
+    if (!GOOGLE_CLIENT_ID) return;
 
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCallback,
-      auto_select: false,
-      cancel_on_tap_outside: true,
-    });
+    // Wait for Google script to load
+    const initializeGoogle = () => {
+      if (typeof window.google === "undefined") {
+        setTimeout(initializeGoogle, 100);
+        return;
+      }
 
-    // Show One Tap prompt
-    window.google.accounts.id.prompt();
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCallback,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: true,
+      });
+
+      // Render the Google Sign-In button
+      const buttonContainer = document.getElementById(
+        "google-button-container",
+      );
+      if (buttonContainer) {
+        // Clear existing content
+        buttonContainer.innerHTML = "";
+        window.google.accounts.id.renderButton(buttonContainer, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "rectangular",
+          logo_alignment: "left",
+          width: 400,
+          click_listener: () => {
+            setGoogleLoading(true);
+          },
+        });
+
+        // Show fallback button if Google button didn't render
+        setTimeout(() => {
+          if (!buttonContainer.querySelector("div")) {
+            const fallbackBtn = document.getElementById(
+              "google-fallback-button",
+            );
+            if (fallbackBtn) fallbackBtn.style.display = "flex";
+          }
+        }, 2000);
+      }
+    };
+
+    initializeGoogle();
   }, [handleGoogleCallback]);
 
-  // Trigger Google Sign In popup
+  // Trigger Google Sign In by clicking the hidden button
   const handleGoogleSignIn = () => {
     if (!GOOGLE_CLIENT_ID) {
       setErrors({ general: "Google Sign-In is not configured" });
@@ -80,8 +119,64 @@ const Login = () => {
       return;
     }
 
-    // Show the One Tap prompt
-    window.google.accounts.id.prompt();
+    setErrors({});
+
+    // Try to find and click the hidden Google button
+    const googleButton = document.querySelector(
+      "#google-button-container div[role='button']",
+    );
+    const googleIframe = document.querySelector(
+      "#google-button-container iframe",
+    );
+
+    if (googleButton) {
+      googleButton.click();
+    } else if (googleIframe) {
+      // If the button is inside an iframe, we can't click it directly
+      // Fall back to the prompt
+      setGoogleLoading(true);
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          console.log(
+            "One Tap not displayed:",
+            notification.getNotDisplayedReason(),
+          );
+          setErrors({
+            general:
+              "Google Sign-In popup was blocked. Please allow popups and try again.",
+          });
+          setGoogleLoading(false);
+        } else if (notification.isSkippedMoment()) {
+          console.log("One Tap skipped:", notification.getSkippedReason());
+          setGoogleLoading(false);
+        } else if (notification.isDismissedMoment()) {
+          console.log("One Tap dismissed:", notification.getDismissedReason());
+          setGoogleLoading(false);
+        }
+      });
+    } else {
+      // Fallback: trigger One Tap prompt
+      setGoogleLoading(true);
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          console.log(
+            "One Tap not displayed:",
+            notification.getNotDisplayedReason(),
+          );
+          setErrors({
+            general:
+              "Google Sign-In popup was blocked. Please allow popups and try again.",
+          });
+          setGoogleLoading(false);
+        } else if (notification.isSkippedMoment()) {
+          console.log("One Tap skipped:", notification.getSkippedReason());
+          setGoogleLoading(false);
+        } else if (notification.isDismissedMoment()) {
+          console.log("One Tap dismissed:", notification.getDismissedReason());
+          setGoogleLoading(false);
+        }
+      });
+    }
   };
 
   const handleChange = (e) => {
@@ -358,12 +453,20 @@ const Login = () => {
                 </div>
               </div>
 
-              {/* Google Login Button */}
+              {/* Google Login Button - rendered by Google SDK */}
+              <div
+                id="google-button-container"
+                className="w-full flex justify-center"
+              ></div>
+
+              {/* Fallback Google Login Button (shown if SDK button fails to render) */}
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading || googleLoading}
                 className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                style={{ display: "none" }}
+                id="google-fallback-button"
               >
                 {googleLoading ? (
                   <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
