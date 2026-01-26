@@ -1,5 +1,67 @@
 @import "tailwindcss";
 
+/* Theme CSS Variables - These are dynamically set by ThemeContext */
+:root {
+  /* Default Ocean Blue theme - Light Mode */
+  --theme-background: #eef2ff;
+  --theme-surface: #ffffff;
+  --theme-primary: #2563eb;
+  --theme-primary-soft: #dbeafe;
+  --theme-accent: #7c3aed;
+  --theme-text-primary: #0f172a;
+  --theme-text-secondary: #334155;
+  --theme-border: #cbd5e1;
+}
+
+/* Theme utility classes */
+.bg-theme {
+  background-color: var(--theme-background);
+}
+
+.bg-theme-surface {
+  background-color: var(--theme-surface);
+}
+
+.bg-theme-primary {
+  background-color: var(--theme-primary);
+}
+
+.bg-theme-primary-soft {
+  background-color: var(--theme-primary-soft);
+}
+
+.bg-theme-accent {
+  background-color: var(--theme-accent);
+}
+
+.text-theme-primary {
+  color: var(--theme-text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--theme-text-secondary);
+}
+
+.text-theme-accent {
+  color: var(--theme-primary);
+}
+
+.border-theme {
+  border-color: var(--theme-border);
+}
+
+.ring-theme {
+  --tw-ring-color: var(--theme-primary);
+}
+
+/* Theme transition */
+.theme-transition {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
 /* Custom utilities */
 .line-clamp-2 {
   display: -webkit-box;

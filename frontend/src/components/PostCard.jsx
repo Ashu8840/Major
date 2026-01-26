@@ -1,8 +1,8 @@
-import { useState, useContext, useEffect, useRef } from "react";
+import { useState, useContext, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import CommentItem from "./CommentItem";
-import api from "../utils/api";
+import api, { trackPostView } from "../utils/api";
 import toast from "react-hot-toast";
 import { buildDisplayName, resolveAvatarUrl } from "../utils/socialHelpers";
 import {
@@ -50,13 +50,13 @@ export default function PostCard({
     typeof post.likesCount === "number"
       ? post.likesCount
       : Array.isArray(post.likes)
-      ? post.likes.length
-      : 0
+        ? post.likes.length
+        : 0,
   );
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState(
-    Array.isArray(post.comments) ? [...post.comments] : []
+    Array.isArray(post.comments) ? [...post.comments] : [],
   );
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [loadingMoreComments, setLoadingMoreComments] = useState(false);
@@ -68,12 +68,15 @@ export default function PostCard({
   const [likePending, setLikePending] = useState(false);
   const [saved, setSaved] = useState(Boolean(isSaved));
   const [pollState, setPollState] = useState(
-    post.postType === "poll" ? post.poll || null : null
+    post.postType === "poll" ? post.poll || null : null,
   );
   const [pollSubmitting, setPollSubmitting] = useState(false);
   const [showFullArticle, setShowFullArticle] = useState(false);
+  const [viewsCount, setViewsCount] = useState(post.views || 0);
+  const [hasTrackedView, setHasTrackedView] = useState(false);
   const optionsMenuRef = useRef(null);
   const commentsContainerRef = useRef(null);
+  const postCardRef = useRef(null);
   const navigate = useNavigate();
 
   const [commentsMeta, setCommentsMeta] = useState({
@@ -84,8 +87,8 @@ export default function PostCard({
       typeof post.commentsCount === "number"
         ? post.commentsCount
         : Array.isArray(post.comments)
-        ? post.comments.length
-        : 0,
+          ? post.comments.length
+          : 0,
     totalWithReplies: null,
   });
   const authorDisplayName = buildDisplayName(post.author);
@@ -106,8 +109,8 @@ export default function PostCard({
       typeof post.likesCount === "number"
         ? post.likesCount
         : Array.isArray(post.likes)
-        ? post.likes.length
-        : 0
+          ? post.likes.length
+          : 0,
     );
   }, [post.isLikedByUser, post.likes, post.likesCount]);
 
@@ -136,6 +139,51 @@ export default function PostCard({
       }));
     }
   }, [post.comments, post._id]);
+
+  // Sync views count with prop
+  useEffect(() => {
+    setViewsCount(post.views || 0);
+  }, [post.views]);
+
+  // Track post view when it becomes visible
+  useEffect(() => {
+    if (hasTrackedView || !post._id) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasTrackedView) {
+            // Post is visible, track the view
+            setHasTrackedView(true);
+            trackPostView(post._id)
+              .then((response) => {
+                if (response?.data?.views !== undefined) {
+                  setViewsCount(response.data.views);
+                } else {
+                  // Optimistic update if API doesn't return new count
+                  setViewsCount((prev) => prev + 1);
+                }
+              })
+              .catch((err) => {
+                console.error("Failed to track post view:", err);
+              });
+          }
+        });
+      },
+      {
+        threshold: 0.5, // 50% of the post must be visible
+        rootMargin: "0px",
+      },
+    );
+
+    if (postCardRef.current) {
+      observer.observe(postCardRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [post._id, hasTrackedView]);
 
   // Close options menu when clicking outside
   useEffect(() => {
@@ -173,8 +221,8 @@ export default function PostCard({
         typeof response.data.likesCount === "number"
           ? response.data.likesCount
           : Array.isArray(response.data.likes)
-          ? response.data.likes.length
-          : 0
+            ? response.data.likes.length
+            : 0,
       );
 
       if (onLike) onLike(post._id, response.data);
@@ -261,7 +309,7 @@ export default function PostCard({
         }
 
         const updatedOption = nextPoll.options?.find(
-          (option) => option.id === optionId
+          (option) => option.id === optionId,
         );
         const votedMessage = nextPoll.allowMultiple
           ? updatedOption?.isVotedByCurrentUser
@@ -275,7 +323,7 @@ export default function PostCard({
     } catch (error) {
       console.error("Error voting on poll:", error);
       toast.error(
-        error.response?.data?.message || "Unable to record your vote"
+        error.response?.data?.message || "Unable to record your vote",
       );
     } finally {
       setPollSubmitting(false);
@@ -403,7 +451,7 @@ export default function PostCard({
       const fetchedComments = response.data?.comments || [];
 
       setComments((prev) =>
-        isInitialPage ? fetchedComments : [...prev, ...fetchedComments]
+        isInitialPage ? fetchedComments : [...prev, ...fetchedComments],
       );
 
       const pagination = response.data?.pagination || {};
@@ -416,8 +464,8 @@ export default function PostCard({
           typeof pagination.totalComments === "number"
             ? pagination.totalComments
             : isInitialPage
-            ? fetchedComments.length
-            : prevMeta.totalTopLevel,
+              ? fetchedComments.length
+              : prevMeta.totalTopLevel,
         totalWithReplies:
           typeof pagination.totalWithReplies === "number"
             ? pagination.totalWithReplies
@@ -661,7 +709,7 @@ export default function PostCard({
       : [];
     const totalVotes = pollOptions.reduce(
       (total, option) => total + (option.votes || 0),
-      0
+      0,
     );
     const pollStartTime = pollState.startsAt || post.poll?.startsAt;
     const pollCreatedAt = pollStartTime || post.createdAt;
@@ -702,7 +750,7 @@ export default function PostCard({
               const optionVotes = option.votes || 0;
               const percent = totalVotes
                 ? Math.round(
-                    option.percentage || (optionVotes / totalVotes) * 100
+                    option.percentage || (optionVotes / totalVotes) * 100,
                   )
                 : 0;
               const widthPercent = totalVotes ? Math.max(percent, 6) : 6;
@@ -852,15 +900,15 @@ export default function PostCard({
                   post.event.isLive
                     ? "bg-green-100 text-green-700"
                     : post.event.isPast
-                    ? "bg-gray-100 text-gray-600"
-                    : "bg-purple-100 text-purple-700"
+                      ? "bg-gray-100 text-gray-600"
+                      : "bg-purple-100 text-purple-700"
                 }`}
               >
                 {post.event.isLive
                   ? "Happening now"
                   : post.event.isPast
-                  ? "Event ended"
-                  : "Upcoming event"}
+                    ? "Event ended"
+                    : "Upcoming event"}
               </span>
             </div>
             {post.event.description && (
@@ -917,7 +965,11 @@ export default function PostCard({
   }`;
 
   return (
-    <div className={containerClasses} data-post-id={post?._id || ""}>
+    <div
+      ref={postCardRef}
+      className={containerClasses}
+      data-post-id={post?._id || ""}
+    >
       {/* Header */}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between">
@@ -965,7 +1017,7 @@ export default function PostCard({
                 </span>
                 <span className="text-xs text-gray-400">•</span>
                 <IoEye className="w-3 h-3 text-gray-400" />
-                <span className="text-xs text-gray-500">{post.views || 0}</span>
+                <span className="text-xs text-gray-500">{viewsCount}</span>
               </div>
               {shouldShowTypeBadge && (
                 <div

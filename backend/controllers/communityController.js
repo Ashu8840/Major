@@ -5,6 +5,7 @@ const User = require("../models/User");
 const Comment = require("../models/Comment");
 const TrendingHashtag = require("../models/TrendingHashtag");
 const Media = require("../models/Media");
+const Notification = require("../models/Notification");
 const cloudinary = require("../services/cloudinary");
 
 const generatePollOptionId = () =>
@@ -78,7 +79,7 @@ const buildPollResponse = (post, viewerId) => {
     post.poll.totalVotes ??
     post.poll.options.reduce(
       (total, option) => total + (option.votes || option.voters?.length || 0),
-      0
+      0,
     );
   const now = new Date();
   const isExpired = post.poll.expiresAt
@@ -91,7 +92,7 @@ const buildPollResponse = (post, viewerId) => {
       ? Math.round((optionVotes / totalVotes) * 1000) / 10
       : 0;
     const isOptionVoted = option.voters?.some(
-      (voter) => voter?.toString() === viewerIdString
+      (voter) => voter?.toString() === viewerIdString,
     );
 
     return {
@@ -166,7 +167,7 @@ const getCommunityFeed = async (req, res) => {
     const posts = await Post.find(filterOptions)
       .populate(
         "author",
-        "username displayName bio profileImage followers isVerified"
+        "username displayName bio profileImage followers isVerified",
       )
       .populate("media")
       .populate("article.coverImage.media")
@@ -185,7 +186,7 @@ const getCommunityFeed = async (req, res) => {
       const authorFollowersCount = post.author?.followers?.length || 0;
       const isLikedByUser =
         post.likes?.some(
-          (like) => like.user?.toString() === req.user._id.toString()
+          (like) => like.user?.toString() === req.user._id.toString(),
         ) || false;
 
       const formattedPost = {
@@ -237,7 +238,7 @@ const getCommunityFeed = async (req, res) => {
         const isAttending = attendees.some(
           (attendee) =>
             attendee.user?.toString() === req.user._id.toString() ||
-            attendee?.toString() === req.user._id.toString()
+            attendee?.toString() === req.user._id.toString(),
         );
 
         formattedPost.event = {
@@ -336,7 +337,7 @@ const getSuggestedUsers = async (req, res) => {
 
     // Get users not followed by current user, sorted by followers count
     const currentUser = await User.findById(currentUserId).select(
-      "following followers"
+      "following followers",
     );
     const followingDocs = currentUser?.following || [];
     const followerDocs = currentUser?.followers || [];
@@ -346,7 +347,7 @@ const getSuggestedUsers = async (req, res) => {
 
     const followingSet = new Set(followingDocs.map((f) => f.user.toString()));
     const followersSet = new Set(
-      followerDocs.map((f) => f.user.toString()) || []
+      followerDocs.map((f) => f.user.toString()) || [],
     );
 
     const queryLimit = Math.max(numericLimit * 3, 15);
@@ -355,7 +356,7 @@ const getSuggestedUsers = async (req, res) => {
       _id: { $nin: followingIds },
     })
       .select(
-        "username displayName bio profileImage followers following isVerified"
+        "username displayName bio profileImage followers following isVerified",
       )
       .lean({ virtuals: true })
       .limit(queryLimit);
@@ -366,10 +367,10 @@ const getSuggestedUsers = async (req, res) => {
       const following = user.following || [];
       const followersCount = followers.length;
       const mutualFollowers = followers.filter((follower) =>
-        followingSet.has(follower.user?.toString())
+        followingSet.has(follower.user?.toString()),
       ).length;
       const mutualFollowing = following.filter((follow) =>
-        followersSet.has(follow.user?.toString())
+        followersSet.has(follow.user?.toString()),
       ).length;
       const mutualConnections = mutualFollowers + mutualFollowing;
 
@@ -425,7 +426,7 @@ const getCommunityUserPreview = async (req, res) => {
 
     const user = await User.findOne(query)
       .select(
-        "username displayName bio profileImage coverPhoto isVerified stats followers following socialLinks achievements joinedDate preferences address"
+        "username displayName bio profileImage coverPhoto isVerified stats followers following socialLinks achievements joinedDate preferences address",
       )
       .lean();
 
@@ -471,7 +472,7 @@ const getCommunityUserPreview = async (req, res) => {
     const shouldExpand = ["true", "1", "full"].includes(
       String(full || "")
         .trim()
-        .toLowerCase()
+        .toLowerCase(),
     );
 
     if (!shouldExpand) {
@@ -507,7 +508,7 @@ const getCommunityUserPreview = async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(contentLimit)
           .select(
-            "content createdAt likes comments media postType hashtags visibility"
+            "content createdAt likes comments media postType hashtags visibility",
           )
           .populate("media", "url")
           .lean(),
@@ -515,7 +516,7 @@ const getCommunityUserPreview = async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(contentLimit)
           .select(
-            "title content mood createdAt visibility tags aiSummary media"
+            "title content mood createdAt visibility tags aiSummary media",
           )
           .populate("media", "url")
           .lean(),
@@ -608,16 +609,16 @@ const toggleFollowUser = async (req, res) => {
     }
 
     const isFollowing = currentUser.following.some(
-      (f) => f.user.toString() === userId
+      (f) => f.user.toString() === userId,
     );
 
     if (isFollowing) {
       // Unfollow
       currentUser.following = currentUser.following.filter(
-        (f) => f.user.toString() !== userId
+        (f) => f.user.toString() !== userId,
       );
       targetUser.followers = targetUser.followers.filter(
-        (f) => f.user.toString() !== currentUserId.toString()
+        (f) => f.user.toString() !== currentUserId.toString(),
       );
     } else {
       // Follow
@@ -838,7 +839,7 @@ const createCommunityPost = async (req, res) => {
 
     const providedHashtags = parseArrayPayload(hashtags)
       .map((tag) =>
-        typeof tag === "string" ? tag.trim().replace(/#/g, "") : ""
+        typeof tag === "string" ? tag.trim().replace(/#/g, "") : "",
       )
       .filter(Boolean);
     providedHashtags.forEach((tag) => hashtagsSet.add(tag.toLowerCase()));
@@ -872,7 +873,7 @@ const createCommunityPost = async (req, res) => {
         return "";
       });
       const uniqueOptions = Array.from(
-        new Set(optionsRaw.filter(Boolean))
+        new Set(optionsRaw.filter(Boolean)),
       ).slice(0, 6);
 
       if (!question) {
@@ -1038,10 +1039,10 @@ const createCommunityPost = async (req, res) => {
 
     if (postData.media?.length) {
       const uniqueMediaIds = Array.from(
-        new Set(postData.media.map((id) => id.toString()))
+        new Set(postData.media.map((id) => id.toString())),
       );
       postData.media = uniqueMediaIds.map(
-        (id) => new mongoose.Types.ObjectId(id)
+        (id) => new mongoose.Types.ObjectId(id),
       );
     }
 
@@ -1057,15 +1058,15 @@ const createCommunityPost = async (req, res) => {
             $push: { posts: createdPost._id },
             $set: { lastUpdated: new Date() },
           },
-          { upsert: true, new: true }
-        )
-      )
+          { upsert: true, new: true },
+        ),
+      ),
     );
 
     const populatedPost = await Post.findById(createdPost._id)
       .populate(
         "author",
-        "username displayName bio profileImage followers isVerified"
+        "username displayName bio profileImage followers isVerified",
       )
       .populate("media")
       .populate("article.coverImage.media")
@@ -1084,13 +1085,16 @@ const toggleLikePost = async (req, res) => {
     const { postId } = req.params;
     const userId = req.user._id;
 
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).populate(
+      "author",
+      "username displayName",
+    );
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
 
     const existingLikeIndex = post.likes.findIndex(
-      (like) => like.user && like.user.toString() === userId.toString()
+      (like) => like.user && like.user.toString() === userId.toString(),
     );
 
     if (existingLikeIndex > -1) {
@@ -1099,6 +1103,44 @@ const toggleLikePost = async (req, res) => {
     } else {
       // Like
       post.likes.push({ user: userId });
+
+      // Create notification for post author (if liker is not the author)
+      if (post.author._id.toString() !== userId.toString()) {
+        const liker = await User.findById(userId).select(
+          "username displayName profileImage",
+        );
+        const truncatedContent = post.content?.substring(0, 50) || "your post";
+
+        const notification = await Notification.create({
+          recipient: post.author._id,
+          sender: userId,
+          type: "like",
+          title: "New Like",
+          message: `${liker?.displayName || liker?.username || "Someone"} liked "${truncatedContent}${post.content?.length > 50 ? "..." : ""}"`,
+          postId: postId,
+          link: `/community?post=${postId}`,
+          severity: "info",
+        });
+
+        // Emit real-time notification via Socket.io
+        const io = req.app.get("io");
+        if (io) {
+          io.to(post.author._id.toString()).emit("notification", {
+            _id: notification._id,
+            type: "like",
+            title: "New Like",
+            message: notification.message,
+            link: `/community?post=${postId}`,
+            meta: {
+              postId: postId,
+              senderId: userId,
+              senderName: liker?.displayName || liker?.username,
+              senderAvatar: liker?.profileImage,
+            },
+            createdAt: notification.createdAt,
+          });
+        }
+      }
     }
 
     await post.save();
@@ -1137,7 +1179,7 @@ const voteOnPollOption = async (req, res) => {
 
     const viewerIdString = userId.toString();
     const targetOption = post.poll.options.find(
-      (option) => option.id === optionId
+      (option) => option.id === optionId,
     );
 
     if (!targetOption) {
@@ -1150,12 +1192,12 @@ const voteOnPollOption = async (req, res) => {
     if (allowMultiple) {
       targetOption.voters = ensureArray(targetOption.voters);
       const alreadySelected = targetOption.voters.some(
-        (voter) => voter?.toString() === viewerIdString
+        (voter) => voter?.toString() === viewerIdString,
       );
 
       if (alreadySelected) {
         targetOption.voters = targetOption.voters.filter(
-          (voter) => voter?.toString() !== viewerIdString
+          (voter) => voter?.toString() !== viewerIdString,
         );
       } else {
         targetOption.voters.push(userId);
@@ -1163,7 +1205,7 @@ const voteOnPollOption = async (req, res) => {
     } else {
       post.poll.options.forEach((option) => {
         option.voters = ensureArray(option.voters).filter(
-          (voter) => voter?.toString() !== viewerIdString
+          (voter) => voter?.toString() !== viewerIdString,
         );
       });
       targetOption.voters = ensureArray(targetOption.voters);
@@ -1175,7 +1217,7 @@ const voteOnPollOption = async (req, res) => {
     });
     post.poll.totalVotes = post.poll.options.reduce(
       (total, option) => total + (option.votes || 0),
-      0
+      0,
     );
 
     post.markModified("poll");
@@ -1202,7 +1244,7 @@ const sharePost = async (req, res) => {
     }
 
     const existingShareIndex = post.shares.findIndex(
-      (share) => share.user.toString() === userId.toString()
+      (share) => share.user.toString() === userId.toString(),
     );
 
     if (existingShareIndex === -1) {
@@ -1231,7 +1273,10 @@ const addComment = async (req, res) => {
       return res.status(400).json({ message: "Comment text is required" });
     }
 
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).populate(
+      "author",
+      "username displayName",
+    );
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
@@ -1265,6 +1310,47 @@ const addComment = async (req, res) => {
       await Comment.findByIdAndUpdate(parentCommentId, {
         $push: { replies: savedComment._id },
       });
+    }
+
+    // Create notification for post author (if commenter is not the author)
+    if (post.author._id.toString() !== userId.toString()) {
+      const commenter = await User.findById(userId).select(
+        "username displayName profileImage",
+      );
+      const notificationType = parentCommentId ? "reply" : "comment";
+      const truncatedContent = post.content?.substring(0, 50) || "your post";
+
+      const notification = await Notification.create({
+        recipient: post.author._id,
+        sender: userId,
+        type: notificationType,
+        title: parentCommentId ? "New Reply" : "New Comment",
+        message: `${commenter?.displayName || commenter?.username || "Someone"} ${parentCommentId ? "replied to a comment on" : "commented on"} "${truncatedContent}${post.content?.length > 50 ? "..." : ""}"`,
+        postId: postId,
+        commentId: savedComment._id,
+        link: `/community?post=${postId}`,
+        severity: "info",
+      });
+
+      // Emit real-time notification via Socket.io
+      const io = req.app.get("io");
+      if (io) {
+        io.to(post.author._id.toString()).emit("notification", {
+          _id: notification._id,
+          type: notificationType,
+          title: notification.title,
+          message: notification.message,
+          link: `/community?post=${postId}`,
+          meta: {
+            postId: postId,
+            commentId: savedComment._id.toString(),
+            senderId: userId.toString(),
+            senderName: commenter?.displayName || commenter?.username,
+            senderAvatar: commenter?.profileImage,
+          },
+          createdAt: notification.createdAt,
+        });
+      }
     }
 
     const populatedComment = await Comment.findById(savedComment._id)
@@ -1348,7 +1434,7 @@ const toggleLikeComment = async (req, res) => {
     }
 
     const existingLikeIndex = comment.likes.findIndex(
-      (like) => like && like.toString() === userId.toString()
+      (like) => like && like.toString() === userId.toString(),
     );
 
     if (existingLikeIndex > -1) {
@@ -1439,7 +1525,7 @@ const deletePost = async (req, res) => {
             $inc: { count: -1 },
             $pull: { posts: postId },
             $set: { lastUpdated: new Date() },
-          }
+          },
         );
       }
     }
@@ -1448,6 +1534,118 @@ const deletePost = async (req, res) => {
   } catch (error) {
     console.error("Delete post error:", error);
     res.status(500).json({ message: "Failed to delete post" });
+  }
+};
+
+// Track post view
+const trackPostView = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user._id;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Increment view count
+    await Post.findByIdAndUpdate(postId, { $inc: { views: 1 } });
+
+    res.json({ success: true, views: (post.views || 0) + 1 });
+  } catch (error) {
+    console.error("Track post view error:", error);
+    res.status(500).json({ message: "Failed to track view" });
+  }
+};
+
+// Get user notifications
+const getUserNotifications = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const notifications = await Notification.find({
+      recipient: userId,
+      type: {
+        $in: ["comment", "like", "follow", "mention", "reply", "post_share"],
+      },
+    })
+      .populate("sender", "username displayName profileImage")
+      .populate("postId", "content")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const totalCount = await Notification.countDocuments({
+      recipient: userId,
+      type: {
+        $in: ["comment", "like", "follow", "mention", "reply", "post_share"],
+      },
+    });
+
+    const unreadCount = await Notification.countDocuments({
+      recipient: userId,
+      type: {
+        $in: ["comment", "like", "follow", "mention", "reply", "post_share"],
+      },
+      isRead: false,
+    });
+
+    res.json({
+      notifications,
+      unreadCount,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount,
+        hasNext: skip + notifications.length < totalCount,
+      },
+    });
+  } catch (error) {
+    console.error("Get notifications error:", error);
+    res.status(500).json({ message: "Failed to get notifications" });
+  }
+};
+
+// Mark notification as read
+const markNotificationRead = async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const userId = req.user._id;
+
+    const notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, recipient: userId },
+      { isRead: true },
+      { new: true },
+    );
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    res.json({ success: true, notification });
+  } catch (error) {
+    console.error("Mark notification read error:", error);
+    res.status(500).json({ message: "Failed to mark notification as read" });
+  }
+};
+
+// Mark all notifications as read
+const markAllNotificationsRead = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    await Notification.updateMany(
+      { recipient: userId, isRead: false },
+      { isRead: true },
+    );
+
+    res.json({ success: true, message: "All notifications marked as read" });
+  } catch (error) {
+    console.error("Mark all notifications read error:", error);
+    res.status(500).json({ message: "Failed to mark notifications as read" });
   }
 };
 
@@ -1467,4 +1665,8 @@ module.exports = {
   getBasicStats,
   deletePost,
   getCommunityUserPreview,
+  trackPostView,
+  getUserNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 };

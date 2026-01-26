@@ -29,21 +29,17 @@ export default function Sidebar({ isOpen = true, onClose }) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       } xl:translate-x-0`}
     >
-      <div className="relative h-full overflow-hidden border-r border-white/40 bg-gradient-to-b from-white/95 via-blue-50/80 to-blue-100/70 shadow-[0_28px_50px_-35px_rgba(37,99,235,0.65)] backdrop-blur-xl dark:border-gray-800/70 dark:from-gray-950/95 dark:via-gray-900/90 dark:to-gray-950/90">
-        <div
-          className="hidden lg:block absolute inset-y-0 -right-px w-px bg-gradient-to-b from-blue-100/70 via-blue-100/40 to-transparent dark:from-gray-800/60 dark:via-gray-800/40"
-          aria-hidden="true"
-        />
+      <div className="relative h-full overflow-hidden border-r border-theme bg-theme-surface shadow-lg backdrop-blur-xl theme-transition">
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-white/50 px-5 pt-4 pb-3 backdrop-blur xl:hidden dark:border-gray-800/70">
-            <span className="text-sm font-semibold text-blue-900 dark:text-gray-100">
+          <div className="flex items-center justify-between border-b border-theme px-5 pt-4 pb-3 backdrop-blur xl:hidden">
+            <span className="text-sm font-semibold text-theme-primary">
               Navigation
             </span>
             {typeof onClose === "function" && (
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-theme-primary-soft text-theme-primary transition-colors hover:opacity-80"
                 aria-label="Close sidebar"
               >
                 <IoClose className="h-5 w-5" />
@@ -63,12 +59,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
                       className={`group relative flex items-center gap-3 rounded-2xl px-4 py-3 pl-5 transition-all duration-200 ${
                         isActive
                           ? "bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 text-white shadow-lg shadow-blue-700/30"
-                          : "text-blue-900/80 hover:bg-white/50 hover:text-blue-900 dark:text-gray-200 dark:hover:bg-gray-800/60"
+                          : "text-theme-primary hover:bg-theme-primary-soft"
                       }`}
                     >
                       {isActive && (
                         <span
-                          className="absolute inset-y-0 left-0 my-1 w-1.5 rounded-full bg-white/80 shadow-lg shadow-white/30 dark:bg-blue-400"
+                          className="absolute inset-y-0 left-0 my-1 w-1.5 rounded-full bg-white/80 shadow-lg shadow-white/30"
                           aria-hidden="true"
                         />
                       )}
@@ -76,7 +72,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                         className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
                           isActive
                             ? "border-white/50 bg-white/20 text-white"
-                            : "border-blue-200/60 bg-white/80 text-blue-600 group-hover:border-blue-300 group-hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
+                            : "border-theme bg-theme-surface text-theme-accent group-hover:opacity-80"
                         }`}
                       >
                         <Icon className="w-5 h-5" />
@@ -96,25 +92,25 @@ export default function Sidebar({ isOpen = true, onClose }) {
                     }
                     navigate("/login");
                   }}
-                  className="xl:hidden mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-800/10 transition-all duration-200 hover:bg-white hover:text-blue-800 dark:bg-gray-900/70 dark:text-gray-100 dark:hover:bg-gray-800"
+                  className="xl:hidden mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-theme-primary-soft px-4 py-3 text-sm font-semibold text-theme-primary shadow-lg transition-all duration-200 hover:opacity-80"
                 >
                   <IoLogOutOutline className="h-5 w-5" />
                   Log out
                 </button>
               </nav>
 
-              <div className="hidden xl:block rounded-3xl border border-white/60 bg-white/70 p-4 text-sm shadow-inner dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200">
-                <h4 className="text-sm font-semibold text-blue-900 dark:text-gray-100">
+              <div className="hidden xl:block rounded-3xl border border-theme bg-theme-primary-soft p-4 text-sm shadow-inner">
+                <h4 className="text-sm font-semibold text-theme-primary">
                   Need a nudge?
                 </h4>
-                <p className="mt-2 text-xs text-blue-700/80 dark:text-gray-300">
+                <p className="mt-2 text-xs text-theme-secondary">
                   Visit the Reader&apos;s Lounge or Analytics to spark new story
                   ideas and track your progress.
                 </p>
               </div>
             </div>
           </div>
-          <div className="border-t border-white/50 px-5 pt-4 pb-[10px] backdrop-blur dark:border-gray-800/70">
+          <div className="border-t border-theme px-5 pt-4 pb-[10px] backdrop-blur">
             <button
               type="button"
               onClick={() => {
@@ -124,7 +120,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                 }
                 navigate("/login");
               }}
-              className="mt-[10px] inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-800/10 transition-all duration-200 hover:bg-white hover:text-blue-800 dark:bg-gray-900/70 dark:text-gray-100 dark:hover:bg-gray-800"
+              className="mt-[10px] inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-theme-primary-soft px-4 py-3 text-sm font-semibold text-theme-primary shadow-lg transition-all duration-200 hover:opacity-80"
             >
               <IoLogOutOutline className="h-5 w-5" />
               Log out

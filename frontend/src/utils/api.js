@@ -84,7 +84,7 @@ export const updateCreatorProject = async (projectId, payload) => {
 export const publishCreatorProject = async (projectId, payload) => {
   const response = await api.post(
     `/creator/projects/${projectId}/publish`,
-    payload
+    payload,
   );
   return response.data;
 };
@@ -131,7 +131,7 @@ export const createPost = async (
   content,
   files = [],
   audience = "public",
-  tags = []
+  tags = [],
 ) => {
   const formData = new FormData();
   formData.append("content", content);
@@ -155,14 +155,14 @@ export const getPosts = async (page = 1) => {
 
 export const searchPosts = async (query, page = 1) => {
   const response = await api.get(
-    `/posts/search?q=${encodeURIComponent(query)}&page=${page}`
+    `/posts/search?q=${encodeURIComponent(query)}&page=${page}`,
   );
   return response.data;
 };
 
 export const getTrendingPosts = async (page = 1, timeFilter = "today") => {
   const response = await api.get(
-    `/posts/trending?page=${page}&timeFilter=${timeFilter}`
+    `/posts/trending?page=${page}&timeFilter=${timeFilter}`,
   );
   return response.data;
 };
@@ -275,7 +275,7 @@ export const getMarketplaceBookReviews = async (bookId, params = {}) => {
 export const submitMarketplaceBookReview = async (bookId, payload) => {
   const response = await api.post(
     `/marketplace/books/${bookId}/reviews`,
-    payload
+    payload,
   );
   return response.data;
 };
@@ -291,7 +291,7 @@ export const getReaderBooks = async (params = {}, options = {}) => {
 export const updateReaderBook = async (bookId, payload) => {
   const response = await api.patch(
     `/marketplace/reader/books/${bookId}`,
-    payload
+    payload,
   );
   return response.data;
 };
@@ -317,7 +317,7 @@ export const getReaderBookStatuses = async (bookIds = [], options = {}) => {
     { bookIds },
     {
       signal: options.signal,
-    }
+    },
   );
   return response.data;
 };
@@ -356,7 +356,7 @@ export const likeComment = async (commentId) => {
 export const addCommunityComment = async (
   postId,
   text,
-  parentCommentId = null
+  parentCommentId = null,
 ) => {
   const response = await api.post(`/community/post/${postId}/comments`, {
     text,
@@ -374,6 +374,32 @@ export const getCommunityComments = async (postId, page = 1, limit = 20) => {
 
 export const toggleCommunityCommentLike = async (commentId) => {
   const response = await api.post(`/community/comment/${commentId}/like`);
+  return response.data;
+};
+
+// Post View Tracking
+export const trackPostView = async (postId) => {
+  const response = await api.post(`/community/post/${postId}/view`);
+  return response.data;
+};
+
+// User Notifications APIs
+export const getUserNotifications = async (page = 1, limit = 20) => {
+  const response = await api.get(`/community/notifications`, {
+    params: { page, limit },
+  });
+  return response.data;
+};
+
+export const markNotificationAsRead = async (notificationId) => {
+  const response = await api.post(
+    `/community/notifications/${notificationId}/read`,
+  );
+  return response.data;
+};
+
+export const markAllNotificationsAsRead = async () => {
+  const response = await api.post(`/community/notifications/read-all`);
   return response.data;
 };
 
@@ -427,7 +453,7 @@ export const getUserContent = async (
   userId = null,
   type = "all",
   page = 1,
-  limit = 10
+  limit = 10,
 ) => {
   const endpoint = userId ? `/profile/${userId}/content` : "/profile/content";
   const params = new URLSearchParams({ type, page, limit });
@@ -437,7 +463,7 @@ export const getUserContent = async (
 
 export const getUserFavorites = async (type = "all", page = 1) => {
   const response = await api.get(
-    `/profile/favorites?type=${type}&page=${page}`
+    `/profile/favorites?type=${type}&page=${page}`,
   );
   return response.data;
 };
@@ -469,14 +495,14 @@ export const getChatList = async () => {
 
 export const getChatMessages = async (targetUserId, page = 1, limit = 50) => {
   const response = await api.get(
-    `/chats/${targetUserId}/messages?page=${page}&limit=${limit}`
+    `/chats/${targetUserId}/messages?page=${page}&limit=${limit}`,
   );
   return response.data;
 };
 
 export const sendChatMessage = async (
   targetUserId,
-  { text, attachment } = {}
+  { text, attachment } = {},
 ) => {
   const formData = new FormData();
   if (text) {
@@ -552,7 +578,7 @@ export const createSocialCircle = async (payload) => {
 export const joinSocialCircle = async (circleId, key) => {
   const response = await api.post(
     `/social/circles/${circleId}/join`,
-    key ? { key } : {}
+    key ? { key } : {},
   );
   return response.data;
 };
@@ -571,7 +597,7 @@ export const transferSocialCircleOwnership = async (circleId, memberId) => {
 
 export const removeSocialCircleMember = async (circleId, memberId) => {
   const response = await api.delete(
-    `/social/circles/${circleId}/members/${memberId}`
+    `/social/circles/${circleId}/members/${memberId}`,
   );
   return response.data;
 };
@@ -591,7 +617,7 @@ export const fetchCircleMessages = async (circleId, page = 1, limit = 30) => {
 export const sendCircleMessage = async (circleId, payload) => {
   const response = await api.post(
     `/social/circles/${circleId}/messages`,
-    payload
+    payload,
   );
   return response.data;
 };
@@ -614,7 +640,7 @@ export const getDiscoverUsers = async () => {
 
 export const searchUsers = async (query) => {
   const response = await api.get(
-    `/users/search?q=${encodeURIComponent(query)}`
+    `/users/search?q=${encodeURIComponent(query)}`,
   );
   return response.data;
 };
@@ -712,7 +738,7 @@ export const updateThemePreference = async (theme) => {
 
 export const checkUsernameAvailability = async (username) => {
   const response = await api.get(
-    `/users/check-username/${encodeURIComponent(username)}`
+    `/users/check-username/${encodeURIComponent(username)}`,
   );
   return response.data;
 };
@@ -743,7 +769,7 @@ export const sendChatbotMessage = async (message, userId, options = {}) => {
       },
       {
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
     return response.data;
   } catch (error) {
@@ -759,7 +785,7 @@ export const getChatbotHistory = async (userId) => {
       { userId },
       {
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
     return response.data;
   } catch (error) {
@@ -775,7 +801,7 @@ export const resetChatbotConversation = async (userId) => {
       { userId },
       {
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
     return response.data;
   } catch (error) {

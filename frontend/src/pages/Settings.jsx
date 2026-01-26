@@ -11,7 +11,7 @@ import {
   checkUsernameAvailability,
   uploadProfileAvatar,
 } from "../utils/api";
-// import { ThemeContext } from "../context/ThemeContext"; // TODO: Implement theme system later
+import { useTheme } from "../context/ThemeContext";
 import {
   IoSettings,
   IoPersonCircle,
@@ -38,6 +38,8 @@ import {
   IoRocket,
   IoFlame,
   IoOptionsOutline as IoOptions,
+  IoWater,
+  IoSparkles,
 } from "react-icons/io5";
 import { NAVIGATION_ITEMS, NAVIGATION_ITEM_IDS } from "../config/navigation";
 
@@ -46,7 +48,7 @@ const PROTECTED_NAVIGATION_ITEMS = new Set(["settings"]);
 
 const sanitizeNavigationSelection = (selection = []) => {
   const filtered = selection.filter((id) =>
-    DEFAULT_NAVIGATION_SELECTION.includes(id)
+    DEFAULT_NAVIGATION_SELECTION.includes(id),
   );
   const unique = Array.from(new Set(filtered));
 
@@ -66,7 +68,7 @@ const sanitizeNavigationSelection = (selection = []) => {
   return unique.sort(
     (a, b) =>
       DEFAULT_NAVIGATION_SELECTION.indexOf(a) -
-      DEFAULT_NAVIGATION_SELECTION.indexOf(b)
+      DEFAULT_NAVIGATION_SELECTION.indexOf(b),
   );
 };
 
@@ -147,10 +149,10 @@ export default function Settings() {
   const { user, userProfile, logout, fetchUserProfile } =
     useContext(AuthContext);
   const navigate = useNavigate();
-  // const { currentTheme, setTheme } = useContext(ThemeContext); // TODO: Implement theme system later
+  const { themeName, setTheme, themes: themeContextThemes } = useTheme();
   const [activeSection, setActiveSection] = useState("general");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [previewTheme, setPreviewTheme] = useState("default");
+  const [previewTheme, setPreviewTheme] = useState(themeName);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
   const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -188,7 +190,7 @@ export default function Settings() {
   const navigationSelection = sanitizeNavigationSelection(
     settings.navigation?.menuItems?.length
       ? settings.navigation.menuItems
-      : DEFAULT_NAVIGATION_SELECTION
+      : DEFAULT_NAVIGATION_SELECTION,
   );
 
   const normalizeSettings = (incoming = {}) => {
@@ -221,7 +223,7 @@ export default function Settings() {
     const navigationMenuItems = sanitizeNavigationSelection(
       Array.isArray(incomingNavigation.menuItems)
         ? incomingNavigation.menuItems
-        : []
+        : [],
     );
 
     return {
@@ -254,7 +256,9 @@ export default function Settings() {
           originalUsernameRef.current = normalized.profile?.username || "";
           const profileUrl = normalized.profile?.profileImage?.url;
           setProfileImagePreview(profileUrl || null);
-          setPreviewTheme(normalized.theme?.current || "default");
+          setPreviewTheme(
+            normalized.theme?.current || themeName || "ocean-blue",
+          );
           setUsernameStatus({ type: "idle", message: "" });
           setPrivacyDirty(false);
           setNotificationsDirty(false);
@@ -360,7 +364,7 @@ export default function Settings() {
       setProfileImagePreview(previousImage?.url || null);
       toast.error(
         error.response?.data?.message ||
-          "Failed to upload image. Please try again."
+          "Failed to upload image. Please try again.",
       );
     } finally {
       setUploadingProfileImage(false);
@@ -447,7 +451,7 @@ export default function Settings() {
     // Validate required fields
     if (!displayName) {
       toast.error(
-        "Please complete your profile first! Display name is required."
+        "Please complete your profile first! Display name is required.",
       );
       return;
     }
@@ -566,52 +570,52 @@ export default function Settings() {
 
   const themes = [
     {
-      id: "default",
+      id: "ocean-blue",
       name: "Ocean Blue",
-      icon: IoSunny,
-      colors: "from-blue-50 to-white",
+      icon: IoWater,
+      colors: "from-blue-400 to-blue-600",
       primary: "bg-blue-600",
-      description: "Clean and professional",
+      description: "Calm and professional 🌊",
     },
     {
       id: "jungle",
       name: "Jungle",
       icon: IoLeaf,
-      colors: "from-green-50 to-emerald-50",
+      colors: "from-green-400 to-emerald-600",
       primary: "bg-green-600",
       description: "Earthy and natural 🌿",
     },
     {
-      id: "cyberpunk",
-      name: "Cyberpunk",
-      icon: IoFlash,
-      colors: "from-purple-900 to-blue-900",
+      id: "dark-night",
+      name: "Dark Night",
+      icon: IoMoon,
+      colors: "from-gray-700 to-gray-900",
+      primary: "bg-gray-800",
+      description: "Sleek and minimal 🌙",
+    },
+    {
+      id: "sunset",
+      name: "Sunset",
+      icon: IoSunny,
+      colors: "from-orange-400 to-pink-500",
+      primary: "bg-orange-500",
+      description: "Warm and vibrant 🌅",
+    },
+    {
+      id: "vibrant",
+      name: "Vibrant",
+      icon: IoSparkles,
+      colors: "from-purple-500 to-pink-500",
       primary: "bg-purple-600",
-      description: "Neon and futuristic ⚡",
+      description: "Bold and energetic ✨",
     },
     {
-      id: "barbie",
-      name: "Barbie",
+      id: "romance",
+      name: "Romance",
       icon: IoHeart,
-      colors: "from-pink-50 to-rose-50",
-      primary: "bg-pink-600",
-      description: "Pink and glamorous 💖",
-    },
-    {
-      id: "space",
-      name: "Space",
-      icon: IoRocket,
-      colors: "from-gray-900 to-black",
-      primary: "bg-indigo-600",
-      description: "Dark and mysterious 🌌",
-    },
-    {
-      id: "mars",
-      name: "Mars",
-      icon: IoFlame,
-      colors: "from-red-50 to-orange-50",
-      primary: "bg-red-600",
-      description: "Warm and bold 🔥",
+      colors: "from-rose-400 to-pink-500",
+      primary: "bg-rose-500",
+      description: "Soft and romantic 💕",
     },
   ];
 
@@ -663,6 +667,11 @@ export default function Settings() {
   const handleThemeSave = async () => {
     try {
       setThemeSaving(true);
+
+      // Update theme in context (this handles localStorage and CSS variables)
+      setTheme(previewTheme);
+
+      // Also save to backend
       await updateThemePreference(previewTheme);
 
       setSettings((prev) => ({
@@ -692,7 +701,7 @@ export default function Settings() {
     } catch (error) {
       console.error("Privacy update error:", error);
       toast.error(
-        error.response?.data?.message || "Failed to update privacy settings"
+        error.response?.data?.message || "Failed to update privacy settings",
       );
     } finally {
       setSavingPrivacy(false);
@@ -709,7 +718,7 @@ export default function Settings() {
       console.error("Notification update error:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to update notification settings"
+          "Failed to update notification settings",
       );
     } finally {
       setSavingNotifications(false);
@@ -743,7 +752,7 @@ export default function Settings() {
     } catch (error) {
       console.error("Account update error:", error);
       toast.error(
-        error.response?.data?.message || "Failed to update account settings"
+        error.response?.data?.message || "Failed to update account settings",
       );
     } finally {
       setSavingAccount(false);
@@ -819,14 +828,14 @@ export default function Settings() {
 
   const hasNavigationChanges = !arraysEqual(
     navigationSelection,
-    originalNavigationRef.current
+    originalNavigationRef.current,
   );
 
   const handleNavigationSave = async () => {
     const selection = sanitizeNavigationSelection(
       settings.navigation?.menuItems?.length
         ? settings.navigation.menuItems
-        : [...DEFAULT_NAVIGATION_SELECTION]
+        : [...DEFAULT_NAVIGATION_SELECTION],
     );
 
     if (!selection.length) {
@@ -849,7 +858,7 @@ export default function Settings() {
     } catch (error) {
       console.error("Navigation update error:", error);
       toast.error(
-        error.response?.data?.message || "Failed to update sidebar layout"
+        error.response?.data?.message || "Failed to update sidebar layout",
       );
     } finally {
       setSavingNavigation(false);
@@ -993,7 +1002,7 @@ export default function Settings() {
                             handleSettingChange(
                               "profile",
                               "username",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           onBlur={handleUsernameBlur}
@@ -1033,7 +1042,7 @@ export default function Settings() {
                             handleSettingChange(
                               "profile",
                               "displayName",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1068,7 +1077,7 @@ export default function Settings() {
                             handleSettingChange(
                               "profile",
                               "bio",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           rows={3}
@@ -1184,16 +1193,16 @@ export default function Settings() {
                       {NAVIGATION_ITEMS.map((item) => {
                         const IconComponent = item.icon;
                         const isSelected = navigationSelection.includes(
-                          item.id
+                          item.id,
                         );
                         const isProtected = PROTECTED_NAVIGATION_ITEMS.has(
-                          item.id
+                          item.id,
                         );
                         const statusText = isProtected
                           ? "Always visible"
                           : isSelected
-                          ? "Visible in sidebar"
-                          : "Hidden from sidebar";
+                            ? "Visible in sidebar"
+                            : "Hidden from sidebar";
                         return (
                           <button
                             key={item.id}
@@ -1298,7 +1307,7 @@ export default function Settings() {
                                   handleSettingChange(
                                     "privacy",
                                     "profileVisibility",
-                                    option.id
+                                    option.id,
                                   )
                                 }
                                 className={`flex items-start gap-3 p-4 rounded-xl border transition-colors text-left ${
@@ -1346,7 +1355,7 @@ export default function Settings() {
                                   handleSettingChange(
                                     "privacy",
                                     "diaryVisibility",
-                                    option
+                                    option,
                                   )
                                 }
                                 className={`p-4 rounded-xl border transition-colors capitalize ${
@@ -1394,7 +1403,7 @@ export default function Settings() {
                                   handleSettingChange(
                                     "privacy",
                                     "allowMessages",
-                                    option.id
+                                    option.id,
                                   )
                                 }
                                 className={`p-4 rounded-xl border transition-colors text-left ${
@@ -1458,7 +1467,7 @@ export default function Settings() {
                                   handleSettingChange(
                                     "privacy",
                                     item.key,
-                                    !enabled
+                                    !enabled,
                                   )
                                 }
                                 className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1497,12 +1506,12 @@ export default function Settings() {
                                   <span className="text-xs text-gray-500">
                                     {entry.blockedAt
                                       ? new Date(
-                                          entry.blockedAt
+                                          entry.blockedAt,
                                         ).toLocaleDateString()
                                       : "Unknown date"}
                                   </span>
                                 </li>
-                              )
+                              ),
                             )}
                           </ul>
                         ) : (
@@ -1560,7 +1569,7 @@ export default function Settings() {
                             handleSettingChange(
                               "notifications",
                               "email",
-                              !settings.notifications.email
+                              !settings.notifications.email,
                             )
                           }
                           className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1593,7 +1602,7 @@ export default function Settings() {
                             handleSettingChange(
                               "notifications",
                               "push",
-                              !settings.notifications.push
+                              !settings.notifications.push,
                             )
                           }
                           className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1654,7 +1663,7 @@ export default function Settings() {
                                   handleSettingChange(
                                     "notifications",
                                     item.key,
-                                    !settings.notifications[item.key]
+                                    !settings.notifications[item.key],
                                   )
                                 }
                                 className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1728,7 +1737,7 @@ export default function Settings() {
                               handleSettingChange(
                                 "account",
                                 "twoFactor",
-                                !settings.account.twoFactor
+                                !settings.account.twoFactor,
                               )
                             }
                             className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1762,7 +1771,7 @@ export default function Settings() {
                               handleSettingChange(
                                 "account",
                                 "backupCodesGenerated",
-                                true
+                                true,
                               )
                             }
                             className="mt-3 inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"

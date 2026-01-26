@@ -15,6 +15,10 @@ const {
   getBasicStats,
   deletePost,
   getCommunityUserPreview,
+  trackPostView,
+  getUserNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 } = require("../controllers/communityController");
 const { protect } = require("../middlewares/authMiddleware");
 const multer = require("multer");
@@ -71,6 +75,7 @@ router.route("/post").post(protect, uploadPostMedia, createCommunityPost);
 router.route("/post/:postId/like").post(protect, toggleLikePost);
 router.route("/post/:postId/poll/vote").post(protect, voteOnPollOption);
 router.route("/post/:postId/share").post(protect, sharePost);
+router.route("/post/:postId/view").post(protect, trackPostView);
 router.route("/post/:postId").delete(protect, deletePost);
 router
   .route("/post/:postId/comments")
@@ -79,5 +84,12 @@ router
 
 // Comment interaction routes
 router.route("/comment/:commentId/like").post(protect, toggleLikeComment);
+
+// User notifications routes
+router.route("/notifications").get(protect, getUserNotifications);
+router.route("/notifications/read-all").post(protect, markAllNotificationsRead);
+router
+  .route("/notifications/:notificationId/read")
+  .post(protect, markNotificationRead);
 
 module.exports = router;

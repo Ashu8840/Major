@@ -7,9 +7,21 @@ const notificationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     type: {
       type: String,
       enum: [
+        // User notifications
+        "comment",
+        "like",
+        "follow",
+        "mention",
+        "reply",
+        "post_share",
+        // Admin notifications
         "new_user",
         "flagged_content",
         "system_error",
@@ -44,6 +56,14 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    postId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Post",
+    },
+    commentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Comment",
+    },
     isRead: {
       type: Boolean,
       default: false,
@@ -53,7 +73,7 @@ const notificationSchema = new mongoose.Schema(
       default: "",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Index for faster queries

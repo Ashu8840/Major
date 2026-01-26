@@ -33,7 +33,7 @@ import Settings from "./pages/Settings";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { WalletProvider } from "./context/WalletContext";
-// import  ThemeProvider  from "./context/ThemeContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { useContext, useEffect, useRef, useState } from "react";
 import { IoChatbubbles } from "react-icons/io5";
 import SplashScreen from "./components/SplashScreen";
@@ -368,7 +368,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-blue-50 dark:bg-gray-900 text-blue-900 dark:text-gray-100 no-horizontal-scroll">
+    <div className="min-h-screen bg-theme text-theme-primary theme-transition no-horizontal-scroll">
       {showNavbar && (
         <Navbar
           onToggleSidebar={() =>
@@ -623,17 +623,16 @@ function AppContent() {
 
 export default function App() {
   return (
-    // TODO: Re-enable ThemeProvider when theme system is implemented
-    // <ThemeProvider>
-    <AuthProvider>
-      <BrowserRouter>
-        <WalletProvider>
-          <NotificationProvider>
-            <AppContent />
-          </NotificationProvider>
-        </WalletProvider>
-      </BrowserRouter>
-    </AuthProvider>
-    // </ThemeProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <WalletProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </WalletProvider>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

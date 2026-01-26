@@ -10,7 +10,12 @@ import {
 import { useLocation } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useCurrentUser } from "../hooks/useAuth";
-import { SOCKET_BASE_URL } from "../utils/api";
+import {
+  SOCKET_BASE_URL,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from "../utils/api";
 
 const NotificationContext = createContext(null);
 
@@ -256,13 +261,30 @@ export const NotificationProvider = ({ children }) => {
       });
     };
 
+    // Handle new post notifications (comment, like, follow, etc.)
+    const handleNewNotification = (payload) => {
+      if (!payload) return;
+
+      addNotification({
+        type: payload.type || "general",
+        title: payload.title || "New notification",
+        message: payload.message || "",
+        link: payload.link || null,
+        meta: payload.meta || {},
+        externalId: payload._id || payload.id || undefined,
+        priority: payload.priority || "normal",
+      });
+    };
+
     socket.on("receiveMessage", handleIncomingMessage);
     socket.on("webrtc-signal", handleSignal);
+    socket.on("notification", handleNewNotification);
     socket.emit("user:register", userId);
 
     return () => {
       socket.off("receiveMessage", handleIncomingMessage);
       socket.off("webrtc-signal", handleSignal);
+      socket.off("notification", handleNewNotification);
       socket.disconnect();
       if (socketRef.current === socket) {
         socketRef.current = null;
@@ -270,8 +292,57 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [currentUser?.id, token, addNotification]);
 
+  // Fetch user notifications from backend
+  useEffect(() => {
+    if (!currentUser?.id || !token) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const response = await getUserNotifications(1, 50);
+        if (response?.data?.notifications) {
+          const backendNotifications = response.data.notifications.map((n) => ({
+            id: n._id,
+            type: n.type || "general",
+            title: n.title || "Notification",
+            message: n.message || "",
+            timestamp: n.createdAt || new Date().toISOString(),
+            isRead: Boolean(n.isRead),
+            readAt: n.readAt || null,
+            link: n.link || null,
+            meta: {
+              postId: n.postId?._id || n.postId,
+              commentId: n.commentId?._id || n.commentId,
+              senderId: n.sender?._id || n.sender,
+              senderName: n.sender?.displayName || n.sender?.username,
+              senderAvatar: n.sender?.profileImage,
+            },
+            externalId: n._id,
+            priority: n.priority || "normal",
+          }));
+
+          // Merge with existing local notifications (like messages, calls)
+          setNotifications((prev) => {
+            const localOnly = prev.filter(
+              (p) =>
+                !backendNotifications.some(
+                  (b) => b.externalId === p.externalId,
+                ),
+            );
+            return [...backendNotifications, ...localOnly].slice(0, 100);
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch user notifications:", error);
+      }
+    };
+
+    fetchNotifications();
+  }, [currentUser?.id, token]);
+
   const markAsRead = useCallback((notificationId) => {
     if (!notificationId) return;
+
+    // Optimistic update
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.id === notificationId
@@ -280,12 +351,18 @@ export const NotificationProvider = ({ children }) => {
               isRead: true,
               readAt: new Date().toISOString(),
             }
-          : notification
-      )
+          : notification,
+      ),
     );
+
+    // Sync with backend (if it's a backend notification)
+    markNotificationAsRead(notificationId).catch((err) => {
+      console.error("Failed to mark notification as read:", err);
+    });
   }, []);
 
   const markAllAsRead = useCallback(() => {
+    // Optimistic update
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.isRead
@@ -294,15 +371,20 @@ export const NotificationProvider = ({ children }) => {
               ...notification,
               isRead: true,
               readAt: new Date().toISOString(),
-            }
-      )
+            },
+      ),
     );
+
+    // Sync with backend
+    markAllNotificationsAsRead().catch((err) => {
+      console.error("Failed to mark all notifications as read:", err);
+    });
   }, []);
 
   const removeNotification = useCallback((notificationId) => {
     if (!notificationId) return;
     setNotifications((prev) =>
-      prev.filter((notification) => notification.id !== notificationId)
+      prev.filter((notification) => notification.id !== notificationId),
     );
   }, []);
 
@@ -312,7 +394,7 @@ export const NotificationProvider = ({ children }) => {
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
-    [notifications]
+    [notifications],
   );
 
   useEffect(() => {
@@ -377,7 +459,7 @@ export const NotificationProvider = ({ children }) => {
       markAllAsRead,
       removeNotification,
       clearNotifications,
-    ]
+    ],
   );
 
   return (
@@ -391,7 +473,7 @@ export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
     throw new Error(
-      "useNotifications must be used within a NotificationProvider"
+      "useNotifications must be used within a NotificationProvider",
     );
   }
   return context;

@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useCurrentUser } from "../hooks/useAuth";
 import { useNotifications } from "../context/NotificationContext";
 import { useWallet } from "../context/WalletContext";
+import { useTheme } from "../context/ThemeContext";
 import {
   IoMenuOutline as IoMenu,
   IoPeople,
@@ -92,14 +93,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
   const [showNotificationsDropdown, setShowNotificationsDropdown] =
     useState(false);
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = window.localStorage?.getItem("theme");
-    if (saved === "dark" || saved === "light") {
-      return saved === "dark";
-    }
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-  });
+  const { isDarkMode, toggleDarkMode } = useTheme();
 
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
@@ -123,28 +117,6 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
 
     document.addEventListener("mousedown", handleClickAway);
     return () => document.removeEventListener("mousedown", handleClickAway);
-  }, []);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDarkMode]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (event) => {
-      const stored = window.localStorage?.getItem("theme");
-      if (!stored) {
-        setIsDarkMode(event.matches);
-      }
-    };
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
   }, []);
 
   useEffect(() => {
@@ -175,11 +147,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
   );
 
   const handleThemeToggle = () => {
-    const next = !isDarkMode;
-    setIsDarkMode(next);
-    if (typeof window !== "undefined") {
-      window.localStorage?.setItem("theme", next ? "dark" : "light");
-    }
+    toggleDarkMode();
   };
 
   const handleLogout = () => {
@@ -267,7 +235,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-16 sm:h-20 border-b border-blue-100/80 bg-white/90 backdrop-blur-xl dark:border-gray-800/60 dark:bg-gray-900/85">
+    <header className="fixed inset-x-0 top-0 z-40 h-16 sm:h-20 border-b border-theme bg-theme-surface/90 backdrop-blur-xl theme-transition">
       <div className="mx-auto flex h-full max-w-7xl items-center px-4 sm:px-6">
         <div className="flex w-full items-center gap-2 sm:gap-3">
           <button
@@ -277,7 +245,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                 onToggleSidebar();
               }
             }}
-            className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 xl:hidden"
+            className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-theme-primary-soft text-theme-primary transition-colors hover:opacity-80 xl:hidden"
             aria-label="Toggle navigation"
             aria-pressed={Boolean(isSidebarOpen)}
           >
@@ -294,12 +262,12 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
               alt="SoulSpace Logo"
               className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl shadow-lg object-contain"
             />
-            <span className="hidden sm:inline text-lg font-semibold text-blue-900 dark:text-white">
+            <span className="hidden sm:inline text-lg font-semibold text-theme-primary">
               SoulSpace
             </span>
           </button>
           {NAV_ITEMS.length > 0 && (
-            <nav className="ml-4 hidden items-center gap-1 rounded-full bg-blue-50/60 px-2 py-1 dark:bg-gray-800/80 lg:flex">
+            <nav className="ml-4 hidden items-center gap-1 rounded-full bg-theme-primary-soft px-2 py-1 lg:flex">
               {NAV_ITEMS.map((item) => (
                 <NavLink key={item.to} to={item.to} className={navLinkClass}>
                   <item.icon className="h-4 w-4" />
@@ -313,7 +281,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
             <button
               type="button"
               onClick={handleThemeToggle}
-              className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
+              className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-theme-primary-soft text-theme-primary transition-colors hover:opacity-80"
               aria-label="Toggle theme"
             >
               {isDarkMode ? (
@@ -331,12 +299,12 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowProfileDropdown(false);
                   setShowNotificationsDropdown(false);
                 }}
-                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-blue-50/90 px-1.5 sm:px-2 py-1 sm:py-1.5 text-sm font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 dark:bg-gray-800/90 dark:text-blue-200"
+                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-theme-primary-soft px-1.5 sm:px-2 py-1 sm:py-1.5 text-sm font-semibold text-theme-primary shadow-sm transition-all hover:opacity-80"
                 aria-haspopup="true"
                 aria-expanded={showWalletDropdown}
                 aria-label="Wallet menu"
               >
-                <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner dark:bg-gray-900 dark:text-blue-200">
+                <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-theme-surface text-theme-accent shadow-inner">
                   <IoWallet className="h-4 w-4 sm:h-5 sm:w-5" />
                 </span>
                 <span className="hidden whitespace-nowrap lg:inline">
@@ -345,42 +313,46 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
               </button>
 
               {showWalletDropdown && (
-                <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-blue-100/80 bg-white p-4 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-theme bg-theme-surface p-4 shadow-2xl">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-blue-900 dark:text-white">
+                      <p className="text-sm font-semibold text-theme-primary">
                         Wallet balance
                       </p>
-                      <p className="text-xs text-blue-500 dark:text-gray-300">
+                      <p className="text-xs text-theme-secondary">
                         Limit {formatCurrency(maxBalance)}
                       </p>
                     </div>
-                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600 dark:bg-gray-800 dark:text-blue-200">
+                    <span className="rounded-full bg-theme-primary-soft px-2 py-1 text-xs font-semibold text-theme-accent">
                       {walletProgress}% full
                     </span>
                   </div>
-                  <p className="text-3xl font-bold text-blue-900 dark:text-white">
+                  <p className="text-3xl font-bold text-theme-primary">
                     {formatCurrency(balance)}
                   </p>
-                  <p className="mt-1 text-xs uppercase tracking-wide text-blue-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs uppercase tracking-wide text-theme-secondary">
                     Available balance
                   </p>
-                  <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-gray-700">
+                  <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-theme-primary-soft">
                     <div
-                      className="h-full rounded-full bg-blue-500 transition-all"
-                      style={{ width: `${walletProgress}%` }}
+                      className="h-full rounded-full bg-theme-primary transition-all"
+                      style={{
+                        width: `${walletProgress}%`,
+                        backgroundColor: "var(--theme-primary)",
+                      }}
                     />
                   </div>
                   <button
                     type="button"
                     onClick={handleTopUp}
                     disabled={!canTopUp}
-                    className={`flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400/60`}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ backgroundColor: "var(--theme-primary)" }}
                   >
                     Top up {formatCurrency(topUpAmount)}
                   </button>
                   {!canTopUp && (
-                    <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-600 dark:bg-gray-800 dark:text-blue-200">
+                    <p className="mt-3 rounded-xl bg-theme-primary-soft px-3 py-2 text-xs text-theme-accent">
                       You've reached the maximum balance. Spend funds to enable
                       the next top-up.
                     </p>
@@ -397,7 +369,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowProfileDropdown(false);
                   setShowWalletDropdown(false);
                 }}
-                className="relative inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
+                className="relative inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-theme-primary-soft text-theme-primary transition-colors hover:opacity-80"
                 aria-label="Notifications"
               >
                 <IoNotifications className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -408,22 +380,22 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                 )}
               </button>
               {showNotificationsDropdown && (
-                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-hidden rounded-2xl border border-blue-100/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-                  <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/70">
-                    <span className="text-sm font-semibold text-blue-900 dark:text-white">
+                <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-hidden rounded-2xl border border-theme bg-theme-surface shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-theme bg-theme-primary-soft px-4 py-3">
+                    <span className="text-sm font-semibold text-theme-primary">
                       Notifications
                     </span>
                     <button
                       type="button"
                       onClick={markAllAsRead}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      className="text-xs font-semibold text-theme-accent hover:opacity-80"
                     >
                       Mark all read
                     </button>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="px-4 py-10 text-center text-sm text-blue-500 dark:text-gray-300">
+                      <div className="px-4 py-10 text-center text-sm text-theme-secondary">
                         You're all caught up!
                       </div>
                     ) : (
@@ -444,7 +416,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowNotificationsDropdown(false);
                   setShowWalletDropdown(false);
                 }}
-                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-blue-50 px-1.5 sm:px-2 py-1 sm:py-1.5 text-blue-900 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-100"
+                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-theme-primary-soft px-1.5 sm:px-2 py-1 sm:py-1.5 text-theme-primary transition-colors hover:opacity-80"
               >
                 <span className="h-8 w-8 sm:h-9 sm:w-9 overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-sm font-semibold text-white">
                   {profileImage ? (
@@ -468,13 +440,13 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                 <IoChevronDown className="hidden h-4 w-4 text-blue-400 xl:block" />
               </button>
               {showProfileDropdown && (
-                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-blue-100/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-                  <div className="bg-blue-50/70 px-4 py-3 dark:bg-gray-800/70">
-                    <p className="text-sm font-semibold text-blue-900 dark:text-white">
+                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-theme bg-theme-surface shadow-2xl">
+                  <div className="bg-theme-primary-soft px-4 py-3">
+                    <p className="text-sm font-semibold text-theme-primary">
                       {displayName}
                     </p>
                     {currentUser?.email && (
-                      <p className="truncate text-xs text-blue-500 dark:text-gray-300">
+                      <p className="truncate text-xs text-theme-secondary">
                         {currentUser.email}
                       </p>
                     )}
@@ -483,7 +455,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                     <button
                       type="button"
                       onClick={() => navigate("/profile")}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-theme-primary hover:bg-theme-primary-soft"
                     >
                       <IoPersonCircleOutline className="h-4 w-4" />
                       View profile
@@ -491,7 +463,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                     <button
                       type="button"
                       onClick={() => navigate("/settings")}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-theme-primary hover:bg-theme-primary-soft"
                     >
                       <IoSettings className="h-4 w-4" />
                       Settings
@@ -499,13 +471,13 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                     <button
                       type="button"
                       onClick={() => navigate("/chat")}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-blue-900 hover:bg-blue-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-theme-primary hover:bg-theme-primary-soft"
                     >
                       <IoChatbubbles className="h-4 w-4" />
                       Messages
                     </button>
                   </div>
-                  <div className="border-t border-blue-100 px-4 py-3 dark:border-gray-700">
+                  <div className="border-t border-theme px-4 py-3">
                     <button
                       type="button"
                       onClick={handleLogout}
