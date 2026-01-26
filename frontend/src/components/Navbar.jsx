@@ -267,9 +267,9 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-blue-100/80 bg-white/90 backdrop-blur-xl dark:border-gray-800/60 dark:bg-gray-900/85">
+    <header className="fixed inset-x-0 top-0 z-40 h-16 sm:h-20 border-b border-blue-100/80 bg-white/90 backdrop-blur-xl dark:border-gray-800/60 dark:bg-gray-900/85">
       <div className="mx-auto flex h-full max-w-7xl items-center px-4 sm:px-6">
-        <div className="flex w-full items-center gap-3">
+        <div className="flex w-full items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => {
@@ -277,7 +277,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                 onToggleSidebar();
               }
             }}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 lg:hidden"
+            className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 xl:hidden"
             aria-label="Toggle navigation"
             aria-pressed={Boolean(isSidebarOpen)}
           >
@@ -287,14 +287,14 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
             <img
               src="/Logo.png"
               alt="SoulSpace Logo"
-              className="h-10 w-10 rounded-2xl shadow-lg object-contain"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl shadow-lg object-contain"
             />
-            <span className="text-lg font-semibold text-blue-900 dark:text-white">
+            <span className="hidden sm:inline text-lg font-semibold text-blue-900 dark:text-white">
               SoulSpace
             </span>
           </button>
@@ -309,11 +309,11 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
             </nav>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={handleThemeToggle}
-              className="hidden h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200 lg:inline-flex"
+              className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
               aria-label="Toggle theme"
             >
               {isDarkMode ? (
@@ -331,13 +331,13 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowProfileDropdown(false);
                   setShowNotificationsDropdown(false);
                 }}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-50/90 px-2 py-1.5 text-sm font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 dark:bg-gray-800/90 dark:text-blue-200"
+                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-blue-50/90 px-1.5 sm:px-2 py-1 sm:py-1.5 text-sm font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-100 dark:bg-gray-800/90 dark:text-blue-200"
                 aria-haspopup="true"
                 aria-expanded={showWalletDropdown}
                 aria-label="Wallet menu"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner dark:bg-gray-900 dark:text-blue-200">
-                  <IoWallet className="h-5 w-5" />
+                <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner dark:bg-gray-900 dark:text-blue-200">
+                  <IoWallet className="h-4 w-4 sm:h-5 sm:w-5" />
                 </span>
                 <span className="hidden whitespace-nowrap lg:inline">
                   {formatCurrency(balance)}
@@ -397,10 +397,10 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowProfileDropdown(false);
                   setShowWalletDropdown(false);
                 }}
-                className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
+                className="relative inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors hover:bg-blue-200 dark:bg-gray-800 dark:text-gray-200"
                 aria-label="Notifications"
               >
-                <IoNotifications className="h-5 w-5" />
+                <IoNotifications className="h-4 w-4 sm:h-5 sm:w-5" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-semibold text-white">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -444,9 +444,9 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                   setShowNotificationsDropdown(false);
                   setShowWalletDropdown(false);
                 }}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-1.5 text-blue-900 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-100"
+                className="inline-flex items-center gap-1 sm:gap-2 rounded-full bg-blue-50 px-1.5 sm:px-2 py-1 sm:py-1.5 text-blue-900 transition-colors hover:bg-blue-100 dark:bg-gray-800 dark:text-gray-100"
               >
-                <span className="h-9 w-9 overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-sm font-semibold text-white">
+                <span className="h-8 w-8 sm:h-9 sm:w-9 overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-sm font-semibold text-white">
                   {profileImage ? (
                     <img
                       src={profileImage}

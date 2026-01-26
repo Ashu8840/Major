@@ -79,6 +79,10 @@ const Login = () => {
       if (buttonContainer) {
         // Clear existing content
         buttonContainer.innerHTML = "";
+        // Responsive width based on screen size
+        const buttonWidth =
+          window.innerWidth < 640 ? Math.min(280, window.innerWidth - 80) : 400;
+
         window.google.accounts.id.renderButton(buttonContainer, {
           type: "standard",
           theme: "outline",
@@ -86,7 +90,7 @@ const Login = () => {
           text: "signin_with",
           shape: "rectangular",
           logo_alignment: "left",
-          width: 400,
+          width: buttonWidth,
           click_listener: () => {
             setGoogleLoading(true);
           },
@@ -456,7 +460,8 @@ const Login = () => {
               {/* Google Login Button - rendered by Google SDK */}
               <div
                 id="google-button-container"
-                className="w-full flex justify-center"
+                className="w-full flex justify-center overflow-hidden"
+                style={{ maxWidth: "100%" }}
               ></div>
 
               {/* Fallback Google Login Button (shown if SDK button fails to render) */}

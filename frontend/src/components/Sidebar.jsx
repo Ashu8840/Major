@@ -19,15 +19,15 @@ export default function Sidebar({ isOpen = true, onClose }) {
         : [...baseOrder];
 
     return NAVIGATION_ITEMS.filter((item) => allowedIds.includes(item.id)).sort(
-      (a, b) => allowedIds.indexOf(a.id) - allowedIds.indexOf(b.id)
+      (a, b) => allowedIds.indexOf(a.id) - allowedIds.indexOf(b.id),
     );
   }, [menuPreference]);
 
   return (
     <aside
-      className={`fixed left-0 top-[80px] z-40 h-[calc(100vh-80px)] w-64 transform transition-transform duration-300 ${
+      className={`fixed left-0 top-16 sm:top-[80px] z-40 h-[calc(100vh-64px)] sm:h-[calc(100vh-80px)] w-64 transform transition-transform duration-300 ${
         isOpen ? "translate-x-0" : "-translate-x-full"
-      } lg:translate-x-0`}
+      } xl:translate-x-0`}
     >
       <div className="relative h-full overflow-hidden border-r border-white/40 bg-gradient-to-b from-white/95 via-blue-50/80 to-blue-100/70 shadow-[0_28px_50px_-35px_rgba(37,99,235,0.65)] backdrop-blur-xl dark:border-gray-800/70 dark:from-gray-950/95 dark:via-gray-900/90 dark:to-gray-950/90">
         <div
@@ -35,7 +35,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
           aria-hidden="true"
         />
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-white/50 px-5 pt-4 pb-3 backdrop-blur lg:hidden dark:border-gray-800/70">
+          <div className="flex items-center justify-between border-b border-white/50 px-5 pt-4 pb-3 backdrop-blur xl:hidden dark:border-gray-800/70">
             <span className="text-sm font-semibold text-blue-900 dark:text-gray-100">
               Navigation
             </span>
@@ -96,14 +96,14 @@ export default function Sidebar({ isOpen = true, onClose }) {
                     }
                     navigate("/login");
                   }}
-                  className="lg:hidden mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-800/10 transition-all duration-200 hover:bg-white hover:text-blue-800 dark:bg-gray-900/70 dark:text-gray-100 dark:hover:bg-gray-800"
+                  className="xl:hidden mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-800/10 transition-all duration-200 hover:bg-white hover:text-blue-800 dark:bg-gray-900/70 dark:text-gray-100 dark:hover:bg-gray-800"
                 >
                   <IoLogOutOutline className="h-5 w-5" />
                   Log out
                 </button>
               </nav>
 
-              <div className="hidden lg:block rounded-3xl border border-white/60 bg-white/70 p-4 text-sm shadow-inner dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200">
+              <div className="hidden xl:block rounded-3xl border border-white/60 bg-white/70 p-4 text-sm shadow-inner dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200">
                 <h4 className="text-sm font-semibold text-blue-900 dark:text-gray-100">
                   Need a nudge?
                 </h4>

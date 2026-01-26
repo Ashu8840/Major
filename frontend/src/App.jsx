@@ -38,7 +38,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { IoChatbubbles } from "react-icons/io5";
 import SplashScreen from "./components/SplashScreen";
 
-const MOBILE_BREAKPOINT = "(max-width: 768px)";
+const MOBILE_BREAKPOINT = "(max-width: 1279px)";
 const CHAT_BUTTON_SIZE = 56;
 const CHAT_BUTTON_MARGIN = 32;
 const MIN_DRAG_MARGIN = 16;
@@ -54,11 +54,11 @@ const getInitialChatPosition = () => {
   const height = window.innerHeight;
   const maxX = Math.max(
     width - CHAT_BUTTON_SIZE - MIN_DRAG_MARGIN,
-    MIN_DRAG_MARGIN
+    MIN_DRAG_MARGIN,
   );
   const maxY = Math.max(
     height - CHAT_BUTTON_SIZE - MIN_DRAG_MARGIN,
-    MIN_DRAG_MARGIN
+    MIN_DRAG_MARGIN,
   );
   const defaultX = width - CHAT_BUTTON_SIZE - CHAT_BUTTON_MARGIN;
   const defaultY = height - CHAT_BUTTON_SIZE - CHAT_BUTTON_MARGIN;
@@ -96,7 +96,7 @@ function AppContent() {
     if (typeof window === "undefined") {
       return false;
     }
-    return window.innerWidth >= 1024;
+    return window.innerWidth >= 1280;
   });
 
   // Show splash screen only when navigating to dashboard
@@ -183,12 +183,12 @@ function AppContent() {
       const x = clamp(
         event.clientX - dragOffsetRef.current.x,
         MIN_DRAG_MARGIN,
-        maxX
+        maxX,
       );
       const y = clamp(
         event.clientY - dragOffsetRef.current.y,
         MIN_DRAG_MARGIN,
-        maxY
+        maxY,
       );
       setChatPosition({ x, y });
     };
@@ -197,7 +197,7 @@ function AppContent() {
       if (activePointerIdRef.current !== null && chatButtonRef.current) {
         try {
           chatButtonRef.current.releasePointerCapture(
-            activePointerIdRef.current
+            activePointerIdRef.current,
           );
         } catch {
           /* ignore if already released */
@@ -389,7 +389,7 @@ function AppContent() {
         <>
           {isMobile && (
             <div
-              className={`fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 lg:hidden ${
+              className={`fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 xl:hidden ${
                 effectiveSidebarOpen
                   ? "opacity-100 pointer-events-auto"
                   : "opacity-0 pointer-events-none"
@@ -405,10 +405,9 @@ function AppContent() {
         </>
       )}
       <main
-        className={`page-scroll ${showSidebar ? "lg:ml-64" : ""}`}
+        className={`page-scroll ${showSidebar ? "xl:ml-64" : ""} ${showNavbar ? "mt-16 sm:mt-20" : ""}`}
         style={{
-          height: showNavbar ? "calc(100vh - 80px)" : "100vh",
-          marginTop: showNavbar ? "80px" : "0",
+          height: showNavbar ? "calc(100vh - 64px)" : "100vh",
         }}
       >
         <Routes>

@@ -87,6 +87,11 @@ const Signup = () => {
       );
       if (buttonContainer) {
         buttonContainer.innerHTML = "";
+
+        // Responsive width based on screen size
+        const buttonWidth =
+          window.innerWidth < 640 ? Math.min(280, window.innerWidth - 80) : 400;
+
         window.google.accounts.id.renderButton(buttonContainer, {
           type: "standard",
           theme: "outline",
@@ -94,7 +99,7 @@ const Signup = () => {
           text: "signup_with",
           shape: "rectangular",
           logo_alignment: "left",
-          width: 400,
+          width: buttonWidth,
           click_listener: () => {
             setGoogleLoading(true);
           },
@@ -716,7 +721,8 @@ const Signup = () => {
               {/* Google Signup Button - rendered by Google SDK */}
               <div
                 id="google-button-container-signup"
-                className="w-full flex justify-center"
+                className="w-full flex justify-center overflow-hidden"
+                style={{ maxWidth: "100%" }}
               ></div>
 
               {/* Fallback Google Signup Button (shown if SDK button fails to render) */}
