@@ -171,7 +171,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
             ? "bg-blue-600 text-white shadow"
             : "text-blue-900/80 hover:bg-blue-100 hover:text-blue-900 dark:text-gray-200 dark:hover:bg-gray-800"
         }`,
-    []
+    [],
   );
 
   const handleThemeToggle = () => {
@@ -206,14 +206,14 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
     if (result.success && result.amount > 0) {
       toast.success(
         `Added ${formatCurrency(result.amount)}. New balance: ${formatCurrency(
-          balance + result.amount
-        )}`
+          balance + result.amount,
+        )}`,
       );
     } else {
       toast.error(
         `Wallet limit reached. You can store up to ${formatCurrency(
-          maxBalance
-        )}.`
+          maxBalance,
+        )}.`,
       );
     }
   };
@@ -222,8 +222,8 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
     100,
     Math.max(
       0,
-      Math.round((Number(balance || 0) / Number(maxBalance || 1)) * 100)
-    )
+      Math.round((Number(balance || 0) / Number(maxBalance || 1)) * 100),
+    ),
   );
 
   const renderNotificationItem = (notification) => {
@@ -289,9 +289,11 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
             onClick={() => navigate("/")}
             className="flex items-center gap-3"
           >
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 text-lg font-semibold text-white shadow-lg">
-              M
-            </span>
+            <img
+              src="/Logo.png"
+              alt="SoulSpace Logo"
+              className="h-10 w-10 rounded-2xl shadow-lg object-contain"
+            />
             <span className="text-lg font-semibold text-blue-900 dark:text-white">
               SoulSpace
             </span>
@@ -426,7 +428,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
                       </div>
                     ) : (
                       notifications.map((notification) =>
-                        renderNotificationItem(notification)
+                        renderNotificationItem(notification),
                       )
                     )}
                   </div>

@@ -17,7 +17,7 @@ const getInitials = (name) => {
   const parts = trimmed.split(/\s+/);
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(
-    0
+    0,
   )}`.toUpperCase();
 };
 
@@ -35,6 +35,7 @@ export const useCurrentUser = () => {
     loading,
     login,
     signup,
+    googleLogin,
     logout,
     updateProfile,
     fetchUserProfile,
@@ -56,7 +57,7 @@ export const useCurrentUser = () => {
       profile.profileImage || profile.avatar || profile.profilePicture;
     const profileImageUrl = extractImageUrl(profileImageRaw);
     const coverImageUrl = extractImageUrl(
-      profile.coverPhoto || profile.coverImage
+      profile.coverPhoto || profile.coverImage,
     );
 
     return {
@@ -85,6 +86,7 @@ export const useCurrentUser = () => {
     loading,
     login,
     signup,
+    googleLogin,
     logout,
     updateProfile,
     refreshProfile: fetchUserProfile,

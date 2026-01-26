@@ -611,9 +611,20 @@ const googleAuth = async (req, res) => {
 
     if (user) {
       // Existing user - log them in
-      // Update Google profile picture if not set
+      // Update user info from Google if not already set
+      let needsSave = false;
+
       if (!user.profileImage?.url && picture) {
         user.profileImage = { url: picture };
+        needsSave = true;
+      }
+
+      if (!user.displayName && name) {
+        user.displayName = name;
+        needsSave = true;
+      }
+
+      if (needsSave) {
         await user.save();
       }
 
