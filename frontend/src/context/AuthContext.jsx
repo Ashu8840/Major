@@ -106,6 +106,23 @@ export function AuthProvider({ children }) {
     [fetchUserProfile]
   );
 
+  const googleLogin = useCallback(
+    async (credential) => {
+      try {
+        setLoading(true);
+        const { data } = await api.post("/users/google-auth", { credential });
+        setToken(data.token);
+        const profile = await fetchUserProfile({ silent: true });
+        return { ...data, profile: profile || data };
+      } catch (error) {
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchUserProfile]
+  );
+
   const updateProfile = useCallback(
     async (profileData) => {
       try {
@@ -135,6 +152,7 @@ export function AuthProvider({ children }) {
       loading,
       login,
       signup,
+      googleLogin,
       logout,
       updateProfile,
       fetchUserProfile,
@@ -147,6 +165,7 @@ export function AuthProvider({ children }) {
       loading,
       login,
       signup,
+      googleLogin,
       logout,
       updateProfile,
       fetchUserProfile,

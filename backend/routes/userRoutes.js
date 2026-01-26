@@ -2,6 +2,7 @@ const express = require("express");
 const {
   registerUser,
   authUser,
+  googleAuth,
   updateProfile,
   getProfile,
   checkUsername,
@@ -39,6 +40,9 @@ router.post(
   validateRequest,
   authUser
 );
+
+// Google One Tap / OAuth login
+router.post("/google-auth", googleAuth);
 
 // Username availability check
 router.get("/check-username/:username", checkUsername);

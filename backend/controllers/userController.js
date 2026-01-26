@@ -5,6 +5,9 @@ const {
   generateRefreshToken,
 } = require("../utils/generateToken");
 const cloudinary = require("../services/cloudinary");
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const ALLOWED_NAVIGATION_ITEMS = [
   "dashboard",
@@ -585,9 +588,104 @@ const updateThemePreference = async (req, res) => {
   }
 };
 
+// Google One Tap / OAuth Login
+const googleAuth = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    // Verify the Google token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture, sub: googleId } = payload;
+
+    // Check if user exists with this email
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Existing user - log them in
+      // Update Google profile picture if not set
+      if (!user.profileImage?.url && picture) {
+        user.profileImage = { url: picture };
+        await user.save();
+      }
+
+      return res.json({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName || name,
+        profileImage: user.profileImage,
+        profileCompleted: user.profileCompleted,
+        firstLogin: user.firstLogin,
+        role: user.role,
+        token: generateToken(user._id),
+        refreshToken: generateRefreshToken(user._id),
+        isNewUser: false,
+      });
+    } else {
+      // New user - create account
+      // Generate a unique username from email
+      let baseUsername = email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "");
+      if (baseUsername.length < 3) baseUsername = "user" + baseUsername;
+      let username = baseUsername;
+      let counter = 1;
+
+      // Ensure username is unique
+      while (await User.findOne({ username: username.toLowerCase() })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      // Generate a random password for Google users (they won't use it)
+      const randomPassword = Math.random().toString(36).slice(-12) + "Aa1!";
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+      user = await User.create({
+        username: username.toLowerCase(),
+        email,
+        passwordHash,
+        displayName: name,
+        profileImage: picture ? { url: picture } : undefined,
+        isVerified: true, // Google accounts are verified
+        profileCompleted: false,
+        firstLogin: true,
+      });
+
+      return res.status(201).json({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName,
+        profileImage: user.profileImage,
+        profileCompleted: user.profileCompleted,
+        firstLogin: user.firstLogin,
+        role: user.role,
+        token: generateToken(user._id),
+        refreshToken: generateRefreshToken(user._id),
+        isNewUser: true,
+      });
+    }
+  } catch (error) {
+    console.error("Google auth error:", error);
+    res.status(401).json({ 
+      message: "Google authentication failed", 
+      error: error.message 
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   authUser,
+  googleAuth,
   getProfile,
   updateProfile,
   checkUsername,
