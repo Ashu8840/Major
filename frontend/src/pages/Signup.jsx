@@ -59,7 +59,7 @@ const Signup = () => {
         setGoogleLoading(false);
       }
     },
-    [googleLogin, navigate]
+    [googleLogin, navigate],
   );
 
   // Initialize Google One Tap
@@ -76,21 +76,31 @@ const Signup = () => {
 
   // Trigger Google Sign In popup
   const handleGoogleSignIn = () => {
-    if (!GOOGLE_CLIENT_ID || typeof window.google === "undefined") {
-      setErrors({ general: "Google Sign-In is not available" });
+    if (!GOOGLE_CLIENT_ID) {
+      setErrors({ general: "Google Sign-In is not configured" });
       return;
     }
 
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // Fallback to button click flow
-        window.google.accounts.id.renderButton(
-          document.getElementById("google-signup-button"),
-          { theme: "outline", size: "large", width: "100%" }
-        );
-        document.getElementById("google-signup-button")?.click();
-      }
-    });
+    if (typeof window.google === "undefined") {
+      setErrors({ general: "Google Sign-In is loading, please try again" });
+      return;
+    }
+
+    // Render the Google Sign-In button as fallback
+    const buttonContainer = document.getElementById("google-signup-button");
+    if (buttonContainer) {
+      buttonContainer.innerHTML = ""; // Clear previous button
+      buttonContainer.classList.remove("hidden");
+      window.google.accounts.id.renderButton(buttonContainer, {
+        theme: "outline",
+        size: "large",
+        width: 400,
+        text: "continue_with",
+      });
+    }
+
+    // Also try to show the One Tap prompt
+    window.google.accounts.id.prompt();
   };
 
   // Password validation
@@ -128,7 +138,7 @@ const Signup = () => {
     setUsernameChecking(true);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/users/check-username/${username}`
+        `${API_BASE_URL}/users/check-username/${username}`,
       );
       const data = await response.json();
       setUsernameAvailable(data.available);
@@ -219,7 +229,7 @@ const Signup = () => {
       });
 
       setMessage(
-        "Account created successfully! Redirecting to profile setup..."
+        "Account created successfully! Redirecting to profile setup...",
       );
 
       // Always redirect to settings for new users to complete profile
@@ -251,8 +261,12 @@ const Signup = () => {
       <div className="hidden lg:flex lg:flex-1 relative z-10 items-center justify-center p-12">
         <div className="max-w-md text-center text-white">
           <div className="mb-8">
-            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20">
-              <IoSparkles className="w-10 h-10 text-purple-300" />
+            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20 overflow-hidden">
+              <img
+                src="/Logo.png"
+                alt="SoulSpace Logo"
+                className="w-14 h-14 object-contain"
+              />
             </div>
             <h1 className="text-4xl font-bold mb-4">Start Your Journey</h1>
             <p className="text-xl text-purple-100">
@@ -353,10 +367,10 @@ const Signup = () => {
                       errors.username
                         ? "border-red-300 focus:ring-red-500 focus:border-red-500"
                         : usernameAvailable === false
-                        ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                        : usernameAvailable === true
-                        ? "border-green-300 focus:ring-green-500 focus:border-green-500"
-                        : "border-blue-200 focus:ring-blue-500 focus:border-blue-500"
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : usernameAvailable === true
+                            ? "border-green-300 focus:ring-green-500 focus:border-green-500"
+                            : "border-blue-200 focus:ring-blue-500 focus:border-blue-500"
                     } bg-blue-50/50`}
                     placeholder="Choose a username"
                   />

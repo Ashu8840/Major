@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
       }
     },
-    [fetchUserProfile]
+    [fetchUserProfile],
   );
 
   const signup = useCallback(
@@ -103,7 +103,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
       }
     },
-    [fetchUserProfile]
+    [fetchUserProfile],
   );
 
   const googleLogin = useCallback(
@@ -120,7 +120,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
       }
     },
-    [fetchUserProfile]
+    [fetchUserProfile],
   );
 
   const updateProfile = useCallback(
@@ -136,7 +136,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
       }
     },
-    [fetchUserProfile]
+    [fetchUserProfile],
   );
 
   const logout = useCallback(() => {
@@ -169,7 +169,7 @@ export function AuthProvider({ children }) {
       logout,
       updateProfile,
       fetchUserProfile,
-    ]
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

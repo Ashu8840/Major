@@ -50,7 +50,7 @@ const Login = () => {
         setGoogleLoading(false);
       }
     },
-    [googleLogin, navigate]
+    [googleLogin, navigate],
   );
 
   // Initialize Google One Tap
@@ -70,21 +70,31 @@ const Login = () => {
 
   // Trigger Google Sign In popup
   const handleGoogleSignIn = () => {
-    if (!GOOGLE_CLIENT_ID || typeof window.google === "undefined") {
-      setErrors({ general: "Google Sign-In is not available" });
+    if (!GOOGLE_CLIENT_ID) {
+      setErrors({ general: "Google Sign-In is not configured" });
       return;
     }
 
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // Fallback to button click flow
-        window.google.accounts.id.renderButton(
-          document.getElementById("google-signin-button"),
-          { theme: "outline", size: "large", width: "100%" }
-        );
-        document.getElementById("google-signin-button")?.click();
-      }
-    });
+    if (typeof window.google === "undefined") {
+      setErrors({ general: "Google Sign-In is loading, please try again" });
+      return;
+    }
+
+    // Render the Google Sign-In button as fallback
+    const buttonContainer = document.getElementById("google-signin-button");
+    if (buttonContainer) {
+      buttonContainer.innerHTML = ""; // Clear previous button
+      buttonContainer.classList.remove("hidden");
+      window.google.accounts.id.renderButton(buttonContainer, {
+        theme: "outline",
+        size: "large",
+        width: 400,
+        text: "continue_with",
+      });
+    }
+
+    // Also try to show the One Tap prompt
+    window.google.accounts.id.prompt();
   };
 
   const handleChange = (e) => {
@@ -158,8 +168,12 @@ const Login = () => {
       <div className="hidden lg:flex lg:flex-1 relative z-10 items-center justify-center p-12">
         <div className="max-w-md text-center text-white">
           <div className="mb-8">
-            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20">
-              <IoSparkles className="w-10 h-10 text-blue-300" />
+            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20 overflow-hidden">
+              <img
+                src="/Logo.png"
+                alt="SoulSpace Logo"
+                className="w-14 h-14 object-contain"
+              />
             </div>
             <h1 className="text-4xl font-bold mb-4">Welcome Back</h1>
             <p className="text-xl text-blue-100">

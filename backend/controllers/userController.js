@@ -139,7 +139,7 @@ const updateProfile = async (req, res) => {
     await user.save();
 
     const updatedUser = await User.findById(req.user.id).select(
-      "-passwordHash"
+      "-passwordHash",
     );
     console.log("Profile updated successfully");
     res.json(updatedUser);
@@ -323,8 +323,8 @@ const updateUserSettings = async (req, res) => {
         const sanitizedMenuItems = [
           ...new Set(
             rawMenuItems.filter((item) =>
-              ALLOWED_NAVIGATION_ITEMS.includes(item)
-            )
+              ALLOWED_NAVIGATION_ITEMS.includes(item),
+            ),
           ),
         ];
 
@@ -360,7 +360,7 @@ const getUserSettings = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId).select(
-      "username email displayName bio profileImage coverPhoto address socialLinks preferences stats achievements profileCompleted firstLogin userId blockedUsers createdAt"
+      "username email displayName bio profileImage coverPhoto address socialLinks preferences stats achievements profileCompleted firstLogin userId blockedUsers createdAt",
     );
 
     if (!user) {
@@ -368,10 +368,10 @@ const getUserSettings = async (req, res) => {
     }
 
     const navigationMenuItems = Array.isArray(
-      user.preferences?.navigation?.menuItems
+      user.preferences?.navigation?.menuItems,
     )
       ? user.preferences.navigation.menuItems.filter((item) =>
-          ALLOWED_NAVIGATION_ITEMS.includes(item)
+          ALLOWED_NAVIGATION_ITEMS.includes(item),
         )
       : [];
 
@@ -482,7 +482,7 @@ const updatePrivacySettings = async (req, res) => {
         if (privacyPayload[key] !== undefined) {
           sanitizedPrivacy[key] = Boolean(privacyPayload[key]);
         }
-      }
+      },
     );
 
     if (!user.preferences) {
@@ -536,7 +536,7 @@ const updateNotificationSettings = async (req, res) => {
         }
         return acc;
       },
-      {}
+      {},
     );
 
     if (!user.preferences) {
@@ -675,9 +675,9 @@ const googleAuth = async (req, res) => {
     }
   } catch (error) {
     console.error("Google auth error:", error);
-    res.status(401).json({ 
-      message: "Google authentication failed", 
-      error: error.message 
+    res.status(401).json({
+      message: "Google authentication failed",
+      error: error.message,
     });
   }
 };

@@ -28,7 +28,7 @@ router.post(
       .withMessage("Password must be 6 or more characters"),
   ],
   validateRequest,
-  registerUser
+  registerUser,
 );
 
 router.post(
@@ -38,7 +38,7 @@ router.post(
     body("password").exists().withMessage("Password is required"),
   ],
   validateRequest,
-  authUser
+  authUser,
 );
 
 // Google One Tap / OAuth login
@@ -59,7 +59,7 @@ router.put(
     body("profileImage").optional().isString(), // Changed from isURL() to isString()
   ],
   validateRequest,
-  updateProfile
+  updateProfile,
 );
 
 // Settings routes
@@ -76,7 +76,7 @@ router.put(
       .withMessage("Username must be between 3 and 30 characters")
       .matches(/^[a-zA-Z0-9_]+$/)
       .withMessage(
-        "Username can only contain letters, numbers, and underscores"
+        "Username can only contain letters, numbers, and underscores",
       ),
     body("userId")
       .optional()
@@ -90,7 +90,7 @@ router.put(
     body("preferences").optional().isObject(),
   ],
   validateRequest,
-  updateUserSettings
+  updateUserSettings,
 );
 
 router.put("/settings/privacy", protect, updatePrivacySettings);
