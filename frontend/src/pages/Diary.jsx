@@ -217,11 +217,19 @@ const EntryCard = ({
   const tags = extractTags(entry);
   const readingMinutes = getReadingMinutes(entry.content);
 
+  // Get first image from media array for thumbnail
+  const thumbnailMedia = Array.isArray(entry.media)
+    ? entry.media.find((m) => m.type === "image" || !m.type)
+    : null;
+  const thumbnailUrl = thumbnailMedia?.url || null;
+
   const baseClasses = [
-    "relative rounded-3xl border border-blue-100 bg-white/80 transition-all duration-200",
-    "shadow-sm hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg",
-    isActive ? "border-blue-400 bg-white shadow-xl" : "",
-    viewMode === "grid" ? "p-5" : "p-4 sm:flex sm:items-start sm:gap-5 sm:py-5", // list layout
+    "group relative rounded-3xl border border-blue-100/80 bg-white transition-all duration-300",
+    "shadow-md hover:-translate-y-2 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-100/50",
+    isActive ? "ring-2 ring-blue-400 ring-offset-2 shadow-xl" : "",
+    viewMode === "grid"
+      ? "overflow-hidden"
+      : "p-4 sm:flex sm:items-start sm:gap-5 sm:py-5 overflow-hidden",
   ]
     .filter(Boolean)
     .join(" ");
@@ -229,91 +237,275 @@ const EntryCard = ({
   return (
     <article
       onClick={() => onSelect(entry)}
-      className={`${baseClasses} cursor-pointer backdrop-blur`}
+      className={`${baseClasses} cursor-pointer`}
     >
-      <div className="absolute inset-x-0 top-0 h-1 rounded-t-3xl bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300" />
+      {/* Gradient accent bar */}
+      <div className="absolute inset-x-0 top-0 h-1.5 rounded-t-3xl bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-80 group-hover:opacity-100 transition-opacity" />
 
-      <div
-        className={`flex flex-col gap-4 ${
-          viewMode === "list" ? "sm:flex-row" : ""
-        }`}
-      >
-        <div className="flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-4">
+      {viewMode === "grid" ? (
+        <>
+          {/* Image Section - Grid View */}
+          {thumbnailUrl ? (
+            <div className="relative h-44 w-full overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50">
+              <img
+                src={thumbnailUrl}
+                alt={entry.title || "Diary entry"}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+              {/* Floating action buttons on image */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleFavorite(entry._id);
+                  }}
+                  className={`rounded-full p-2 backdrop-blur-sm transition-all shadow-lg ${
+                    isFavorite
+                      ? "bg-red-500 text-white"
+                      : "bg-white/90 text-gray-600 hover:bg-white hover:text-red-500"
+                  }`}
+                  aria-label={
+                    isFavorite ? "Remove from favorites" : "Add to favorites"
+                  }
+                >
+                  {isFavorite ? (
+                    <IoHeart className="h-4 w-4" />
+                  ) : (
+                    <IoHeartOutline className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onTogglePin(entry._id);
+                  }}
+                  className={`rounded-full p-2 backdrop-blur-sm transition-all shadow-lg ${
+                    isPinned
+                      ? "bg-amber-500 text-white"
+                      : "bg-white/90 text-gray-600 hover:bg-white hover:text-amber-500"
+                  }`}
+                  aria-label={isPinned ? "Unpin entry" : "Pin entry"}
+                >
+                  {isPinned ? (
+                    <IoPin className="h-4 w-4" />
+                  ) : (
+                    <IoPinOutline className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Mood badge on image */}
+              {entry.mood && (
+                <div className="absolute bottom-3 left-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-purple-600 shadow-lg backdrop-blur-sm">
+                    <IoSparkles className="h-3.5 w-3.5" />
+                    {entry.mood}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="relative h-44 w-full overflow-hidden bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <IoBook className="h-16 w-16 text-blue-200" />
+              </div>
+
+              {/* Floating action buttons */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleFavorite(entry._id);
+                  }}
+                  className={`rounded-full p-2 backdrop-blur-sm transition-all shadow-lg ${
+                    isFavorite
+                      ? "bg-red-500 text-white"
+                      : "bg-white/90 text-gray-600 hover:bg-white hover:text-red-500"
+                  }`}
+                  aria-label={
+                    isFavorite ? "Remove from favorites" : "Add to favorites"
+                  }
+                >
+                  {isFavorite ? (
+                    <IoHeart className="h-4 w-4" />
+                  ) : (
+                    <IoHeartOutline className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onTogglePin(entry._id);
+                  }}
+                  className={`rounded-full p-2 backdrop-blur-sm transition-all shadow-lg ${
+                    isPinned
+                      ? "bg-amber-500 text-white"
+                      : "bg-white/90 text-gray-600 hover:bg-white hover:text-amber-500"
+                  }`}
+                  aria-label={isPinned ? "Unpin entry" : "Pin entry"}
+                >
+                  {isPinned ? (
+                    <IoPin className="h-4 w-4" />
+                  ) : (
+                    <IoPinOutline className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Mood badge */}
+              {entry.mood && (
+                <div className="absolute bottom-3 left-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-purple-600 shadow-lg backdrop-blur-sm">
+                    <IoSparkles className="h-3.5 w-3.5" />
+                    {entry.mood}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content Section - Grid View */}
+          <div className="p-5 space-y-3">
             <div>
-              <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-blue-400">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-blue-400 mb-1">
                 <IoCalendar className="h-3 w-3" />
                 {formatDisplayDate(entry.createdAt)}
               </p>
-              <h3 className="mt-1 text-lg font-semibold text-blue-900 line-clamp-2">
+              <h3 className="text-lg font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
                 {entry.title || "Untitled entry"}
               </h3>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleFavorite(entry._id);
-                }}
-                className="rounded-full bg-blue-50 p-2 text-blue-500 transition-colors hover:bg-blue-100"
-                aria-label={
-                  isFavorite ? "Remove from favorites" : "Add to favorites"
-                }
-              >
-                {isFavorite ? (
-                  <IoHeart className="h-4 w-4" />
-                ) : (
-                  <IoHeartOutline className="h-4 w-4" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onTogglePin(entry._id);
-                }}
-                className={`rounded-full p-2 transition-colors ${
-                  isPinned
-                    ? "bg-amber-100 text-amber-600"
-                    : "bg-blue-50 text-blue-500 hover:bg-blue-100"
-                }`}
-                aria-label={isPinned ? "Unpin entry" : "Pin entry"}
-              >
-                {isPinned ? (
-                  <IoPin className="h-4 w-4" />
-                ) : (
-                  <IoPinOutline className="h-4 w-4" />
-                )}
-              </button>
+
+            <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+              {entry.content || "No content yet."}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                <IoTime className="h-3 w-3" /> {readingMinutes} min
+              </span>
+              {tags.slice(0, 2).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-sky-50 to-blue-50 px-2.5 py-1 text-xs font-medium text-sky-600"
+                >
+                  <IoTag className="h-3 w-3" /> {tag}
+                </span>
+              ))}
+              {tags.length > 2 && (
+                <span className="text-xs font-medium text-gray-400">
+                  +{tags.length - 2}
+                </span>
+              )}
             </div>
           </div>
+        </>
+      ) : (
+        /* List View */
+        <div className="flex gap-4 sm:gap-5 pt-2">
+          {/* Thumbnail for list view */}
+          {thumbnailUrl ? (
+            <div className="flex-shrink-0 h-24 w-24 sm:h-28 sm:w-28 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50">
+              <img
+                src={thumbnailUrl}
+                alt={entry.title || "Diary entry"}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
+            </div>
+          ) : (
+            <div className="flex-shrink-0 h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100 flex items-center justify-center">
+              <IoBook className="h-10 w-10 text-blue-200" />
+            </div>
+          )}
 
-          <p className="text-sm text-blue-600 line-clamp-3">
-            {entry.content || "No content yet."}
-          </p>
+          {/* Content for list view */}
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-blue-400 mb-1">
+                  <IoCalendar className="h-3 w-3" />
+                  {formatDisplayDate(entry.createdAt)}
+                </p>
+                <h3 className="text-lg font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                  {entry.title || "Untitled entry"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleFavorite(entry._id);
+                  }}
+                  className={`rounded-full p-2 transition-all ${
+                    isFavorite
+                      ? "bg-red-100 text-red-500"
+                      : "bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500"
+                  }`}
+                  aria-label={
+                    isFavorite ? "Remove from favorites" : "Add to favorites"
+                  }
+                >
+                  {isFavorite ? (
+                    <IoHeart className="h-4 w-4" />
+                  ) : (
+                    <IoHeartOutline className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onTogglePin(entry._id);
+                  }}
+                  className={`rounded-full p-2 transition-all ${
+                    isPinned
+                      ? "bg-amber-100 text-amber-500"
+                      : "bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-500"
+                  }`}
+                  aria-label={isPinned ? "Unpin entry" : "Pin entry"}
+                >
+                  {isPinned ? (
+                    <IoPin className="h-4 w-4" />
+                  ) : (
+                    <IoPinOutline className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-blue-500">
-            {entry.mood && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-3 py-1 text-purple-600">
-                <IoSparkles className="h-3 w-3" />
-                {entry.mood}
+            <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+              {entry.content || "No content yet."}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {entry.mood && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-600">
+                  <IoSparkles className="h-3 w-3" />
+                  {entry.mood}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                <IoTime className="h-3 w-3" /> {readingMinutes} min
               </span>
-            )}
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-600">
-              <IoTime className="h-3 w-3" /> {readingMinutes} min read
-            </span>
-            {tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-sky-600"
-              >
-                <IoTag className="h-3 w-3" /> {tag}
-              </span>
-            ))}
+              {tags.slice(0, 2).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-600"
+                >
+                  <IoTag className="h-3 w-3" /> {tag}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </article>
   );
 };
@@ -349,7 +541,7 @@ const EntryDetailCard = forwardRef(
       exporting,
       moodOptions,
     },
-    ref
+    ref,
   ) => {
     if (!entry) return null;
 
@@ -360,84 +552,93 @@ const EntryDetailCard = forwardRef(
       <section
         ref={ref}
         data-export-root="true"
-        className="relative flex h-full w-full max-h-[calc(100vh-20px)] flex-col overflow-hidden rounded-3xl border border-blue-100 bg-white/95 p-6 shadow-xl"
+        className="relative flex h-full w-full max-h-[calc(100vh-20px)] flex-col overflow-hidden rounded-3xl border border-blue-100/50 bg-white shadow-2xl"
       >
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-5 top-5 rounded-full bg-white/90 p-2 text-blue-500 shadow-md transition-colors hover:bg-blue-50"
-            aria-label="Close entry"
-          >
-            <IoClose className="h-5 w-5" />
-          </button>
-        ) : null}
+        {/* Header */}
+        <div className="relative p-6 pb-0">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-5 top-5 rounded-full bg-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-200"
+              aria-label="Close entry"
+            >
+              <IoClose className="h-5 w-5" />
+            </button>
+          )}
 
-        <div className="flex items-start justify-between gap-4 pr-8">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-400">
-              <IoCalendar className="h-3 w-3" />
-              {formatDisplayDate(entry.createdAt)}
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-blue-900">
-              {entry.title || "Untitled entry"}
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onToggleFavorite(entry._id)}
-              className="rounded-full bg-blue-50 p-2 text-blue-500 transition-colors hover:bg-blue-100"
-              aria-label={
-                isFavorite ? "Remove from favorites" : "Add to favorites"
-              }
-            >
-              {isFavorite ? (
-                <IoHeart className="h-4 w-4" />
-              ) : (
-                <IoHeartOutline className="h-4 w-4" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePin(entry._id)}
-              className={`rounded-full p-2 transition-colors ${
-                isPinned
-                  ? "bg-amber-100 text-amber-600"
-                  : "bg-blue-50 text-blue-500 hover:bg-blue-100"
-              }`}
-              aria-label={isPinned ? "Unpin entry" : "Pin entry"}
-            >
-              {isPinned ? (
-                <IoPin className="h-4 w-4" />
-              ) : (
-                <IoPinOutline className="h-4 w-4" />
-              )}
-            </button>
+          <div className="flex items-start justify-between gap-4 pr-10">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400 mb-2">
+                <IoCalendar className="h-3.5 w-3.5" />
+                {formatDisplayDate(entry.createdAt)}
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {entry.title || "Untitled entry"}
+              </h2>
+            </div>
+            {!isEditing && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onToggleFavorite(entry._id)}
+                  className={`rounded-full p-2.5 transition-all ${
+                    isFavorite
+                      ? "bg-red-100 text-red-500"
+                      : "bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500"
+                  }`}
+                  aria-label={
+                    isFavorite ? "Remove from favorites" : "Add to favorites"
+                  }
+                >
+                  {isFavorite ? (
+                    <IoHeart className="h-5 w-5" />
+                  ) : (
+                    <IoHeartOutline className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTogglePin(entry._id)}
+                  className={`rounded-full p-2.5 transition-all ${
+                    isPinned
+                      ? "bg-amber-100 text-amber-500"
+                      : "bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-500"
+                  }`}
+                  aria-label={isPinned ? "Unpin entry" : "Pin entry"}
+                >
+                  {isPinned ? (
+                    <IoPin className="h-5 w-5" />
+                  ) : (
+                    <IoPinOutline className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {isEditing ? (
           <form
             onSubmit={onSave}
-            className="mt-6 flex flex-1 flex-col gap-5 overflow-y-auto pr-2 hide-scrollbar"
+            className="mt-6 flex flex-1 flex-col gap-5 overflow-y-auto px-6 pb-6 hide-scrollbar"
           >
-            <label className="flex flex-col gap-2 text-sm font-semibold text-blue-900">
-              Title
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-gray-700">Title</span>
               <input
                 value={editDraft.title}
                 onChange={(event) => onEditChange("title", event.target.value)}
-                className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-base text-blue-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 placeholder="Give your entry a meaningful heading"
               />
             </label>
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-blue-900">
-              Mood
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-gray-700">Mood</span>
               <select
                 value={editDraft.mood}
                 onChange={(event) => onEditChange("mood", event.target.value)}
-                className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-base text-blue-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
               >
                 <option value="">Select a mood (optional)</option>
                 {moodOptions.map((mood) => (
@@ -448,40 +649,42 @@ const EntryDetailCard = forwardRef(
               </select>
             </label>
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-blue-900">
-              Tags
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-gray-700">Tags</span>
               <input
                 value={editDraft.tags}
                 onChange={(event) => onEditChange("tags", event.target.value)}
-                className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-base text-blue-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 placeholder="Separate tags with commas"
               />
             </label>
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-blue-900">
-              Entry content
+            <label className="flex flex-col gap-2 flex-1">
+              <span className="text-sm font-semibold text-gray-700">
+                Entry content
+              </span>
               <textarea
                 value={editDraft.content}
                 onChange={(event) =>
                   onEditChange("content", event.target.value)
                 }
                 rows={10}
-                className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-base text-blue-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="w-full flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100 resize-none"
                 placeholder="Write your story, memories, or reflections here..."
               />
             </label>
 
-            <div className="flex flex-wrap justify-end gap-3 pt-2">
+            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-gray-100">
               <button
                 type="button"
                 onClick={onCancelEdit}
-                className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-200"
+                className="rounded-xl bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-200"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:shadow-xl hover:from-blue-700 hover:to-purple-700"
               >
                 Save changes
               </button>
@@ -489,36 +692,39 @@ const EntryDetailCard = forwardRef(
           </form>
         ) : (
           <>
-            <div className="mt-6 flex-1 space-y-5 overflow-y-auto pr-2 hide-scrollbar">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-400">
+            <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5 hide-scrollbar">
+              {/* Meta info badges */}
+              <div className="flex flex-wrap items-center gap-2">
                 {entry.mood && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-3 py-1 text-purple-600">
-                    <IoSparkles className="h-3 w-3" /> {entry.mood}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 px-4 py-1.5 text-sm font-semibold text-purple-700">
+                    <IoSparkles className="h-4 w-4" /> {entry.mood}
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-600">
-                  <IoTime className="h-3 w-3" /> {readingMinutes} min read
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
+                  <IoTime className="h-4 w-4" /> {readingMinutes} min read
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-4 py-1.5 text-sm font-medium text-gray-600">
                   {getWordCount(entry.content)} words
                 </span>
               </div>
 
-              {tags.length ? (
+              {/* Tags */}
+              {tags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-600"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-600"
                     >
                       <IoTag className="h-3 w-3" />
                       {tag}
                     </span>
                   ))}
                 </div>
-              ) : null}
+              )}
 
-              <div className="space-y-4 text-base leading-relaxed text-blue-900">
+              {/* Content */}
+              <div className="space-y-4 text-base leading-relaxed text-gray-700">
                 {entry.content?.split("\n").map((paragraph, index) => (
                   <p key={index} className="whitespace-pre-wrap">
                     {paragraph || "\u00a0"}
@@ -526,28 +732,34 @@ const EntryDetailCard = forwardRef(
                 ))}
               </div>
 
+              {/* Media Gallery */}
               {Array.isArray(entry.media) && entry.media.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-blue-900">
-                    Attachments
+                <div className="space-y-4 pt-4 border-t border-gray-100">
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-bold">
+                      {entry.media.length}
+                    </span>
+                    Attachment{entry.media.length > 1 ? "s" : ""}
                   </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {entry.media.map((mediaItem) => (
+                  <div
+                    className={`grid gap-4 ${entry.media.length === 1 ? "grid-cols-1" : "sm:grid-cols-2"}`}
+                  >
+                    {entry.media.map((mediaItem, idx) => (
                       <div
-                        key={mediaItem._id || mediaItem.url}
-                        className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/40 p-2"
+                        key={mediaItem._id || mediaItem.url || idx}
+                        className="group/media relative overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 shadow-sm hover:shadow-lg transition-shadow"
                       >
                         {mediaItem.type === "video" ? (
                           <video
                             controls
-                            className="h-56 w-full rounded-xl bg-black object-contain"
+                            className="h-64 w-full bg-black object-contain"
                             src={mediaItem.url}
                           />
                         ) : (
                           <img
                             src={mediaItem.url}
                             alt={entry.title || "Diary attachment"}
-                            className="h-56 w-full rounded-xl bg-white object-contain"
+                            className="h-64 w-full bg-white object-cover transition-transform duration-500 group-hover/media:scale-105"
                           />
                         )}
                       </div>
@@ -557,89 +769,92 @@ const EntryDetailCard = forwardRef(
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={onShare}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-100"
-              >
-                <IoShare className="h-4 w-4" /> Share
-              </button>
-
-              <div className="relative">
+            {/* Action buttons footer */}
+            <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50/80 px-6 py-4">
+              <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    setExportMenuOpen((prev) => {
-                      const next = !prev;
-                      if (!prev) {
-                        requestAnimationFrame(() => {
-                          if (ref?.current?.scrollIntoView) {
-                            ref.current.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
-                          } else {
-                            window.scrollBy({ top: -80, behavior: "smooth" });
-                          }
-                        });
-                      }
-                      return next;
-                    })
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  onClick={onShare}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 hover:border-gray-300"
                 >
-                  <IoDownload className="h-4 w-4" />
-                  {exporting ? "Preparing..." : "Export"}
+                  <IoShare className="h-4 w-4" /> Share
                 </button>
-                {exportMenuOpen ? (
-                  <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => onExport("pdf")}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-900 transition hover:bg-blue-50"
-                    >
-                      <IoDocument className="h-4 w-4" /> PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onExport("doc")}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-900 transition hover:bg-blue-50"
-                    >
-                      <IoDocument className="h-4 w-4" /> Word (.doc)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onExport("txt")}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-900 transition hover:bg-blue-50"
-                    >
-                      <IoDocument className="h-4 w-4" /> Plain text
-                    </button>
-                  </div>
-                ) : null}
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExportMenuOpen((prev) => {
+                        const next = !prev;
+                        if (!prev) {
+                          requestAnimationFrame(() => {
+                            if (ref?.current?.scrollIntoView) {
+                              ref.current.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            } else {
+                              window.scrollBy({ top: -80, behavior: "smooth" });
+                            }
+                          });
+                        }
+                        return next;
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:from-blue-700 hover:to-blue-800"
+                  >
+                    <IoDownload className="h-4 w-4" />
+                    {exporting ? "Preparing..." : "Export"}
+                  </button>
+                  {exportMenuOpen && (
+                    <div className="absolute left-0 bottom-full mb-2 z-20 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => onExport("pdf")}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <IoDocument className="h-4 w-4" /> PDF Document
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onExport("doc")}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <IoDocument className="h-4 w-4" /> Word (.doc)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onExport("txt")}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <IoDocument className="h-4 w-4" /> Plain Text
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onStartEdit}
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-100 px-4 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-200"
+                >
+                  <IoCreate className="h-4 w-4" /> Edit
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onDelete(entry._id)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                >
+                  <IoTrash className="h-4 w-4" /> Delete
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={onStartEdit}
-                className="inline-flex items-center gap-2 rounded-xl bg-purple-100 px-4 py-2 text-sm font-semibold text-purple-700 transition hover:bg-purple-200"
-              >
-                <IoCreate className="h-4 w-4" /> Edit
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onDelete(entry._id)}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-              >
-                <IoTrash className="h-4 w-4" /> Delete
-              </button>
             </div>
           </>
         )}
       </section>
     );
-  }
+  },
 );
 
 EntryDetailCard.displayName = "EntryDetailCard";
@@ -652,10 +867,10 @@ export default function Diary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [favorites, setFavorites] = useState(() =>
-    loadStoredSet(FAVORITES_KEY)
+    loadStoredSet(FAVORITES_KEY),
   );
   const [pinnedEntries, setPinnedEntries] = useState(() =>
-    loadStoredSet(PINNED_KEY)
+    loadStoredSet(PINNED_KEY),
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -689,7 +904,7 @@ export default function Diary() {
       console.error("Failed to load diary entries", err);
       setError(
         err?.response?.data?.message ||
-          "Unable to load your diary entries right now."
+          "Unable to load your diary entries right now.",
       );
     } finally {
       setLoading(false);
@@ -784,7 +999,7 @@ export default function Diary() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(orderedEntries.length / PAGE_SIZE) || 1
+    Math.ceil(orderedEntries.length / PAGE_SIZE) || 1,
   );
 
   useEffect(() => {
@@ -917,7 +1132,7 @@ export default function Diary() {
       });
 
       setEntries((prev) =>
-        prev.map((entry) => (entry._id === data._id ? data : entry))
+        prev.map((entry) => (entry._id === data._id ? data : entry)),
       );
       setSelectedEntry(data);
       toast.success("Entry updated successfully");
@@ -946,7 +1161,7 @@ export default function Diary() {
               try {
                 await api.delete(`/entries/${entryId}`);
                 setEntries((prev) =>
-                  prev.filter((entry) => entry._id !== entryId)
+                  prev.filter((entry) => entry._id !== entryId),
                 );
                 setFavorites((prev) => {
                   const next = new Set(prev);
@@ -997,7 +1212,7 @@ export default function Diary() {
         toast.success("Entry shared successfully");
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(
-          `${selectedEntry.title}\n${sharePayload.url}`
+          `${selectedEntry.title}\n${sharePayload.url}`,
         );
         toast.success("Entry link copied to clipboard");
       } else {
@@ -1047,7 +1262,7 @@ export default function Diary() {
       try {
         const tagsMarkup = extractTags(selectedEntry).length
           ? `<p><strong>Tags:</strong> ${extractTags(selectedEntry).join(
-              ", "
+              ", ",
             )}</p>`
           : "";
         const moodMarkup = selectedEntry.mood
@@ -1061,14 +1276,14 @@ export default function Diary() {
                 line
                   ? line.replace(/</g, "&lt;").replace(/>/g, "&gt;")
                   : "&nbsp;"
-              }</p>`
+              }</p>`,
           )
           .join("");
 
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><h1>${
           selectedEntry.title
         }</h1><p><strong>Date:</strong> ${formatDisplayDate(
-          selectedEntry.createdAt
+          selectedEntry.createdAt,
         )}</p>${moodMarkup}${tagsMarkup}${paragraphs}</body></html>`;
 
         const blob = new Blob([html], { type: "application/msword" });
@@ -1104,7 +1319,7 @@ export default function Diary() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const ratio = Math.min(
         pageWidth / canvas.width,
-        pageHeight / canvas.height
+        pageHeight / canvas.height,
       );
       const width = canvas.width * ratio;
       const height = canvas.height * ratio;
