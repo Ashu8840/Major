@@ -68,6 +68,16 @@ const getNotificationVisual = (notification) => {
         icon: <IoPeople className="text-blue-500" />,
         badge: "Community",
       };
+    case "game":
+      return {
+        icon: <IoGameController className="text-green-500" />,
+        badge: "Daily Game",
+      };
+    case "game_streak":
+      return {
+        icon: <IoFlame className="text-orange-500" />,
+        badge: "Game Streak",
+      };
     default:
       return {
         icon: <IoNotifications className="text-blue-500" />,
@@ -262,7 +272,7 @@ export default function Navbar({ onToggleSidebar, isSidebarOpen }) {
               alt="SoulSpace Logo"
               className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl shadow-lg object-contain"
             />
-            <span className="hidden sm:inline text-lg font-semibold text-theme-primary">
+            <span className="hidden min-[400px]:inline text-lg font-semibold text-theme-primary">
               SoulSpace
             </span>
           </button>

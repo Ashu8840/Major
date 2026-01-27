@@ -76,7 +76,7 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-const DEFAULT_CLIENT_ORIGIN = "http://10.100.246.93:5173";
+const DEFAULT_CLIENT_ORIGIN = "http://localhost:5173";
 const envOrigins = parseOrigins(process.env.CLIENT_ORIGINS);
 const singleClientOrigin = parseOrigins(process.env.CLIENT_URL);
 const deploymentOrigins = parseOrigins(process.env.DEPLOYMENT_CLIENT_ORIGINS);
@@ -128,18 +128,18 @@ const isOriginAllowed = (origin) => {
     normalizedOrigin.includes("localhost") ||
     normalizedOrigin.includes("127.0.0.1") ||
     /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(
-      normalizedOrigin
+      normalizedOrigin,
     ) ||
     normalizedOrigin.startsWith("exp://") ||
     /^exp:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(
-      normalizedOrigin
+      normalizedOrigin,
     )
   ) {
     return true;
   }
 
   const matchesPattern = ORIGIN_REGEX_ALLOW_LIST.some((pattern) =>
-    pattern.test(normalizedOrigin)
+    pattern.test(normalizedOrigin),
   );
 
   if (!matchesPattern) {
@@ -182,13 +182,13 @@ app.use(
   cors({
     origin: corsOriginValidator,
     credentials: true,
-  })
+  }),
 );
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
-  })
+  }),
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
@@ -322,20 +322,19 @@ io.on("connection", (socket) => {
     if (!circleId || !socket.userId) return;
 
     try {
-      const circle = await Circle.findById(circleId).select(
-        "members visibility"
-      );
+      const circle =
+        await Circle.findById(circleId).select("members visibility");
       if (!circle) return;
 
       const isMember = circle.members.some(
-        (member) => member.user.toString() === socket.userId.toString()
+        (member) => member.user.toString() === socket.userId.toString(),
       );
 
       if (!isMember) return;
 
       socket.join(`circle:${circleId}`);
       console.log(
-        `User ${socket.userId} joined circle room: circle:${circleId}`
+        `User ${socket.userId} joined circle room: circle:${circleId}`,
       );
     } catch (error) {
       console.error("Circle join socket error:", error);
@@ -373,7 +372,7 @@ io.on("connection", (socket) => {
       const blockedSet = new Set(
         Array.isArray(chat.blockedBy)
           ? chat.blockedBy.map((id) => id.toString())
-          : []
+          : [],
       );
 
       if (blockedSet.has(toId.toString())) {

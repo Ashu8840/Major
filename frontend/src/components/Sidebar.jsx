@@ -13,10 +13,22 @@ export default function Sidebar({ isOpen = true, onClose }) {
 
   const menuItems = useMemo(() => {
     const baseOrder = NAVIGATION_ITEM_IDS;
-    const allowedIds =
-      Array.isArray(menuPreference) && menuPreference.length
-        ? menuPreference.filter((id) => baseOrder.includes(id))
-        : [...baseOrder];
+
+    // If user has saved preferences, merge with any new items they might be missing
+    let allowedIds;
+    if (Array.isArray(menuPreference) && menuPreference.length) {
+      // Start with user's preferences
+      allowedIds = menuPreference.filter((id) => baseOrder.includes(id));
+      // Add any new navigation items that might have been added after user saved preferences
+      baseOrder.forEach((id) => {
+        if (!allowedIds.includes(id)) {
+          allowedIds.push(id);
+        }
+      });
+    } else {
+      // No preferences saved, use all items
+      allowedIds = [...baseOrder];
+    }
 
     return NAVIGATION_ITEMS.filter((item) => allowedIds.includes(item.id)).sort(
       (a, b) => allowedIds.indexOf(a.id) - allowedIds.indexOf(b.id),
@@ -58,7 +70,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                       href={item.path}
                       className={`group relative flex items-center gap-3 rounded-2xl px-4 py-3 pl-5 transition-all duration-200 ${
                         isActive
-                          ? "bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 text-white shadow-lg shadow-blue-700/30"
+                          ? "bg-theme-accent text-white shadow-lg"
                           : "text-theme-primary hover:bg-theme-primary-soft"
                       }`}
                     >

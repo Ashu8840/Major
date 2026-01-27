@@ -163,7 +163,7 @@ const plainTextToHtml = (value = "") => {
             .replace(/>/g, "&gt;")
             .replace(/\n/g, "<br />")
             .trim() || "<br />"
-        }</p>`
+        }</p>`,
     )
     .join("");
 };
@@ -250,7 +250,7 @@ const appendPageNumbers = (doc, margin, { startAt = 1 } = {}) => {
       `${page} / ${totalPages}`,
       pageWidth / 2,
       pageHeight - margin / 2,
-      { align: "center" }
+      { align: "center" },
     );
   }
 };
@@ -585,8 +585,8 @@ function PublishModal({
                     {option === "public"
                       ? "Visible to everyone on the platform"
                       : option === "followers"
-                      ? "Visible only to your followers"
-                      : "Only you can see this book"}
+                        ? "Visible only to your followers"
+                        : "Only you can see this book"}
                   </p>
                 </button>
               ))}
@@ -690,7 +690,7 @@ export default function CreatorStudio() {
     status: "draft",
   });
   const [editorContent, setEditorContent] = useState(
-    "<p>Begin your story…</p>"
+    "<p>Begin your story…</p>",
   );
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -731,14 +731,14 @@ export default function CreatorStudio() {
     }
     const maxPage = Math.max(
       0,
-      Math.ceil(projectsLength / SAVED_PAGE_SIZE) - 1
+      Math.ceil(projectsLength / SAVED_PAGE_SIZE) - 1,
     );
     setSavedPage((prev) => Math.min(prev, maxPage));
   }, [projectsLength]);
 
   const activeProject = useMemo(
     () => projects.find((project) => project._id === currentProjectId) || null,
-    [projects, currentProjectId]
+    [projects, currentProjectId],
   );
 
   const wordCount = useMemo(() => {
@@ -899,7 +899,7 @@ export default function CreatorStudio() {
     updateCoverState({
       ...coverState,
       elements: coverState.elements.map((element) =>
-        element.id === id ? { ...element, ...updates } : element
+        element.id === id ? { ...element, ...updates } : element,
       ),
     });
   };
@@ -962,8 +962,8 @@ export default function CreatorStudio() {
         const updated = await updateCreatorProject(projectId, payload);
         setProjects((prev) =>
           prev.map((project) =>
-            project._id === updated._id ? updated : project
-          )
+            project._id === updated._id ? updated : project,
+          ),
         );
         setDirtySinceSave(false);
         if (showToast) {
@@ -976,7 +976,7 @@ export default function CreatorStudio() {
         setIsSaving(false);
       }
     },
-    [user, ensureProjectExists, metadata, editorContent, coverState, aiHistory]
+    [user, ensureProjectExists, metadata, editorContent, coverState, aiHistory],
   );
 
   useEffect(() => {
@@ -1014,8 +1014,8 @@ export default function CreatorStudio() {
       type === "story"
         ? aiResult.storyIdea
         : type === "tagline"
-        ? aiResult.tagline
-        : aiResult.coverIdea;
+          ? aiResult.tagline
+          : aiResult.coverIdea;
     if (!text) return;
     const trimmed = text.trim();
     const prefix = editorDraft.trimEnd();
@@ -1085,7 +1085,9 @@ export default function CreatorStudio() {
         status,
       });
       setProjects((prev) =>
-        prev.map((project) => (project._id === updated._id ? updated : project))
+        prev.map((project) =>
+          project._id === updated._id ? updated : project,
+        ),
       );
       setMetadata((prev) => ({
         ...prev,
@@ -1095,7 +1097,7 @@ export default function CreatorStudio() {
       toast.success(
         updated.status === "published"
           ? "Your book is live"
-          : "Publishing updated"
+          : "Publishing updated",
       );
     } catch (error) {
       console.error(error);
@@ -1147,7 +1149,7 @@ export default function CreatorStudio() {
           drawWidth,
           drawHeight,
           undefined,
-          "FAST"
+          "FAST",
         );
       } else {
         doc.setFont("helvetica", "bold");
@@ -1159,7 +1161,7 @@ export default function CreatorStudio() {
           pageHeight / 2 - 16,
           {
             align: "center",
-          }
+          },
         );
         doc.setFont("helvetica", "normal");
         if (metadata.subtitle) {
@@ -1175,7 +1177,7 @@ export default function CreatorStudio() {
           pageHeight / 2 + 48,
           {
             align: "center",
-          }
+          },
         );
       }
 
@@ -1203,7 +1205,7 @@ export default function CreatorStudio() {
       if (!projectId) return;
       await deleteCreatorProject(projectId);
       const nextProjects = projects.filter(
-        (project) => project._id !== projectId
+        (project) => project._id !== projectId,
       );
       setProjects(nextProjects);
       if (currentProjectId === projectId) {
@@ -1235,7 +1237,7 @@ export default function CreatorStudio() {
   }
 
   const selectedElement = coverState.elements.find(
-    (element) => element.id === selectedElementId
+    (element) => element.id === selectedElementId,
   );
   const projectPendingDelete = deleteModal.projectId
     ? projects.find((project) => project._id === deleteModal.projectId)
@@ -1668,7 +1670,7 @@ export default function CreatorStudio() {
                               direction,
                               ref,
                               delta,
-                              position
+                              position,
                             ) =>
                               handleElementChange(element.id, {
                                 width: ref.offsetWidth,
@@ -2239,7 +2241,7 @@ export default function CreatorStudio() {
         onPrevPage={() => setSavedPage((prev) => Math.max(prev - 1, 0))}
         onNextPage={() =>
           setSavedPage((prev) =>
-            Math.min(prev + 1, Math.max(totalSavedPages - 1, 0))
+            Math.min(prev + 1, Math.max(totalSavedPages - 1, 0)),
           )
         }
         onClose={() => setSavedGalleryOpen(false)}

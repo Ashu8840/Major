@@ -116,7 +116,7 @@ export default function Leaderboard() {
         if (!mounted) return;
         console.error("Global leaderboard error", error);
         toast.error(
-          error?.response?.data?.message || "Unable to load leaderboard"
+          error?.response?.data?.message || "Unable to load leaderboard",
         );
         setGlobalData(null);
       } finally {
@@ -145,7 +145,7 @@ export default function Leaderboard() {
         if (!mounted) return;
         console.error("Seasonal leaderboard error", error);
         toast.error(
-          error?.response?.data?.message || "Unable to load seasonal contest"
+          error?.response?.data?.message || "Unable to load seasonal contest",
         );
         setSeasonalData(null);
       } finally {
@@ -162,11 +162,11 @@ export default function Leaderboard() {
 
   const podium = useMemo(
     () => (globalData?.rankings || []).slice(0, 3),
-    [globalData]
+    [globalData],
   );
   const rankings = useMemo(
     () => (globalData?.rankings || []).slice(3),
-    [globalData]
+    [globalData],
   );
 
   if (!user) {
@@ -371,8 +371,8 @@ export default function Leaderboard() {
                       index === 0
                         ? "md:order-2"
                         : index === 1
-                        ? "md:order-1"
-                        : "md:order-3";
+                          ? "md:order-1"
+                          : "md:order-3";
                     return (
                       <div
                         key={entry.userId}
@@ -453,7 +453,7 @@ export default function Leaderboard() {
                             <span className="flex items-center gap-1">
                               <IoSparkles className="h-4 w-4" />
                               {formatNumber(
-                                entry.breakdown.communityPosts
+                                entry.breakdown.communityPosts,
                               )}{" "}
                               community posts
                             </span>
@@ -465,7 +465,7 @@ export default function Leaderboard() {
                             <span className="flex items-center gap-1">
                               <IoChatbubble className="h-4 w-4" />
                               {formatNumber(
-                                entry.breakdown.commentsReceived
+                                entry.breakdown.commentsReceived,
                               )}{" "}
                               comments received
                             </span>
