@@ -34,6 +34,8 @@ import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { WalletProvider } from "./context/WalletContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { TransferProvider } from "./context/TransferContext";
+import GrabSidebar from "./components/GrabSidebar";
 import { useContext, useEffect, useRef, useState } from "react";
 import { IoChatbubbles } from "react-icons/io5";
 import SplashScreen from "./components/SplashScreen";
@@ -92,6 +94,7 @@ function AppContent() {
   const activePointerIdRef = useRef(null);
   const chatButtonRef = useRef(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isGrabSidebarOpen, setIsGrabSidebarOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -401,6 +404,7 @@ function AppContent() {
           <Sidebar
             isOpen={effectiveSidebarOpen}
             onClose={isMobile ? () => setIsSidebarOpen(false) : undefined}
+            onOpenGrab={() => setIsGrabSidebarOpen(true)}
           />
         </>
       )}
@@ -560,6 +564,14 @@ function AppContent() {
         </Routes>
       </main>
 
+      {/* AirGrab Sidebar */}
+      {token && (
+        <GrabSidebar
+          isOpen={isGrabSidebarOpen}
+          onClose={() => setIsGrabSidebarOpen(false)}
+        />
+      )}
+
       {/* Global Floating Chat Button */}
       {showChatButton && (
         <button
@@ -628,7 +640,9 @@ export default function App() {
         <BrowserRouter>
           <WalletProvider>
             <NotificationProvider>
-              <AppContent />
+              <TransferProvider>
+                <AppContent />
+              </TransferProvider>
             </NotificationProvider>
           </WalletProvider>
         </BrowserRouter>

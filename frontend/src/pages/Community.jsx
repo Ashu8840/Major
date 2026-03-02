@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { useCurrentUser } from "../hooks/useAuth";
 import PostCard from "../components/PostCard";
 import ProfilePreviewCard from "../components/ProfilePreviewCard";
+import GestureDrop from "../components/GestureDrop";
 import api from "../utils/api";
 import { resolveAvatarUrl } from "../utils/socialHelpers";
 import { useNotifications } from "../context/NotificationContext";
@@ -164,15 +165,15 @@ const Community = () => {
       { id: "article", label: "Article", badge: "✍️" },
       { id: "event", label: "Event", badge: "🎉" },
     ],
-    []
+    [],
   );
   const composerValidationError = useMemo(
     () => getComposerValidationError(composer),
-    [composer]
+    [composer],
   );
   const savedPostIds = useMemo(
     () => new Set(savedPosts.map((post) => post._id)),
-    [savedPosts]
+    [savedPosts],
   );
   const sortedSavedPosts = useMemo(() => {
     return [...savedPosts].sort((a, b) => {
@@ -207,7 +208,7 @@ const Community = () => {
     if (typeof window === "undefined" || !seenStorageKey) return;
     try {
       const serialised = JSON.stringify(
-        Array.from(seenPostIdsRef.current || [])
+        Array.from(seenPostIdsRef.current || []),
       );
       localStorage.setItem(seenStorageKey, serialised);
     } catch (storageError) {
@@ -243,7 +244,7 @@ const Community = () => {
       }
       return false;
     },
-    [followedUsers, currentUser?.id, currentUser?._id]
+    [followedUsers, currentUser?.id, currentUser?._id],
   );
 
   const processFeedForNotifications = useCallback(
@@ -295,7 +296,7 @@ const Community = () => {
 
       updateSeenPostStorage();
     },
-    [addNotification, isPostFromFollowedAuthor, updateSeenPostStorage]
+    [addNotification, isPostFromFollowedAuthor, updateSeenPostStorage],
   );
 
   useEffect(() => {
@@ -339,7 +340,7 @@ const Community = () => {
     if (highlightId) {
       highlightTimeoutRef.current = setTimeout(
         () => setHighlightedPostId(null),
-        8000
+        8000,
       );
     }
 
@@ -356,7 +357,7 @@ const Community = () => {
 
     const frame = requestAnimationFrame(() => {
       const element = document.querySelector(
-        `[data-post-id="${highlightedPostId}"]`
+        `[data-post-id="${highlightedPostId}"]`,
       );
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -476,7 +477,7 @@ const Community = () => {
           setPosts((prev) => {
             const existingIds = new Set(prev.map((item) => item._id));
             const deduped = fetchedPosts.filter(
-              (post) => post?._id && !existingIds.has(post._id)
+              (post) => post?._id && !existingIds.has(post._id),
             );
             combinedPosts = [...prev, ...deduped];
             return combinedPosts;
@@ -502,14 +503,14 @@ const Community = () => {
           const postsMap = new Map(
             combinedPosts
               .filter((post) => post?._id)
-              .map((post) => [post._id, post])
+              .map((post) => [post._id, post]),
           );
 
           setSavedPosts((prev) =>
             prev.map((saved) => {
               const updated = postsMap.get(saved._id);
               return updated ? { ...updated, savedAt: saved.savedAt } : saved;
-            })
+            }),
           );
         }
 
@@ -526,7 +527,7 @@ const Community = () => {
               if (Array.isArray(nextInsights.recentActivity)) {
                 nextInsights.recentActivity = nextInsights.recentActivity.slice(
                   0,
-                  5
+                  5,
                 );
               }
               setCommunityInsights(nextInsights);
@@ -534,15 +535,15 @@ const Community = () => {
           } catch (insightsError) {
             console.warn(
               "Detailed insights failed, using basic stats",
-              insightsError
+              insightsError,
             );
             const likesTotal = combinedPosts.reduce(
               (total, post) => total + (post.likes?.length || 0),
-              0
+              0,
             );
             const commentsTotal = combinedPosts.reduce(
               (total, post) => total + (post.comments?.length || 0),
-              0
+              0,
             );
             setCommunityInsights((prev) => ({
               ...prev,
@@ -562,7 +563,7 @@ const Community = () => {
         console.error("Error loading community data:", error);
         if (append) {
           toast.error(
-            error.response?.data?.message || "Failed to load more posts"
+            error.response?.data?.message || "Failed to load more posts",
           );
         } else {
           setError(
@@ -570,7 +571,7 @@ const Community = () => {
               error.response?.status === 401
                 ? "Please log in again"
                 : error.message
-            }`
+            }`,
           );
           toast.error("Failed to load community data");
         }
@@ -583,7 +584,7 @@ const Community = () => {
         }
       }
     },
-    [filterBy, processFeedForNotifications, sortBy]
+    [filterBy, processFeedForNotifications, sortBy],
   );
 
   useEffect(() => {
@@ -660,7 +661,7 @@ const Community = () => {
     if (isLoadingMore || !pagination.hasNext) return;
     const nextPage = Math.min(
       (pagination.currentPage || 1) + 1,
-      pagination.totalPages || (pagination.currentPage || 1) + 1
+      pagination.totalPages || (pagination.currentPage || 1) + 1,
     );
     loadCommunityData({ page: nextPage, append: true, silent: true });
   };
@@ -680,8 +681,8 @@ const Community = () => {
         typeof likeData.likesCount === "number"
           ? likeData.likesCount
           : nextLikesArray
-          ? nextLikesArray.length
-          : undefined;
+            ? nextLikesArray.length
+            : undefined;
       const nextIsLiked =
         typeof likeData.isLiked === "boolean" ? likeData.isLiked : undefined;
 
@@ -696,12 +697,12 @@ const Community = () => {
                   (Array.isArray(post.likes)
                     ? post.likes.length
                     : typeof post.likesCount === "number"
-                    ? post.likesCount
-                    : 0),
+                      ? post.likesCount
+                      : 0),
                 isLikedByUser: nextIsLiked ?? post.isLikedByUser,
               }
-            : post
-        )
+            : post,
+        ),
       );
 
       setSavedPosts((prevSaved) =>
@@ -715,12 +716,12 @@ const Community = () => {
                   (Array.isArray(saved.likes)
                     ? saved.likes.length
                     : typeof saved.likesCount === "number"
-                    ? saved.likesCount
-                    : 0),
+                      ? saved.likesCount
+                      : 0),
                 isLikedByUser: nextIsLiked ?? saved.isLikedByUser,
               }
-            : saved
-        )
+            : saved,
+        ),
       );
     } catch (error) {
       console.error("Error liking post:", error);
@@ -729,7 +730,7 @@ const Community = () => {
           error.response?.status === 401
             ? "Please log in again"
             : "Try again later"
-        }`
+        }`,
       );
     }
   };
@@ -759,8 +760,8 @@ const Community = () => {
                   isFollowing: response.data.isFollowing,
                 },
               }
-            : post
-        )
+            : post,
+        ),
       );
 
       setSavedPosts((prev) =>
@@ -774,22 +775,22 @@ const Community = () => {
                   isFollowing: response.data.isFollowing,
                 },
               }
-            : post
-        )
+            : post,
+        ),
       );
 
       setSuggestedUsers((prev) =>
         prev.map((user) =>
           user._id === userId
             ? { ...user, isFollowing: response.data.isFollowing }
-            : user
-        )
+            : user,
+        ),
       );
 
       setProfilePreview((prev) =>
         prev && prev._id === userId
           ? { ...prev, isFollowing: response.data.isFollowing }
-          : prev
+          : prev,
       );
 
       if (typeof refreshProfile === "function") {
@@ -803,7 +804,7 @@ const Community = () => {
           error.response?.status === 401
             ? "Please log in again"
             : "Try again later"
-        }`
+        }`,
       );
       return null;
     }
@@ -814,8 +815,8 @@ const Community = () => {
       prev.map((item) =>
         item._id === postData._id
           ? { ...item, isSavedByUser: shouldSave }
-          : item
-      )
+          : item,
+      ),
     );
 
     setSavedPosts((prev) => {
@@ -828,7 +829,7 @@ const Community = () => {
 
         if (existing) {
           return prev.map((item) =>
-            item._id === postData._id ? nextEntry : item
+            item._id === postData._id ? nextEntry : item,
           );
         }
 
@@ -929,6 +930,16 @@ const Community = () => {
     setShowPostComposer(true);
   };
 
+  /**
+   * Called by GestureDrop when a fist gesture consumes the transfer session.
+   * Opens the existing "Start a Post → Photo" composer with the image pre-loaded.
+   */
+  const handleGestureImageReady = useCallback((file, previewUrl) => {
+    setComposer(createComposerState({ type: "image", media: [file] }));
+    setMediaPreviews([previewUrl]);
+    setShowPostComposer(true);
+  }, []);
+
   const closeComposer = () => {
     resetComposer();
     setShowPostComposer(false);
@@ -966,7 +977,7 @@ const Community = () => {
       if (composer.media.length > 0) {
         formData.append(
           type === "article" ? "articleCover" : "image",
-          composer.media[0]
+          composer.media[0],
         );
       }
 
@@ -975,7 +986,7 @@ const Community = () => {
         formData.append("pollOptions", JSON.stringify(pollOptions));
         formData.append(
           "pollAllowMultiple",
-          composer.pollAllowMultiple ? "true" : "false"
+          composer.pollAllowMultiple ? "true" : "false",
         );
         if (composer.pollExpiresAt) {
           formData.append("pollExpiresAt", composer.pollExpiresAt);
@@ -1005,7 +1016,7 @@ const Community = () => {
         }
         formData.append(
           "eventIsVirtual",
-          composer.eventIsVirtual ? "true" : "false"
+          composer.eventIsVirtual ? "true" : "false",
         );
       }
 
@@ -1030,7 +1041,7 @@ const Community = () => {
     } catch (error) {
       console.error("Error creating post:", error);
       toast.error(
-        error.response?.data?.message || "Failed to create post. Try again."
+        error.response?.data?.message || "Failed to create post. Try again.",
       );
     } finally {
       setComposerSubmitting(false);
@@ -1078,9 +1089,9 @@ const Community = () => {
       const data = response.data || {};
       const isFollowing = Boolean(
         followedUsers.has(authorId) ||
-          author?.isFollowed ||
-          author?.isFollowing ||
-          data.isFollowing
+        author?.isFollowed ||
+        author?.isFollowing ||
+        data.isFollowing,
       );
 
       setProfilePreview({
@@ -1091,7 +1102,7 @@ const Community = () => {
       console.error("Failed to load profile preview", error);
       setProfilePreviewError(
         error.response?.data?.message ||
-          "Unable to load this profile preview right now."
+          "Unable to load this profile preview right now.",
       );
     } finally {
       setProfilePreviewLoading(false);
@@ -1115,8 +1126,8 @@ const Community = () => {
           ? 0
           : 1
         : prev.isFollowing
-        ? -1
-        : 0;
+          ? -1
+          : 0;
       return {
         ...prev,
         isFollowing: result.isFollowing,
@@ -1135,8 +1146,8 @@ const Community = () => {
                 isFollowing: result.isFollowing,
               },
             }
-          : post
-      )
+          : post,
+      ),
     );
 
     setSavedPosts((prev) =>
@@ -1150,16 +1161,16 @@ const Community = () => {
                 isFollowing: result.isFollowing,
               },
             }
-          : post
-      )
+          : post,
+      ),
     );
 
     setSuggestedUsers((prev) =>
       prev.map((user) =>
         user._id === userId
           ? { ...user, isFollowing: result.isFollowing }
-          : user
-      )
+          : user,
+      ),
     );
   };
 
@@ -1249,15 +1260,15 @@ const Community = () => {
                   error
                     ? "bg-red-500"
                     : loading
-                    ? "bg-yellow-500"
-                    : "bg-green-500"
+                      ? "bg-yellow-500"
+                      : "bg-green-500"
                 } ${loading ? "animate-pulse" : ""}`}
                 title={
                   error
                     ? "Connection Error"
                     : loading
-                    ? "Loading..."
-                    : "Connected"
+                      ? "Loading..."
+                      : "Connected"
                 }
               ></div>
             </div>
@@ -1380,6 +1391,8 @@ const Community = () => {
               <div className="space-y-6">
                 {/* LinkedIn-Style Post Composer */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                  {/* Gesture-based cross-device drop zone */}
+                  <GestureDrop onImageReady={handleGestureImageReady} />
                   <div className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm overflow-hidden">
@@ -1574,7 +1587,7 @@ const Community = () => {
                                         onChange={(e) =>
                                           updatePollOption(
                                             index,
-                                            e.target.value
+                                            e.target.value,
                                           )
                                         }
                                         className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -2290,7 +2303,7 @@ const Community = () => {
                             .reduce(
                               (total, post) =>
                                 total + (post.likes?.length || 0),
-                              0
+                              0,
                             )}
                       </span>
                     </div>
@@ -2332,7 +2345,7 @@ const Community = () => {
                         {communityInsights.totalLikes ||
                           posts.reduce(
                             (total, post) => total + (post.likes?.length || 0),
-                            0
+                            0,
                           )}
                       </div>
                       <div className="text-sm text-purple-500">Total Likes</div>
@@ -2347,7 +2360,7 @@ const Community = () => {
                           posts.reduce(
                             (total, post) =>
                               total + (post.comments?.length || 0),
-                            0
+                            0,
                           )}
                       </div>
                       <div className="text-xs text-indigo-500">Comments</div>
@@ -2381,7 +2394,7 @@ const Community = () => {
                       .slice()
                       .sort(
                         (a, b) =>
-                          (b.likes?.length || 0) - (a.likes?.length || 0)
+                          (b.likes?.length || 0) - (a.likes?.length || 0),
                       )
                       .slice(0, 5)
                       .map((post, index) => (
@@ -2490,7 +2503,7 @@ const Community = () => {
                           .slice()
                           .sort(
                             (a, b) =>
-                              new Date(b.createdAt) - new Date(a.createdAt)
+                              new Date(b.createdAt) - new Date(a.createdAt),
                           )
                           .slice(0, 5)
                     ).map((activity) => (

@@ -33,6 +33,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const monitoringRoutes = require("./routes/monitoringRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const chatbotTrainingRoutes = require("./routes/chatbotTrainingRoutes");
+const transferRoutes = require("./routes/transferRoutes");
 
 // Import monitoring service
 const {
@@ -238,6 +239,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/monitoring", monitoringRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chatbot-training", chatbotTrainingRoutes);
+app.use("/api/transfer", transferRoutes);
 
 app.use("/uploads", express.static("uploads"));
 
@@ -347,6 +349,26 @@ io.on("connection", (socket) => {
     if (!circleId) return;
     socket.leave(`circle:${circleId}`);
     console.log(`User ${socket.userId} left circle room: circle:${circleId}`);
+  });
+
+  // ─── Cross-device gesture transfer events ──────────────────────
+  socket.on("transfer:grab", async (data) => {
+    // Client sends { sessionId, imageUrl, ... } after creating via REST.
+    // We relay to every device in the user's room so they know a grab happened.
+    if (!socket.userId) return;
+    socket.to(socket.userId).emit("transfer:created", data);
+  });
+
+  socket.on("transfer:drop", async (data) => {
+    // Client sends { sessionId } when a palm gesture is detected.
+    // We relay to the user's room so the grabbing device can clear state.
+    if (!socket.userId) return;
+    socket.to(socket.userId).emit("transfer:accepted", data);
+  });
+
+  socket.on("transfer:cancel", () => {
+    if (!socket.userId) return;
+    socket.to(socket.userId).emit("transfer:cancelled");
   });
 
   // WebRTC Signaling

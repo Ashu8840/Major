@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { IoCloseOutline as IoClose, IoLogOutOutline } from "react-icons/io5";
+import {
+  IoCloseOutline as IoClose,
+  IoLogOutOutline,
+  IoHandRight,
+} from "react-icons/io5";
 import { NAVIGATION_ITEMS, NAVIGATION_ITEM_IDS } from "../config/navigation";
 import { useCurrentUser } from "../hooks/useAuth";
 
-export default function Sidebar({ isOpen = true, onClose }) {
+export default function Sidebar({ isOpen = true, onClose, onOpenGrab }) {
   const currentPath = window.location.pathname;
   const navigate = useNavigate();
   const { logout, userProfile } = useCurrentUser();
@@ -120,6 +124,28 @@ export default function Sidebar({ isOpen = true, onClose }) {
                   ideas and track your progress.
                 </p>
               </div>
+
+              {/* AirGrab – cross device gesture transfer */}
+              {typeof onOpenGrab === "function" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenGrab();
+                    if (typeof onClose === "function") onClose();
+                  }}
+                  className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 pl-5 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:from-violet-500/20 hover:to-fuchsia-500/20 transition-all duration-200 group"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-md group-hover:shadow-lg transition-shadow">
+                    <IoHandRight className="w-5 h-5" />
+                  </span>
+                  <div className="text-left">
+                    <span className="text-sm font-semibold block">AirGrab</span>
+                    <span className="text-[10px] opacity-70">
+                      Gesture transfer
+                    </span>
+                  </div>
+                </button>
+              )}
             </div>
           </div>
           <div className="border-t border-theme px-5 pt-4 pb-[10px] backdrop-blur">
