@@ -860,7 +860,7 @@ const createCommunityPost = async (req, res) => {
         validationError = "Share something with the community";
       }
     } else if (postType === "image") {
-      if (!trimmedContent && !req.files?.image?.length) {
+      if (!trimmedContent && !req.files?.image?.length && !req.body.imageUrl) {
         validationError = "Add an image or caption to continue";
       }
     } else if (postType === "poll") {
@@ -1000,6 +1000,23 @@ const createCommunityPost = async (req, res) => {
       } catch (uploadError) {
         console.error(`Image upload failed (${target.key}):`, uploadError);
         return res.status(400).json({ message: "Image upload failed" });
+      }
+    }
+
+    // Handle AirGrab URL-based image (no file upload)
+    if (req.body.imageUrl && !uploadedAssets.image) {
+      try {
+        const media = new Media({
+          owner: userId,
+          url: req.body.imageUrl,
+          type: "image",
+          public_id: `airgrab_${Date.now()}`,
+          size: 0,
+        });
+        const savedMedia = await media.save();
+        uploadedAssets.image = { media: savedMedia, url: req.body.imageUrl };
+      } catch (err) {
+        console.error("AirGrab media record error:", err);
       }
     }
 
