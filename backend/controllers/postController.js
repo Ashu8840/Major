@@ -48,6 +48,23 @@ const createPost = async (req, res) => {
         console.error("Image upload failed:", uploadError);
         return res.status(400).json({ message: "Image upload failed" });
       }
+    } else if (req.body.imageUrl) {
+      // Pre-uploaded image (AirGrab transfer) — use the existing Cloudinary URL directly.
+      // No re-upload, no quality loss.
+      try {
+        const media = new Media({
+          user: req.user._id,
+          url: req.body.imageUrl,
+          type: "image",
+          publicId: "",
+          size: 0,
+          filename: req.body.imageName || "transferred-image.jpg",
+        });
+        const savedMedia = await media.save();
+        postData.media = [savedMedia._id];
+      } catch (mediaError) {
+        console.error("Media record creation failed:", mediaError);
+      }
     }
 
     const post = new Post(postData);
@@ -98,7 +115,7 @@ const likePost = async (req, res) => {
     if (isLiked) {
       // Unlike
       post.likes = post.likes.filter(
-        (userId) => userId.toString() !== req.user._id.toString()
+        (userId) => userId.toString() !== req.user._id.toString(),
       );
     } else {
       // Like
@@ -106,11 +123,11 @@ const likePost = async (req, res) => {
     }
 
     await post.save();
-    
+
     res.json({
       likes: post.likes.length,
       isLiked: !isLiked,
-      postId: post._id
+      postId: post._id,
     });
   } catch (error) {
     console.error("Like post error:", error);
@@ -151,8 +168,8 @@ const addComment = async (req, res) => {
         path: "replies",
         populate: {
           path: "author",
-          select: "username displayName profileImage"
-        }
+          select: "username displayName profileImage",
+        },
       });
 
     res.status(201).json(populatedComment);
@@ -175,7 +192,7 @@ const likeComment = async (req, res) => {
     if (isLiked) {
       // Unlike
       comment.likes = comment.likes.filter(
-        (userId) => userId.toString() !== req.user._id.toString()
+        (userId) => userId.toString() !== req.user._id.toString(),
       );
     } else {
       // Like
@@ -183,11 +200,11 @@ const likeComment = async (req, res) => {
     }
 
     await comment.save();
-    
+
     res.json({
       likes: comment.likes.length,
       isLiked: !isLiked,
-      commentId: comment._id
+      commentId: comment._id,
     });
   } catch (error) {
     console.error("Like comment error:", error);
@@ -197,17 +214,17 @@ const likeComment = async (req, res) => {
 
 const getComments = async (req, res) => {
   try {
-    const comments = await Comment.find({ 
-      post: req.params.id, 
-      parentComment: null 
+    const comments = await Comment.find({
+      post: req.params.id,
+      parentComment: null,
     })
       .populate("author", "username displayName profileImage")
       .populate({
         path: "replies",
         populate: {
           path: "author",
-          select: "username displayName profileImage"
-        }
+          select: "username displayName profileImage",
+        },
       })
       .sort({ createdAt: -1 });
 
@@ -221,29 +238,26 @@ const getComments = async (req, res) => {
 const searchPosts = async (req, res) => {
   try {
     const { q, page = 1, limit = 10 } = req.query;
-    
+
     if (!q) {
       return res.status(400).json({ message: "Search query is required" });
     }
 
-    const searchRegex = new RegExp(q, 'i');
-    
+    const searchRegex = new RegExp(q, "i");
+
     const posts = await Post.find({
       $or: [
         { title: searchRegex },
         { content: searchRegex },
-        { tags: { $in: [searchRegex] } }
-      ]
+        { tags: { $in: [searchRegex] } },
+      ],
     })
       .populate({
         path: "author",
         select: "username displayName profileImage",
         match: {
-          $or: [
-            { username: searchRegex },
-            { displayName: searchRegex }
-          ]
-        }
+          $or: [{ username: searchRegex }, { displayName: searchRegex }],
+        },
       })
       .populate("media")
       .sort({ createdAt: -1 })
@@ -251,17 +265,18 @@ const searchPosts = async (req, res) => {
       .skip((Number(page) - 1) * Number(limit));
 
     // Filter out posts where author didn't match the search if searching by username
-    const filteredPosts = posts.filter(post => 
-      post.author || 
-      post.title.match(searchRegex) || 
-      post.content.match(searchRegex) ||
-      post.tags.some(tag => tag.match(searchRegex))
+    const filteredPosts = posts.filter(
+      (post) =>
+        post.author ||
+        post.title.match(searchRegex) ||
+        post.content.match(searchRegex) ||
+        post.tags.some((tag) => tag.match(searchRegex)),
     );
 
     res.json({
       posts: filteredPosts,
       page: Number(page),
-      hasMore: filteredPosts.length === Number(limit)
+      hasMore: filteredPosts.length === Number(limit),
     });
   } catch (error) {
     console.error("Search posts error:", error);
@@ -272,18 +287,18 @@ const searchPosts = async (req, res) => {
 const getTrendingPosts = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    
+
     // Get posts from the last 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     const posts = await Post.find({
-      createdAt: { $gte: oneDayAgo }
+      createdAt: { $gte: oneDayAgo },
     })
       .populate("author", "username displayName profileImage")
       .populate("media")
-      .sort({ 
+      .sort({
         likesCount: -1, // Sort by likes count (we'll add this virtual field)
-        createdAt: -1 
+        createdAt: -1,
       })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
@@ -294,7 +309,7 @@ const getTrendingPosts = async (req, res) => {
     res.json({
       posts: sortedPosts,
       page: Number(page),
-      hasMore: posts.length === Number(limit)
+      hasMore: posts.length === Number(limit),
     });
   } catch (error) {
     console.error("Get trending posts error:", error);
@@ -302,13 +317,13 @@ const getTrendingPosts = async (req, res) => {
   }
 };
 
-module.exports = { 
-  createPost, 
-  getPosts, 
-  likePost, 
-  addComment, 
-  likeComment, 
-  getComments, 
-  searchPosts, 
-  getTrendingPosts 
+module.exports = {
+  createPost,
+  getPosts,
+  likePost,
+  addComment,
+  likeComment,
+  getComments,
+  searchPosts,
+  getTrendingPosts,
 };

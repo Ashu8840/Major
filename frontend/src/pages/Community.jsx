@@ -933,10 +933,14 @@ const Community = () => {
   /**
    * Called by GestureDrop when a fist gesture consumes the transfer session.
    * Opens the existing "Start a Post → Photo" composer with the image pre-loaded.
+   * The Cloudinary URL is passed directly as a string in `media` — no File object,
+   * no re-download, no quality loss.
    */
-  const handleGestureImageReady = useCallback((file, previewUrl) => {
-    setComposer(createComposerState({ type: "image", media: [file] }));
-    setMediaPreviews([previewUrl]);
+  const handleGestureImageReady = useCallback((imageUrl, fileName) => {
+    // Put the URL string directly in composer.media.
+    // The composer display code already handles typeof media[0] === "string".
+    setComposer(createComposerState({ type: "image", media: [imageUrl] }));
+    setMediaPreviews([imageUrl]);
     setShowPostComposer(true);
   }, []);
 
@@ -975,10 +979,16 @@ const Community = () => {
       formData.append("visibility", "public");
 
       if (composer.media.length > 0) {
-        formData.append(
-          type === "article" ? "articleCover" : "image",
-          composer.media[0],
-        );
+        const mediaItem = composer.media[0];
+        if (typeof mediaItem === "string") {
+          // Pre-uploaded Cloudinary URL (AirGrab) — send directly, no re-upload
+          formData.append("imageUrl", mediaItem);
+        } else {
+          formData.append(
+            type === "article" ? "articleCover" : "image",
+            mediaItem,
+          );
+        }
       }
 
       if (type === "poll") {

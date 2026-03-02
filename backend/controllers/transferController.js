@@ -1,5 +1,6 @@
 const TransferSession = require("../models/TransferSession");
 const { v4: uuidv4 } = require("uuid");
+const cloudinary = require("../services/cloudinary");
 
 /** How long a grab session stays valid (milliseconds) */
 const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -188,9 +189,45 @@ const cancelTransferSession = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/transfer/upload
+ * Multipart: image file
+ *
+ * Uploads an image to Cloudinary with NO resize/quality transformations
+ * so the original quality is fully preserved for the transfer session.
+ */
+const uploadTransferImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file provided" });
+    }
+
+    // Upload with zero transformations — preserve 100% original quality
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "airgrab_transfers",
+      resource_type: "image",
+    });
+
+    // Generate a small thumbnail via on-the-fly Cloudinary URL (no re-encode of source)
+    const thumbUrl = result.secure_url.replace(
+      "/upload/",
+      "/upload/w_400,c_limit,q_auto/",
+    );
+
+    return res.status(200).json({
+      url: result.secure_url,
+      thumbUrl,
+    });
+  } catch (err) {
+    console.error("uploadTransferImage error:", err);
+    return res.status(500).json({ message: "Upload failed" });
+  }
+};
+
 module.exports = {
   createTransferSession,
   acceptTransferSession,
   getActiveSession,
   cancelTransferSession,
+  uploadTransferImage,
 };

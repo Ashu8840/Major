@@ -89,15 +89,15 @@ export default function GrabSidebar({ isOpen, onClose }) {
     setIsUploading(true);
     try {
       const formData = new FormData();
-      formData.append("media", selectedImage.file);
+      formData.append("image", selectedImage.file);
 
-      // Use the existing upload endpoint
+      // Use transfer upload endpoint — uploads with NO resize/quality transformations
       const { default: api } = await import("../utils/api");
-      const { data } = await api.post("/upload", formData, {
+      const { data } = await api.post("/transfer/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const url = data.url || data.imageUrl || data.secure_url;
+      const url = data.url;
       setUploadedUrl(url);
       return url;
     } catch (err) {

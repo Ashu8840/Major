@@ -59,16 +59,10 @@ export default function GestureDrop({ onImageReady }) {
           stopCamera();
           setCameraActive(false);
 
-          // Download the image and convert to a File object
-          const response = await fetch(result.imageUrl);
-          const blob = await response.blob();
-          const file = new File([blob], result.fileName || "transfer.jpg", {
-            type: result.mimeType || blob.type || "image/jpeg",
-          });
-          const previewUrl = URL.createObjectURL(file);
-
+          // Pass the Cloudinary URL directly — NO re-download or re-encode.
+          // This preserves the original upload quality end-to-end.
           toast.success("Image received! Composer opened.");
-          onImageReady?.(file, previewUrl);
+          onImageReady?.(result.imageUrl, result.fileName, result.mimeType);
         }
       } catch {
         toast.error("Drop failed.");
