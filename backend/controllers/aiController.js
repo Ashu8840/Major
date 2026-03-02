@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
 const {
   fixGrammar,
@@ -7,42 +7,45 @@ const {
   isGeminiOperational,
 } = require("../services/gemini");
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash-latest";
-const GEMINI_OFFLINE_MESSAGE =
-  "Gemini service is temporarily unavailable. Using intelligent fallbacks.";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+const GROQ_OFFLINE_MESSAGE =
+  "AI service is temporarily unavailable. Using intelligent fallbacks.";
 
-let cachedClient = null;
-let cachedModel = null;
+let cachedGroqClient = null;
 
-const getGeminiModel = () => {
-  if (!process.env.GEMINI_API_KEY) {
+const getGroqClient = () => {
+  if (!process.env.GROQ_API_KEY) {
     return null;
   }
-
   try {
-    if (!cachedClient) {
-      cachedClient = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    if (!cachedGroqClient) {
+      cachedGroqClient = new OpenAI({
+        apiKey: process.env.GROQ_API_KEY,
+        baseURL: "https://api.groq.com/openai/v1",
+      });
     }
-
-    if (!cachedModel) {
-      cachedModel = cachedClient.getGenerativeModel({ model: GEMINI_MODEL });
-    }
-
-    return cachedModel;
+    return cachedGroqClient;
   } catch (error) {
-    console.error(
-      `Failed to initialize Gemini model (${GEMINI_MODEL}):`,
-      error.message
-    );
-    cachedClient = null;
-    cachedModel = null;
+    console.error("Failed to initialize Groq client:", error.message);
+    cachedGroqClient = null;
     return null;
   }
 };
 
-const resetGemini = () => {
-  cachedClient = null;
-  cachedModel = null;
+const resetGroq = () => {
+  cachedGroqClient = null;
+};
+
+const callGroqChat = async (prompt) => {
+  const groqClient = getGroqClient();
+  if (!groqClient) return null;
+  const completion = await groqClient.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.7,
+    max_tokens: 1024,
+  });
+  return completion.choices[0]?.message?.content?.trim() || null;
 };
 
 const fallbackSummarize = (text) => {
@@ -142,38 +145,36 @@ const summarizeEntry = async (req, res) => {
   }
 
   const fallback = fallbackSummarize(text);
-  const model = getGeminiModel();
+  const groqClient = getGroqClient();
 
-  if (!model) {
+  if (!groqClient) {
     return res.status(200).json({
       summary: fallback,
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
     });
   }
 
   try {
     const prompt = `Summarize this diary entry (max 4 sentences) and preserve the author’s tone. Entry: "${text}"`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const summary = response.text().trim();
+    const summary = await callGroqChat(prompt);
 
     if (!summary) {
-      throw new Error("Empty response from Gemini");
+      throw new Error("Empty response from Groq");
     }
 
     res.json({
       summary,
       usingFallback: false,
-      model: GEMINI_MODEL,
+      model: GROQ_MODEL,
     });
   } catch (error) {
-    console.error("Gemini summary error:", error.message);
-    resetGemini();
+    console.error("Groq summary error:", error.message);
+    resetGroq();
     res.status(200).json({
       summary: fallback,
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
       error: error.message,
     });
   }
@@ -187,46 +188,42 @@ const analyzeSentiment = async (req, res) => {
   }
 
   const fallback = fallbackSentiment(text);
-  const model = getGeminiModel();
+  const groqClient = getGroqClient();
 
-  if (!model) {
+  if (!groqClient) {
     return res.status(200).json({
       sentiment: fallback.label,
       score: fallback.score,
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
     });
   }
 
   try {
-    const prompt = `Analyze the sentiment of the following text and respond with a JSON object that includes a 'sentiment' property (positive, neutral, or negative) and a 'score' between -1 and 1.
+    const prompt = `Analyze the sentiment of the following text and respond with a JSON object that includes a 'sentiment' property (positive, neutral, or negative) and a 'score' between -1 and 1.\n\nText: "${text}"`;
 
-Text: "${text}"`;
+    const raw = await callGroqChat(prompt);
+    if (!raw) throw new Error("Empty response from Groq");
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const raw = response.text().trim();
-
-    let normalized = raw;
+    let normalized = raw.toLowerCase();
     let parsed;
 
     try {
       const jsonCandidate = raw.replace(/```json|```/g, "");
       parsed = JSON.parse(jsonCandidate);
     } catch (parseError) {
-      normalized = raw.toLowerCase();
+      // fall through to keyword matching
     }
 
     const sentimentCandidates = [
       parsed?.sentiment?.toLowerCase(),
-      normalized?.includes("positive") ? "positive" : null,
-      normalized?.includes("negative") ? "negative" : null,
-      normalized?.includes("neutral") ? "neutral" : null,
+      normalized.includes("positive") ? "positive" : null,
+      normalized.includes("negative") ? "negative" : null,
+      normalized.includes("neutral") ? "neutral" : null,
       fallback.label,
     ].filter(Boolean);
 
     const sentiment = sentimentCandidates.find(Boolean) || fallback.label;
-
     const boundedScore = parsed?.score;
 
     res.json({
@@ -236,56 +233,54 @@ Text: "${text}"`;
           ? Math.max(-1, Math.min(1, boundedScore))
           : fallback.score,
       usingFallback: false,
-      model: GEMINI_MODEL,
+      model: GROQ_MODEL,
       rawResponse: raw,
     });
   } catch (error) {
-    console.error("Gemini sentiment error:", error.message);
-    resetGemini();
+    console.error("Groq sentiment error:", error.message);
+    resetGroq();
     res.status(200).json({
       sentiment: fallback.label,
       score: fallback.score,
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
       error: error.message,
     });
   }
 };
 
 const getDailyPrompt = async (req, res) => {
-  const model = getGeminiModel();
+  const groqClient = getGroqClient();
 
-  if (!model) {
+  if (!groqClient) {
     return res.status(200).json({
       dailyPrompt: getFallbackPrompt(),
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
     });
   }
 
   try {
     const prompt =
       "Provide a unique, inspiring writing prompt suitable for a personal journal. Keep it under 40 words.";
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const dailyPrompt = response.text().trim();
+    const dailyPrompt = await callGroqChat(prompt);
 
     if (!dailyPrompt) {
-      throw new Error("Empty prompt from Gemini");
+      throw new Error("Empty prompt from Groq");
     }
 
     res.json({
       dailyPrompt,
       usingFallback: false,
-      model: GEMINI_MODEL,
+      model: GROQ_MODEL,
     });
   } catch (error) {
-    console.error("Gemini prompt error:", error.message);
-    resetGemini();
+    console.error("Groq prompt error:", error.message);
+    resetGroq();
     res.status(200).json({
       dailyPrompt: getFallbackPrompt(),
       usingFallback: true,
-      message: GEMINI_OFFLINE_MESSAGE,
+      message: GROQ_OFFLINE_MESSAGE,
       error: error.message,
     });
   }

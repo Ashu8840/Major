@@ -1,50 +1,46 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash-latest";
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
-// Initialize Gemini AI with error handling
-let genAI;
-let model;
+// Groq client (OpenAI-compatible)
+let client = null;
+let isOperational = false;
 
-const ensureModel = () => {
-  if (!process.env.GEMINI_API_KEY) {
+const ensureClient = () => {
+  if (!process.env.GROQ_API_KEY) {
     return null;
   }
-
   try {
-    if (!genAI) {
-      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    if (!client) {
+      client = new OpenAI({
+        apiKey: process.env.GROQ_API_KEY,
+        baseURL: "https://api.groq.com/openai/v1",
+      });
+      isOperational = true;
+      console.log(`Groq client ready (model: ${GROQ_MODEL})`);
     }
-
-    if (!model) {
-      model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
-      console.log(
-        `Gemini model "${DEFAULT_MODEL}" hydrated and ready for requests`
-      );
-    }
-
-    return model;
+    return client;
   } catch (error) {
-    console.error("Failed to hydrate Gemini model:", error.message);
-    model = null;
-    genAI = null;
+    console.error("Failed to initialize Groq client:", error.message);
+    client = null;
+    isOperational = false;
     return null;
   }
 };
 
 try {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     console.warn(
-      "GEMINI_API_KEY not found. AI features will use fallback methods."
+      "GROQ_API_KEY not found. AI features will use fallback methods.",
     );
   } else {
-    ensureModel();
+    ensureClient();
   }
 } catch (error) {
-  console.error("Failed to initialize Gemini AI:", error.message);
+  console.error("Failed to initialize Groq AI:", error.message);
   console.log("AI features will use fallback methods.");
-  genAI = null;
-  model = null;
+  client = null;
+  isOperational = false;
 }
 
 // Fallback text processing functions
@@ -123,90 +119,83 @@ const fallbackImproveContent = (text) => {
   );
 };
 
+// Shared Groq chat helper
+const callGroq = async (prompt) => {
+  const groqClient = ensureClient();
+  if (!groqClient) return null;
+  const completion = await groqClient.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.7,
+    max_tokens: 1024,
+  });
+  return completion.choices[0]?.message?.content?.trim() || null;
+};
+
 const fixGrammar = async (text) => {
   try {
-    const activeModel = ensureModel();
-    if (!activeModel) {
-      console.log("Gemini API not available, using fallback grammar fix...");
+    const groqClient = ensureClient();
+    if (!groqClient) {
+      console.log("Groq API not available, using fallback grammar fix...");
       return fallbackFixGrammar(text);
     }
-
-    console.log("Attempting Gemini API for grammar fix...");
-
-    const prompt = `Please fix the grammar, spelling, and punctuation in the following text. Only return the corrected text, nothing else:
-
-"${text}"`;
-
-    const result = await activeModel.generateContent(prompt);
-    const response = await result.response;
-    const correctedText = response.text().trim();
-
-    console.log("Gemini API grammar fix successful");
-    return correctedText;
+    console.log("Attempting Groq API for grammar fix...");
+    const prompt = `Please fix the grammar, spelling, and punctuation in the following text. Only return the corrected text, nothing else:\n\n"${text}"`;
+    const result = await callGroq(prompt);
+    if (!result) return fallbackFixGrammar(text);
+    console.log("Groq grammar fix successful");
+    isOperational = true;
+    return result;
   } catch (error) {
-    console.error("Gemini API grammar fix failed:", error.message);
-    console.log("Using fallback grammar fix...");
-    model = null;
+    console.error("Groq grammar fix failed:", error.message);
+    client = null;
+    isOperational = false;
     return fallbackFixGrammar(text);
   }
 };
 
 const translateText = async (text, targetLanguage) => {
   try {
-    const activeModel = ensureModel();
-    if (!activeModel) {
-      console.log("Gemini API not available, using fallback translation...");
+    const groqClient = ensureClient();
+    if (!groqClient) {
+      console.log("Groq API not available, using fallback translation...");
       return fallbackTranslate(text, targetLanguage);
     }
-
-    console.log(
-      `Attempting Gemini API for translation to ${targetLanguage}...`
-    );
-
-    const prompt = `Translate the following text to ${targetLanguage}. Only return the translated text, nothing else:
-
-"${text}"`;
-
-    const result = await activeModel.generateContent(prompt);
-    const response = await result.response;
-    const translatedText = response.text().trim();
-
-    console.log("Gemini API translation successful");
-    return translatedText;
+    console.log(`Attempting Groq API for translation to ${targetLanguage}...`);
+    const prompt = `Translate the following text to ${targetLanguage}. Only return the translated text, nothing else:\n\n"${text}"`;
+    const result = await callGroq(prompt);
+    if (!result) return fallbackTranslate(text, targetLanguage);
+    console.log(`Groq translation to ${targetLanguage} successful`);
+    isOperational = true;
+    return result;
   } catch (error) {
-    console.error("Gemini API translation failed:", error.message);
-    console.log(`Using fallback translation to ${targetLanguage}...`);
-    model = null;
+    console.error("Groq translation failed:", error.message);
+    client = null;
+    isOperational = false;
     return fallbackTranslate(text, targetLanguage);
   }
 };
 
 const improveContent = async (text) => {
   try {
-    const activeModel = ensureModel();
-    if (!activeModel) {
+    const groqClient = ensureClient();
+    if (!groqClient) {
       console.log(
-        "Gemini API not available, using fallback content improvement..."
+        "Groq API not available, using fallback content improvement...",
       );
       return fallbackImproveContent(text);
     }
-
-    console.log("Attempting Gemini API for content improvement...");
-
-    const prompt = `Please expand and improve the following text. Make it more detailed, engaging, and well-written while maintaining the original meaning and tone. Aim for 3-4 times the original length with better vocabulary and flow:
-
-"${text}"`;
-
-    const result = await activeModel.generateContent(prompt);
-    const response = await result.response;
-    const improvedText = response.text().trim();
-
-    console.log("Gemini API content improvement successful");
-    return improvedText;
+    console.log("Attempting Groq API for content improvement...");
+    const prompt = `Please expand and improve the following text. Make it more detailed, engaging, and well-written while maintaining the original meaning and tone. Aim for 3-4 times the original length with better vocabulary and flow:\n\n"${text}"`;
+    const result = await callGroq(prompt);
+    if (!result) return fallbackImproveContent(text);
+    console.log("Groq content improvement successful");
+    isOperational = true;
+    return result;
   } catch (error) {
-    console.error("Gemini API content improvement failed:", error.message);
-    console.log("Using fallback content improvement...");
-    model = null;
+    console.error("Groq content improvement failed:", error.message);
+    client = null;
+    isOperational = false;
     return fallbackImproveContent(text);
   }
 };
@@ -215,5 +204,5 @@ module.exports = {
   fixGrammar,
   translateText,
   improveContent,
-  isGeminiOperational: () => Boolean(model),
+  isGeminiOperational: () => isOperational,
 };
