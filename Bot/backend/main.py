@@ -48,21 +48,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - allow all origins (public API) or lock to specific domains
-_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
-_extra_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
-
+# CORS - open to all origins (public RAG assistant API)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "https://major-mu.vercel.app",
-        "https://soulspace.vercel.app",
-        *_extra_origins,
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
