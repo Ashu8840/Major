@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Generated index files (rebuilt on server startup)
+data/tfidf_index.pkl
+data/documents.pkl
+
+# Environment secrets
+.env

@@ -755,7 +755,7 @@ export const uploadProfileAvatar = async (file) => {
 };
 
 // AI Chatbot APIs
-const BOT_API_URL = "https://major-1-ate0.onrender.com";
+const BOT_API_URL = import.meta.env.VITE_BOT_API_URL || "http://localhost:8000";
 
 export const sendChatbotMessage = async (message, userId, options = {}) => {
   try {

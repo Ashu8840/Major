@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: soulspace-rag-bot
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: Bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 -m backend.main
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.12.0

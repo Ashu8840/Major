@@ -16,98 +16,17 @@ import toast from "react-hot-toast";
 const INITIAL_MESSAGES = [
   {
     role: "bot",
-    text: "Hey there! I'm Major's AI assistant powered by DialoGPT. I can help with diary writing, journaling tips, creative prompts, and more. What would you like to talk about?",
+    text: "Hi! I'm the SoulSpace AI assistant. I can help you with journals, community features, chat, settings, and more. What would you like to know?",
     timestamp: Date.now(),
   },
 ];
 
 const SUGGESTED_PROMPTS = [
-  "How can I start journaling daily?",
-  "Give me a creative writing prompt",
-  "Tips for overcoming writer's block",
-  "How to make my diary entries more meaningful?",
+  "How do I create a diary entry?",
+  "How do I enable dark mode?",
+  "What is the community section?",
+  "How do I change my password?",
 ];
-
-const FAQ_RESPONSES = [
-  {
-    question: "How do I start a new diary entry?",
-    answer:
-      "Click the teal “New Diary Entry” button in the top navigation or open the Diary page and use the + icon. You’ll get mood tracking, AI polishing, and media attachments in one view.",
-    keywords: ["new entry", "start", "diary", "write", "journal"],
-  },
-  {
-    question: "What can I do in the Community tab?",
-    answer:
-      "Community is your collaborative space—share prompts, host writing circles, respond to others, and discover trending posts curated for your interests.",
-    keywords: ["community", "social", "share", "post", "connect"],
-  },
-  {
-    question: "Any tips to keep my writing streak alive?",
-    answer:
-      "Short bursts count! Set a 5-minute timer, jot a single paragraph, and use the streak reminders in Settings. AI drafting suggestions are great when you’re low on ideas.",
-    keywords: ["streak", "habit", "motivation", "tips"],
-  },
-  {
-    question: "Where do I track my progress?",
-    answer:
-      "Head to Analytics for weekly mood charts, writing time heatmaps, and goal progress. Leaderboard shows how you compare with friends.",
-    keywords: ["progress", "analytics", "stats", "track"],
-  },
-  {
-    question: "How do I collaborate with others?",
-    answer:
-      "Use Community to join themed threads or spin up a private circle. You can also send direct messages and swap drafts inside Circle Chat.",
-    keywords: ["collaborate", "friends", "circle", "chat"],
-  },
-  {
-    question: "Can the AI help polish my writing?",
-    answer:
-      "Absolutely. In any entry, open the AI tools drawer to fix grammar, translate passages, or expand your draft with richer detail.",
-    keywords: ["ai", "polish", "grammar", "translate", "improve"],
-  },
-  {
-    question: "How do I upgrade or manage billing?",
-    answer:
-      "Visit the Upgrade page for plan perks. Billing history lives under Settings → Membership, and you can switch tiers anytime.",
-    keywords: ["upgrade", "billing", "membership", "pricing"],
-  },
-];
-
-const FALLBACK_RESPONSES = [
-  "I’m piecing that together—could you try rephrasing or be a touch more specific?",
-  "I haven’t learned that trick yet. Maybe check Analytics or Settings while I keep learning?",
-  "That’s a great question! I can help with navigation, writing workflows, and feature tips if you can point me in the right direction.",
-];
-
-const getBotReply = (message) => {
-  const normalized = message.toLowerCase();
-  const gratitude = ["thanks", "thank", "appreciate", "thank you"];
-  if (gratitude.some((word) => normalized.includes(word))) {
-    return "Anytime! Keep creating—your stories matter.";
-  }
-
-  const matched = FAQ_RESPONSES.reduce(
-    (best, response) => {
-      const score = response.keywords.reduce(
-        (accumulator, keyword) =>
-          normalized.includes(keyword) ? accumulator + 1 : accumulator,
-        0
-      );
-      if (score > best.score) {
-        return { item: response, score };
-      }
-      return best;
-    },
-    { item: null, score: 0 }
-  );
-
-  if (matched.item) {
-    return `${matched.item.answer}`;
-  }
-
-  const fallbackIndex = Math.floor(Math.random() * FALLBACK_RESPONSES.length);
-  return FALLBACK_RESPONSES[fallbackIndex];
-};
 
 export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
@@ -176,7 +95,7 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
   useEffect(() => {
     if (isOpen) {
       setMessages((current) =>
-        current.length === 0 ? INITIAL_MESSAGES : current
+        current.length === 0 ? INITIAL_MESSAGES : current,
       );
     } else {
       setInputValue("");
@@ -196,77 +115,6 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
     return null;
   }
 
-  // Helper function to check if question is about journaling/writing
-  const isJournalingQuestion = (text) => {
-    const keywords = [
-      "journal",
-      "diary",
-      "writing",
-      "write",
-      "entry",
-      "entries",
-      "prompt",
-      "creative",
-      "meaningful",
-      "daily",
-      "habit",
-      "streak",
-      "mood",
-      "feelings",
-      "thoughts",
-      "reflection",
-      "gratitude",
-      "productivity",
-      "goals",
-      "track",
-      "document",
-      "record",
-    ];
-    const lowerText = text.toLowerCase();
-    return keywords.some((keyword) => lowerText.includes(keyword));
-  };
-
-  // Enhanced responses for journaling topics
-  const getEnhancedResponse = (message) => {
-    const lowerMsg = message.toLowerCase();
-
-    // Journaling habits
-    if (lowerMsg.includes("start") && lowerMsg.includes("journal")) {
-      return "Starting a daily journaling habit is easier than you think! Here's my advice:\n\n1. **Start small**: Just 5 minutes a day\n2. **Pick a consistent time**: Morning or before bed works best\n3. **Use prompts**: Questions like 'What am I grateful for?' or 'What did I learn today?'\n4. **Don't worry about perfection**: Your journal is for you, not anyone else\n5. **Use this app**: Track your mood, add photos, and let AI help polish your thoughts!\n\nWhat aspect of journaling interests you most?";
-    }
-
-    // Writing prompts
-    if (lowerMsg.includes("prompt") || lowerMsg.includes("creative")) {
-      const prompts = [
-        "Write about a moment today that made you smile, no matter how small.",
-        "Describe your ideal day 5 years from now. What does it look, feel, and sound like?",
-        "Write a letter to your past self from one year ago. What would you tell them?",
-        "If you could have dinner with anyone, living or dead, who would it be and why?",
-        "Describe a challenge you overcame this week and what it taught you.",
-        "Write about three things you're grateful for today and why they matter.",
-        "Imagine your life as a book. What would this chapter be titled?",
-      ];
-      return prompts[Math.floor(Math.random() * prompts.length)];
-    }
-
-    // Meaningful entries
-    if (lowerMsg.includes("meaningful") || lowerMsg.includes("better")) {
-      return "To make your diary entries more meaningful:\n\n📝 **Be specific**: Instead of 'had a good day', write 'felt energized after morning coffee and finishing that project'\n\n💭 **Add emotions**: Don't just say what happened, describe how you felt\n\n🎯 **Include lessons**: What did you learn? What would you do differently?\n\n📸 **Use media**: Add photos, voice notes, or sketches to capture the full experience\n\n🔄 **Review regularly**: Read past entries to see your growth\n\nWhat would make your entries feel more complete?";
-    }
-
-    // Writer's block
-    if (lowerMsg.includes("block") || lowerMsg.includes("stuck")) {
-      return "Overcoming writer's block:\n\n✨ Try these techniques:\n• Stream of consciousness: Write whatever comes to mind for 5 minutes\n• Answer a random question: 'What made me laugh today?'\n• Describe your surroundings in detail\n• Write about what's blocking you\n• Use voice recording instead of typing\n• Set a tiny goal: Just one sentence\n\nRemember: Any writing is better than no writing!";
-    }
-
-    // General encouragement for journaling questions
-    if (isJournalingQuestion(message)) {
-      return "That's a great journaling question! While I'm learning to give better answers, here are some tips:\n\n• **Be consistent**: Write regularly, even if it's just a few lines\n• **Be honest**: Your journal is your safe space\n• **Experiment**: Try different formats (lists, letters, poems)\n• **Use this app's features**: Mood tracking, AI polish, media attachments\n\nWhat specific aspect would you like to explore?";
-    }
-
-    return null; // Let AI handle non-journaling questions
-  };
-
   const handleSend = async () => {
     const trimmed = inputValue.trim();
     if (!trimmed || isLoading) return;
@@ -282,61 +130,26 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
     setIsLoading(true);
 
     try {
-      // Check for enhanced responses first
-      const enhancedResponse = getEnhancedResponse(trimmed);
+      if (botStatus.online) {
+        const response = await sendChatbotMessage(trimmed, userId, {
+          temperature: 0.7,
+          maxLength: 200,
+        });
 
-      if (enhancedResponse) {
-        // Use our curated response for journaling topics
         const botMessage = {
           role: "bot",
-          text: enhancedResponse,
+          text:
+            response.response ||
+            response.answer ||
+            "I couldn't find an answer. Could you try rephrasing?",
           timestamp: Date.now(),
         };
+
         setMessages((current) => [...current, botMessage]);
-      } else if (botStatus.online) {
-        // Use AI for general conversation
-        try {
-          // Add context to help AI understand it's a journaling assistant
-          const contextualMessage = isJournalingQuestion(trimmed)
-            ? `As a journaling and writing assistant, ${trimmed}`
-            : trimmed;
-
-          const response = await sendChatbotMessage(contextualMessage, userId, {
-            temperature: 0.8,
-            maxLength: 200,
-          });
-
-          const botMessage = {
-            role: "bot",
-            text:
-              response.response ||
-              "I'm here to help with journaling and writing. Could you rephrase that?",
-            timestamp: Date.now(),
-          };
-
-          setMessages((current) => [...current, botMessage]);
-        } catch (apiError) {
-          // If API fails, use enhanced response
-          const fallbackResponse =
-            getEnhancedResponse(trimmed) ||
-            "I'm having trouble connecting right now. Try asking about journaling habits, writing prompts, or making meaningful entries!";
-
-          const botMessage = {
-            role: "bot",
-            text: fallbackResponse,
-            timestamp: Date.now(),
-          };
-          setMessages((current) => [...current, botMessage]);
-        }
       } else {
-        // Bot offline - use enhanced responses
-        const offlineResponse =
-          getEnhancedResponse(trimmed) ||
-          "The AI server is offline, but I can still help with journaling questions! Try asking about daily habits, writing prompts, or making meaningful entries.";
-
         const botMessage = {
           role: "bot",
-          text: offlineResponse,
+          text: "The AI server is currently offline. Please try again in a moment.",
           timestamp: Date.now(),
         };
         setMessages((current) => [...current, botMessage]);
@@ -346,7 +159,7 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
 
       const fallbackMessage = {
         role: "bot",
-        text: "I'm having trouble right now, but I'm here to help with journaling! Ask me about starting a daily habit, creative prompts, or making entries more meaningful.",
+        text: "I'm having trouble connecting right now. Please try again shortly.",
         timestamp: Date.now(),
       };
 
@@ -411,14 +224,14 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
             </span>
             <div>
               <p className="text-base font-semibold text-blue-900 dark:text-white">
-                Major AI Assistant
+                SoulSpace AI Assistant
               </p>
               <p className="text-xs text-blue-500 dark:text-gray-300">
                 {botStatus.checking
                   ? "Checking connection..."
                   : botStatus.online
-                  ? "Powered by DialoGPT • Ready to chat"
-                  : "Offline • Connecting to cloud bot..."}
+                    ? "RAG-powered • Ready to help"
+                    : "Offline • Trying to connect..."}
               </p>
             </div>
           </div>
@@ -516,7 +329,7 @@ export default function ChatbotWidget({ isOpen, onClose, isMobile }) {
             }}
             placeholder={
               botStatus.online
-                ? "Ask me anything about journaling, writing, or life..."
+                ? "Ask me anything about SoulSpace..."
                 : "Chatbot is offline..."
             }
             disabled={!botStatus.online || isLoading}
